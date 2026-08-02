@@ -1,0 +1,39 @@
+/**
+ * The Back Bar — design tokens
+ * Source of truth for the design system documented in the-back-bar.md.
+ * Exact values — do not adjust. Extend the system, don't reinterpret it.
+ */
+
+:root {
+  /* Color — surfaces */
+  --green-900: #122e26; /* app background (ballroom green) */
+  --green-800: #1a3b2f; /* card / raised surface */
+
+  /* Color — semantic vocabulary (keep strict; see the-back-bar.md) */
+  --brass-500: #c6a15b; /* primary accent, selection, in-stock state */
+  --cream-100: #f1e8d6; /* primary text */
+  --cream-400: #b9ae97; /* secondary text, labels */
+  --sage-600: #6e8177; /* disabled / not-in-bar ingredient text */
+  --rose-300: #d8a79a; /* "near miss" section headers */
+  --rose-400: #c99287; /* missing-ingredient callouts */
+  --ox-700: #7a3b33; /* destructive actions, remove-from-shelf */
+
+  /* Borders & shape */
+  --border-card: 1px solid rgba(198, 161, 91, 0.3);
+  --radius-max: 2px; /* ledger, not a bubble — 2px corner maximum */
+
+  /* Type */
+  --font-display: "Libre Caslon Display", serif; /* never below 20px */
+  --font-body: "Libre Caslon Text", serif; /* 400/700 + italic */
+  --caps-tracking-min: 0.18em; /* utility caps letterspacing range */
+  --caps-tracking-max: 0.32em;
+
+  /* Motion */
+  --motion-state: 150ms ease-out; /* state changes; up to 200ms */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-state: 0ms;
+  }
+}

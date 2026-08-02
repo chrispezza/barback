@@ -1,0 +1,54 @@
+name: barback
+
+services:
+  bar-assistant:
+    # Pinned per ADR-001 — bump deliberately, read the changelog, re-test.
+    image: barassistant/server:5.15.3
+    restart: unless-stopped
+    depends_on:
+      - meilisearch
+      - redis
+    environment:
+      APP_URL: http://localhost:8000
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_KEY: ${MEILI_MASTER_KEY:?set in deploy/.env}
+      REDIS_HOST: redis
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      ALLOW_REGISTRATION: "true"
+    ports:
+      - "8000:8080"
+    volumes:
+      # All state: SQLite database + uploads. Back this up (ADR-005).
+      - bar_data:/var/www/cocktails/storage/bar-assistant
+
+  # Admin/reference UI (upstream client). Barback replaces this for daily use.
+  salt-rim:
+    image: barassistant/salt-rim:v4
+    restart: unless-stopped
+    depends_on:
+      - bar-assistant
+    environment:
+      API_URL: http://localhost:8000
+      MEILISEARCH_URL: http://localhost:7700
+    ports:
+      - "3000:8080"
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.15
+    restart: unless-stopped
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set in deploy/.env}
+    ports:
+      - "7700:7700"
+    volumes:
+      - meili_data:/meili_data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+volumes:
+  bar_data:
+  meili_data:
