@@ -47,6 +47,7 @@ export function Shelf() {
                 key={hit.id}
                 label={hit.name}
                 state={isOnShelf ? 'have' : 'default'}
+                disabled={mutation.isPending}
                 onToggle={() =>
                   mutation.mutate({
                     ingredientId: hit.id,
@@ -69,7 +70,11 @@ export function Shelf() {
           <ShelfRow
             key={i.id}
             name={i.name}
-            onRemove={() => mutation.mutate({ ingredientId: i.id, action: 'remove' })}
+            onRemove={() => {
+              if (!mutation.isPending) {
+                mutation.mutate({ ingredientId: i.id, action: 'remove' });
+              }
+            }}
           />
         ))}
       </div>

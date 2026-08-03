@@ -96,9 +96,11 @@ export function Tonight() {
                   key={item.ingredient.id}
                   ingredientId={item.ingredient.id}
                   name={item.ingredient.name}
-                  onCheckOff={() =>
-                    checkOff.mutate({ ingredientId: item.ingredient.id })
-                  }
+                  onCheckOff={() => {
+                    if (!checkOff.isPending) {
+                      checkOff.mutate({ ingredientId: item.ingredient.id });
+                    }
+                  }}
                 />
               ))}
             </div>
