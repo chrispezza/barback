@@ -67,6 +67,15 @@ export function Tonight() {
 
   const listItems = shoppingList.data?.data ?? [];
 
+  // Dashboard lead: whole-bar counts, deliberately unscoped by family — the
+  // line is the bar's status; the scoped story is told by the sections below.
+  const barCanMake = useCocktails(barId, { on_shelf: true }, 1);
+  const barNearMiss = useCocktails(barId, { missing_ingredients: 1 }, 1);
+  const statusReady =
+    barCanMake.data?.meta !== undefined &&
+    barNearMiss.data?.meta !== undefined &&
+    shoppingList.data !== undefined;
+
   // Restock (frontend-spec §5): server-ranked, minus what's already listed or
   // owned — upstream recommend doesn't exclude on-shelf bottles (ADR-001:
   // client-side filter, never an upstream patch).
@@ -84,10 +93,19 @@ export function Tonight() {
   return (
     <main class="screen">
       <h1>Tonight</h1>
+      {statusReady && (
+        <p class="bar-status">
+          You can pour <strong>{barCanMake.data?.meta?.total}</strong> ·{' '}
+          <strong>{barNearMiss.data?.meta?.total}</strong> one bottle away ·{' '}
+          <strong>{listItems.length}</strong> on the list
+        </p>
+      )}
       <FamilyPicker />
 
+      {/* Grid areas put the list ABOVE the near-miss stack on one column —
+          the actionable gap must never hide under 38 drink cards. */}
       <div class="tonight-grid">
-        <div>
+        <section class="tonight-pour">
           <MatchHeader label="You can pour" count={canMakeTotal} />
           {canMakeTotal === 0 && !shelfIsBare && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
@@ -104,21 +122,6 @@ export function Tonight() {
               </li>
             ))}
           </ul>
-
-          <MatchHeader label="One bottle away" count={nearMiss.data?.meta?.total} tone="gap" />
-          <ul class="card-list">
-            {nearMiss.data?.data.map((c) => (
-              <li key={c.id}>
-                <DrinkCard
-                  name={c.name}
-                  ingredients={toCardIngredients(c)}
-                  match="near"
-                  onSelect={() => route(`/drinks/${c.slug}`)}
-                />
-              </li>
-            ))}
-          </ul>
-
           {shelfIsBare && (
             <EmptyState
               title="The shelf is bare"
@@ -132,7 +135,23 @@ export function Tonight() {
               }
             />
           )}
-        </div>
+        </section>
+
+        <section class="tonight-near">
+          <MatchHeader label="One bottle away" count={nearMiss.data?.meta?.total} tone="gap" />
+          <ul class="card-list">
+            {nearMiss.data?.data.map((c) => (
+              <li key={c.id}>
+                <DrinkCard
+                  name={c.name}
+                  ingredients={toCardIngredients(c)}
+                  match="near"
+                  onSelect={() => route(`/drinks/${c.slug}`)}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <aside class="tonight-rail">
           <MatchHeader label="The list" count={listItems.length} tone="gap" />

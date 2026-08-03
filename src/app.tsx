@@ -16,12 +16,23 @@ const queryClient = new QueryClient({
 });
 
 const NAV = [
-  { href: '/tonight', label: 'Tonight' },
-  { href: '/shelf', label: 'Shelf' },
-  { href: '/drinks', label: 'Drinks' },
+  { href: '/tonight', label: 'Tonight', hint: 'pour now' },
+  { href: '/shelf', label: 'Shelf', hint: 'what you have' },
+  { href: '/drinks', label: 'Drinks', hint: 'the full index' },
 ];
 
-function NavLink({ href, label, className }: { href: string; label: string; className: string }) {
+function NavLink({
+  href,
+  label,
+  hint,
+  className,
+}: {
+  href: string;
+  label: string;
+  /** Role hint under the label — rail only; the tab bar stays bare. */
+  hint?: string;
+  className: string;
+}) {
   const { route, path } = useLocation();
   return (
     <a
@@ -34,6 +45,7 @@ function NavLink({ href, label, className }: { href: string; label: string; clas
       }}
     >
       {label}
+      {hint && <span class="rail-hint">{hint}</span>}
     </a>
   );
 }
@@ -53,7 +65,7 @@ function RailNav() {
       </div>
       <div class="rail-items">
         {NAV.map((n) => (
-          <NavLink key={n.href} href={n.href} label={n.label} className="rail-item" />
+          <NavLink key={n.href} href={n.href} label={n.label} hint={n.hint} className="rail-item" />
         ))}
       </div>
       {bottles !== undefined && pourable !== undefined && (
