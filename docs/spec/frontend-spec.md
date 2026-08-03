@@ -96,11 +96,26 @@ interface RatioTemplate {
   cocktailSlug: string;   // Bar Assistant cocktail slug (join key)
   parts: RatioPart[];     // 2–4 parts per the design system
 }
+
+interface FamilyDef {
+  tag: string;            // "family:sour" — must match the API tag exactly
+  displayName: string;    // "SOUR" (rendered in caps utility voice)
+  order: number;          // segmented-bar position
+  canonicalRatio: RatioPart[]; // the family's skeleton, shown in the family header
+  blurb: string;          // one line, italic Caslon, editorial voice
+}
 ```
 
-Stored in `src/data/ratios.ts`. Join happens in the recipe query's `select`.
-**Orphan check:** a dev-only assertion logs any `cocktailSlug` that matches no
-cocktail in the index (ADR-002 validation).
+Stored in `src/data/ratios.ts` and `src/data/families.ts`. Joins happen in
+query `select`s. The taxonomy is **data-driven**: family count and names are a
+content edit to `families.ts` plus a tag-script rerun, never a refactor.
+
+Rules:
+
+- **Partition, not labels**: the tag script assigns exactly one `family:` tag
+  per cocktail. Untagged drinks appear only under "All".
+- **Dev-mode reports** (ADR-002 validation): ratio templates whose slug matches
+  no cocktail; cocktails with zero or multiple `family:` tags.
 
 ## 4. State management (ADR-003)
 
@@ -130,7 +145,46 @@ so they must refetch after any shelf change.
 - **Empty states are directive** (design system §Empty states): Tonight with an
   empty shelf says what to add, wired from `bars/{id}/ingredients/recommend`.
 
-## 6. Component contracts
+## 6. Filters & user journeys
+
+### Filter mechanics
+
+- The family bar is **single-select** (All + families). Multi-select is
+  rejected: families are mutually exclusive template lenses, and the family
+  header (below) cannot render two skeletons at once.
+- **One primary axis per screen.** Tonight's axis is stock state (can-make /
+  one-away sections); family refines it. Index's axis is family; stock state
+  appears only as per-drink coloring, never a second filter bank.
+- Family selection lives in the URL (`?family=sour`) and **persists across
+  Tonight ↔ Index navigation** — "I feel like a sour tonight" spans both.
+
+### Family header
+
+Selecting a family renders, above results, the family's `canonicalRatio` as a
+ratio device plus a stock summary line:
+
+> **2 : ¾ : ¾ / SPIRIT · CITRUS · SWEET** — You can pour 8 of 23 sours · 6 are
+> one bottle away.
+
+Counts come from two `tag_id`-filtered queries (`on_shelf=true` and
+`missing_ingredients=1`) using response pagination totals; no extra client
+computation.
+
+### Journeys
+
+1. **Tonight (stock-first):** open → can-make count → optionally narrow by
+   family → drink → recipe led by its ratio device. Near-miss cards convert
+   directly to the shopping list.
+2. **Template-first browsing:** Index → pick family → family header teaches the
+   skeleton → drinks with stock coloring → the family's near-misses show what
+   unlocks more of it. Family-aware empty states ("Add a citrus and a
+   sweetener") come from this journey's gap data.
+3. **Shopping (leverage-first):** items ranked by unlock count, annotated by
+   family ("unlocks 4 sours, 2 tiki" — group `/ingredients/{id}/extra` results
+   by family tag). Check-off moves the bottle to the shelf and refreshes all
+   counts.
+
+## 7. Component contracts
 
 Typed props for the design system's build-order inventory (states per the
 design doc; all interactive elements keyboard-operable, focus-visible 2px brass
@@ -142,12 +196,15 @@ outline):
 4. `MatchHeader { count, label }` — fleuron dividers
 5. `ShoppingListItem { ingredient, unlocks: number, onCheckOff }`
 6. `RatioDevice { parts: RatioPart[] }` — leads every recipe view
-7. `FamilyBar { families, active, onSelect }` — segmented, caps utility voice
-8. `SearchField`, 9. empty states, 10. `QuantityStepper` / `ModalFrame` / `Toast`
+7. `FamilyBar { families: FamilyDef[], active: string | null, onSelect }` — segmented, single-select, caps utility voice; arrow-key navigation
+8. `FamilyHeader { family: FamilyDef, canMake: number, total: number, nearMiss: number }` — canonical ratio device + stock summary (§6)
+9. `SearchField`, 10. empty states, 11. `QuantityStepper` / `ModalFrame` / `Toast`
 
-## 7. Open items (deliberately deferred)
+## 8. Open items (deliberately deferred)
 
-- Final family taxonomy names (content decision, not architecture).
+- Final family taxonomy names and canonical ratios (content decision — a
+  `families.ts` edit plus tag-script rerun; five-segment placeholder until
+  Chris curates).
 - Bottle-level "volume remaining" has no upstream field; candidate homes:
   user ingredient note or price/inventory records. Resolve when Shelf rows
   gain bottle detail (post-MVP).
