@@ -1,17 +1,31 @@
+import { Button } from '@ds/core/Button';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
 import { ShelfRow } from '@ds/inventory/ShelfRow';
-import { useBarId, useCocktail } from '../api/queries';
+import {
+  useBarId,
+  useCocktail,
+  useProfile,
+  useShoppingList,
+  useShoppingMutation,
+} from '../api/queries';
 import { ratioForSlug } from '../data/ratios';
 
 export function DrinkDetail({ slug }: { slug: string }) {
   const barId = useBarId();
   const { data: cocktail, isLoading } = useCocktail(barId, slug);
+  const { data: profile } = useProfile();
+  const shoppingList = useShoppingList(barId, profile?.id);
+  const shoppingMutation = useShoppingMutation(barId, profile?.id);
 
   if (isLoading) return <main class="screen" />;
   if (!cocktail) return <main class="screen">Not found.</main>;
 
   const ratio = ratioForSlug(cocktail.slug);
   const missing = cocktail.ingredients.filter((i) => !i.in_shelf && !i.optional);
+  const listed = new Set(
+    shoppingList.data?.data.map((item) => item.ingredient.id) ?? [],
+  );
+  const unlisted = missing.filter((m) => !listed.has(m.ingredient.id));
 
   return (
     <main class="screen">
@@ -40,6 +54,26 @@ export function DrinkDetail({ slug }: { slug: string }) {
           {missing.length === 1 ? 'One bottle away: ' : `Missing ${missing.length}: `}
           <em>{missing.map((m) => m.ingredient.name).join(', ')}</em>
         </p>
+      )}
+      {unlisted.length > 0 && (
+        <p>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={shoppingMutation.isPending}
+            onClick={() =>
+              shoppingMutation.mutate({
+                ingredientIds: unlisted.map((m) => m.ingredient.id),
+                action: 'add',
+              })
+            }
+          >
+            Add missing to the list
+          </Button>
+        </p>
+      )}
+      {missing.length > 0 && unlisted.length === 0 && (
+        <p class="recipe-aside">Already on the list.</p>
       )}
 
       <section>

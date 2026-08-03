@@ -80,15 +80,16 @@ export function useCocktails(
   barId: number | undefined,
   filters: CocktailFilters,
   perPage = 24,
+  enabled = true,
 ) {
   return useQuery({
-    queryKey: ['cocktails', barId, filters],
+    queryKey: ['cocktails', barId, filters, perPage],
     queryFn: () =>
       api<ListResponse<Cocktail>>(
         `/cocktails?${cocktailQueryString(filters, perPage)}`,
         { barId },
       ),
-    enabled: barId !== undefined,
+    enabled: barId !== undefined && enabled,
   });
 }
 
@@ -112,6 +113,81 @@ export function useShoppingList(
         barId,
       }),
     enabled: barId !== undefined && userId !== undefined,
+  });
+}
+
+/** Count of extra cocktails unlocked by adding this ingredient to the shelf. */
+export function useIngredientUnlocks(
+  barId: number | undefined,
+  ingredientId: number,
+) {
+  return useQuery({
+    queryKey: ['ingredient-extra', barId, ingredientId],
+    queryFn: () =>
+      api<ListResponse<{ id: number; slug: string; name: string }>>(
+        `/ingredients/${ingredientId}/extra`,
+        { barId },
+      ),
+    enabled: barId !== undefined,
+    staleTime: BOOTSTRAP_STALE_MS,
+    select: (r) => r.data.length,
+  });
+}
+
+/** Add or remove shopping-list entries. Payload keys differ from the shelf batch. */
+export function useShoppingMutation(
+  barId: number | undefined,
+  userId: number | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ingredientIds, action }: { ingredientIds: number[]; action: 'add' | 'remove' }) =>
+      action === 'add'
+        ? api(`/users/${userId}/shopping-list/batch-store`, {
+            method: 'POST',
+            barId,
+            body: { ingredients: ingredientIds.map((id) => ({ id })) },
+          })
+        : api(`/users/${userId}/shopping-list/batch-delete`, {
+            method: 'POST',
+            barId,
+            body: { ingredients: ingredientIds.map((id) => ({ id })) },
+          }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
+    },
+  });
+}
+
+/**
+ * Check-off (frontend-spec §5): shelf batch-store FIRST, list batch-delete
+ * only on success — a failure may leave the item in both places (visible,
+ * self-healing), never vanished.
+ */
+export function useCheckOff(
+  barId: number | undefined,
+  userId: number | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ingredientId }: { ingredientId: number }) => {
+      await api(`/users/${userId}/ingredients/batch-store`, {
+        method: 'POST',
+        barId,
+        body: { ingredients: [ingredientId] },
+      });
+      await api(`/users/${userId}/shopping-list/batch-delete`, {
+        method: 'POST',
+        barId,
+        body: { ingredients: [{ id: ingredientId }] },
+      });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['shelf'] });
+      void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
+      void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
+      void queryClient.invalidateQueries({ queryKey: ['ingredient-extra'] });
+    },
   });
 }
 

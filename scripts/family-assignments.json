@@ -1,0 +1,50 @@
+{
+  "_comment": "PLACEHOLDER starter curation (frontend-spec §8) — normalized slugs (bar-id suffix stripped). Replace wholesale when the taxonomy is finalized; tag_families.py applies it idempotently and reports misses.",
+  "family:sour": [
+    "daiquiri",
+    "whiskey-sour",
+    "margarita",
+    "gimlet",
+    "sidecar",
+    "cosmopolitan",
+    "amaretto-sour",
+    "pisco-sour",
+    "clover-club",
+    "bees-knees",
+    "aviation"
+  ],
+  "family:spirit-forward": [
+    "old-fashioned",
+    "manhattan",
+    "negroni",
+    "martini",
+    "boulevardier",
+    "sazerac",
+    "vieux-carre",
+    "rob-roy-no-3"
+  ],
+  "family:highball": [
+    "cuba-libre",
+    "moscow-mule",
+    "dark-n-stormy",
+    "john-collins",
+    "paloma",
+    "americano",
+    "mojito"
+  ],
+  "family:tiki": [
+    "mai-tai",
+    "zombie",
+    "pina-colada",
+    "painkiller",
+    "jungle-bird",
+    "bahama-mama"
+  ],
+  "family:dessert": [
+    "alexander",
+    "white-russian",
+    "grasshopper",
+    "espresso-martini",
+    "irish-coffee"
+  ]
+}

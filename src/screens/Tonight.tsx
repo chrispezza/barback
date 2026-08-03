@@ -2,9 +2,16 @@ import { useLocation } from 'preact-iso';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { EmptyState } from '@ds/feedback/EmptyState';
-import { useBarId, useCocktails } from '../api/queries';
+import {
+  useBarId,
+  useCheckOff,
+  useCocktails,
+  useProfile,
+  useShoppingList,
+} from '../api/queries';
 import type { Cocktail } from '../api/types';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
+import { ShoppingRow } from '../components/ShoppingRow';
 
 function toCardIngredients(cocktail: Cocktail) {
   return cocktail.ingredients.map((entry) => ({
@@ -20,6 +27,9 @@ export function Tonight() {
 
   const canMake = useCocktails(barId, { on_shelf: true, ...familyFilter });
   const nearMiss = useCocktails(barId, { missing_ingredients: 1, ...familyFilter });
+  const { data: profile } = useProfile();
+  const shoppingList = useShoppingList(barId, profile?.id);
+  const checkOff = useCheckOff(barId, profile?.id);
   const { route } = useLocation();
 
   const canMakeTotal = canMake.data?.meta?.total;
@@ -66,6 +76,28 @@ export function Tonight() {
           title="The shelf is bare"
           body="Add a spirit, a citrus and a sweetener and the first drinks open up."
         />
+      )}
+
+      {(shoppingList.data?.data.length ?? 0) > 0 && (
+        <>
+          <MatchHeader
+            label="The list"
+            count={shoppingList.data?.data.length}
+            tone="gap"
+          />
+          <div>
+            {shoppingList.data?.data.map((item) => (
+              <ShoppingRow
+                key={item.ingredient.id}
+                ingredientId={item.ingredient.id}
+                name={item.ingredient.name}
+                onCheckOff={() =>
+                  checkOff.mutate({ ingredientId: item.ingredient.id })
+                }
+              />
+            ))}
+          </div>
+        </>
       )}
     </main>
   );

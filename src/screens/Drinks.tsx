@@ -22,6 +22,32 @@ export function Drinks() {
   const filters = family?.tagId !== undefined ? { tag_id: family.tagId } : {};
   const cocktails = useCocktails(barId, filters, 50);
 
+  // Family stock summary (frontend-spec §6): two count-only queries.
+  const hasFamilyTag = family?.tagId !== undefined;
+  const familyCanMake = useCocktails(
+    barId,
+    { on_shelf: true, tag_id: family?.tagId },
+    1,
+    hasFamilyTag,
+  );
+  const familyNearMiss = useCocktails(
+    barId,
+    { missing_ingredients: 1, tag_id: family?.tagId },
+    1,
+    hasFamilyTag,
+  );
+  const summary =
+    family?.tagId !== undefined &&
+    cocktails.data?.meta &&
+    familyCanMake.data?.meta &&
+    familyNearMiss.data?.meta
+      ? `You can pour ${familyCanMake.data.meta.total} of ${cocktails.data.meta.total} · ${
+          familyNearMiss.data.meta.total === 1
+            ? '1 is one bottle away.'
+            : `${familyNearMiss.data.meta.total} are one bottle away.`
+        }`
+      : null;
+
   return (
     <main class="screen">
       <h1>Drinks</h1>
@@ -36,6 +62,7 @@ export function Drinks() {
             {family.def.blurb}
             {family.tagId === undefined && ' — family not yet tagged upstream; showing all drinks.'}
           </p>
+          {summary && <p>{summary}</p>}
         </header>
       )}
 

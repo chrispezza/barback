@@ -28,7 +28,11 @@ Decisions live in [docs/adr/](docs/adr/):
 cp deploy/.env.example deploy/.env   # then set MEILI_MASTER_KEY (openssl rand -base64 32)
 docker compose -f deploy/docker-compose.yml up -d
 ./scripts/seed.sh
+python3 scripts/tag_families.py      # family:* tags + assignments (idempotent)
 ```
+
+Family curation lives in [scripts/family-assignments.json](scripts/family-assignments.json)
+(normalized slugs → family tag); edit it and re-run the script.
 
 - API: http://localhost:8000 (OpenAPI docs at `/docs`)
 - Salt Rim (upstream admin/reference UI): http://localhost:3000
