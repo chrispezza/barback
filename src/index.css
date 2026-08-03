@@ -14,10 +14,161 @@ body {
   line-height: var(--body-2-lh);
 }
 
+/* ---------- App shell: mobile-first, rail on desktop ---------- */
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.nav-rail {
+  display: none;
+}
+
+.app-main {
+  padding: var(--space-5) var(--gutter-mobile) calc(72px + var(--space-6));
+}
+
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  background: var(--surface-app);
+  border-top: 1px solid var(--rule-hairline);
+}
+
+.tab-item {
+  flex: 1;
+  min-height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid transparent;
+  margin-top: -1px;
+  color: var(--cream-400);
+  font-weight: var(--caps-weight);
+  font-size: var(--caps-3);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  text-indent: var(--track-caps);
+  text-decoration: none;
+  transition: var(--transition-state);
+}
+
+.tab-item[aria-current='page'] {
+  color: var(--brass-500);
+  border-top-color: var(--brass-500);
+}
+
+.tab-item:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+@media (min-width: 900px) {
+  .app-shell {
+    display: grid;
+    grid-template-columns: 212px minmax(0, 1fr);
+  }
+
+  .tab-bar {
+    display: none;
+  }
+
+  .nav-rail {
+    display: block;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 28px 20px;
+    border-right: 1px solid var(--rule-hairline);
+  }
+
+  .app-main {
+    max-width: 1180px;
+    padding: 28px var(--gutter-desktop) 96px;
+  }
+}
+
+.rail-brand {
+  font-family: var(--font-display);
+  font-size: var(--display-3);
+  line-height: 1.15;
+  color: var(--cream-100);
+}
+
+.rail-fleuron {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 14px 0 26px;
+  font-size: 10px;
+  color: var(--rule-strong);
+}
+
+.rail-fleuron span {
+  flex: 1;
+  height: 1px;
+  background: var(--rule-faint);
+}
+
+.rail-items {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.rail-item {
+  display: block;
+  min-height: var(--tap-min);
+  line-height: var(--tap-min);
+  padding-left: 14px;
+  border-left: 2px solid transparent;
+  color: var(--cream-400);
+  font-weight: var(--caps-weight);
+  font-size: var(--caps-2);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  text-indent: var(--track-caps);
+  text-decoration: none;
+  transition: var(--transition-state);
+}
+
+.rail-item:hover {
+  color: var(--cream-100);
+}
+
+.rail-item[aria-current='page'] {
+  color: var(--brass-500);
+  border-left-color: var(--brass-500);
+}
+
+.rail-item:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.rail-foot {
+  position: absolute;
+  bottom: 28px;
+  left: 20px;
+  right: 20px;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--caption);
+  line-height: 1.4;
+  color: var(--sage-600);
+}
+
+/* ---------- Screens ---------- */
+
 .screen {
+  width: 100%;
+}
+
+.screen--narrow {
   max-width: 40rem;
-  margin: 0 auto;
-  padding: var(--space-5) var(--gutter-mobile) var(--space-8);
 }
 
 .screen > h1 {
@@ -30,40 +181,27 @@ body {
   margin: 0 0 var(--space-5);
 }
 
-.top-nav {
-  display: flex;
-  gap: var(--space-5);
-  padding: var(--space-4) var(--gutter-mobile);
-  border-bottom: 1px solid var(--rule-hairline);
-}
-
-.top-nav a {
-  font-family: var(--font-body);
-  font-weight: var(--caps-weight);
-  font-size: var(--caps-2);
-  text-transform: uppercase;
-  letter-spacing: var(--track-caps);
-  text-indent: var(--track-caps);
-  color: var(--cream-400);
-  text-decoration: none;
-  transition: var(--transition-state);
-}
-
-.top-nav a:hover {
-  color: var(--cream-100);
-}
-
-.top-nav a[aria-current='page'] {
-  color: var(--brass-500);
-}
-
-.top-nav a:focus-visible {
-  outline: var(--focus-width) solid var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
 a {
   color: var(--link);
+}
+
+/* Tonight: main column + sticky shopping rail on desktop */
+.tonight-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .tonight-grid {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+  }
+
+  .tonight-rail {
+    position: sticky;
+    top: 24px;
+  }
 }
 
 /* Stacked lists of drink cards */
@@ -75,11 +213,41 @@ a {
   gap: var(--space-3);
 }
 
+@media (min-width: 900px) {
+  .screen--index .card-list {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  }
+}
+
+/* Segmented family bar scrolls rather than wraps on narrow screens */
+.family-scroll {
+  overflow-x: auto;
+  margin-bottom: var(--space-4);
+}
+
 .chip-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   margin: var(--space-4) 0;
+}
+
+/* Pager */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  margin: var(--space-5) 0;
+}
+
+.pager-info {
+  font-weight: var(--caps-weight);
+  font-size: var(--caps-3);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  text-indent: var(--track-caps);
+  color: var(--cream-400);
 }
 
 /* Recipe detail */
@@ -118,6 +286,16 @@ a {
   margin: var(--space-8) auto 0;
 }
 
+.login-form h1 {
+  font-family: var(--font-display);
+  font-size: var(--display-2);
+  line-height: var(--display-2-lh);
+  letter-spacing: var(--track-display);
+  color: var(--cream-100);
+  font-weight: 400;
+  margin: 0;
+}
+
 .login-form label {
   display: grid;
   gap: var(--space-2);
@@ -148,4 +326,19 @@ a {
 .login-error {
   color: var(--rose-300);
   font-size: var(--caption);
+}
+
+/* Toast pinned to the bottom edge */
+.toast-host {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+}
+
+@media (max-width: 899px) {
+  .toast-host {
+    bottom: 56px;
+  }
 }

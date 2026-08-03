@@ -28,7 +28,7 @@ export function Shelf() {
   const rows = shelf.data?.data ?? [];
 
   return (
-    <main class="screen">
+    <main class="screen screen--narrow">
       <h1>Shelf</h1>
 
       <SearchField

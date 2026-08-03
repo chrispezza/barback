@@ -17,8 +17,8 @@ export function DrinkDetail({ slug }: { slug: string }) {
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
 
-  if (isLoading) return <main class="screen" />;
-  if (!cocktail) return <main class="screen">Not found.</main>;
+  if (isLoading) return <main class="screen screen--narrow" />;
+  if (!cocktail) return <main class="screen screen--narrow">Not found.</main>;
 
   const ratio = ratioForSlug(cocktail.slug);
   const missing = cocktail.ingredients.filter((i) => !i.in_shelf && !i.optional);
@@ -28,7 +28,7 @@ export function DrinkDetail({ slug }: { slug: string }) {
   const unlisted = missing.filter((m) => !listed.has(m.ingredient.id));
 
   return (
-    <main class="screen">
+    <main class="screen screen--narrow">
       <h1>{cocktail.name}</h1>
 
       {ratio && (

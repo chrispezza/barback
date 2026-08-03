@@ -35,70 +35,76 @@ export function Tonight() {
   const canMakeTotal = canMake.data?.meta?.total;
   const shelfIsBare = canMakeTotal === 0 && nearMiss.data?.meta?.total === 0;
 
+  const listItems = shoppingList.data?.data ?? [];
+
   return (
     <main class="screen">
       <h1>Tonight</h1>
       <FamilyPicker />
 
-      <MatchHeader label="You can pour" count={canMakeTotal} />
-      {canMakeTotal === 0 && !shelfIsBare && (
-        <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
-      )}
-      <ul class="card-list">
-        {canMake.data?.data.map((c) => (
-          <li key={c.id}>
-            <DrinkCard
-              name={c.name}
-              ingredients={toCardIngredients(c)}
-              match="full"
-              onSelect={() => route(`/drinks/${c.slug}`)}
-            />
-          </li>
-        ))}
-      </ul>
-
-      <MatchHeader label="One bottle away" count={nearMiss.data?.meta?.total} tone="gap" />
-      <ul class="card-list">
-        {nearMiss.data?.data.map((c) => (
-          <li key={c.id}>
-            <DrinkCard
-              name={c.name}
-              ingredients={toCardIngredients(c)}
-              match="near"
-              onSelect={() => route(`/drinks/${c.slug}`)}
-            />
-          </li>
-        ))}
-      </ul>
-
-      {shelfIsBare && (
-        <EmptyState
-          title="The shelf is bare"
-          body="Add a spirit, a citrus and a sweetener and the first drinks open up."
-        />
-      )}
-
-      {(shoppingList.data?.data.length ?? 0) > 0 && (
-        <>
-          <MatchHeader
-            label="The list"
-            count={shoppingList.data?.data.length}
-            tone="gap"
-          />
-          <div>
-            {shoppingList.data?.data.map((item) => (
-              <ShoppingRow
-                key={item.ingredient.id}
-                ingredientId={item.ingredient.id}
-                name={item.ingredient.name}
-                onCheckOff={() =>
-                  checkOff.mutate({ ingredientId: item.ingredient.id })
-                }
-              />
+      <div class="tonight-grid">
+        <div>
+          <MatchHeader label="You can pour" count={canMakeTotal} />
+          {canMakeTotal === 0 && !shelfIsBare && (
+            <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
+          )}
+          <ul class="card-list">
+            {canMake.data?.data.map((c) => (
+              <li key={c.id}>
+                <DrinkCard
+                  name={c.name}
+                  ingredients={toCardIngredients(c)}
+                  match="full"
+                  onSelect={() => route(`/drinks/${c.slug}`)}
+                />
+              </li>
             ))}
-          </div>
-        </>
-      )}
+          </ul>
+
+          <MatchHeader label="One bottle away" count={nearMiss.data?.meta?.total} tone="gap" />
+          <ul class="card-list">
+            {nearMiss.data?.data.map((c) => (
+              <li key={c.id}>
+                <DrinkCard
+                  name={c.name}
+                  ingredients={toCardIngredients(c)}
+                  match="near"
+                  onSelect={() => route(`/drinks/${c.slug}`)}
+                />
+              </li>
+            ))}
+          </ul>
+
+          {shelfIsBare && (
+            <EmptyState
+              title="The shelf is bare"
+              body="Add a spirit, a citrus and a sweetener and the first drinks open up."
+            />
+          )}
+        </div>
+
+        <aside class="tonight-rail">
+          <MatchHeader label="The list" count={listItems.length} tone="gap" />
+          {listItems.length === 0 ? (
+            <p class="recipe-aside">
+              Nothing on the list — a near miss puts its bottle here.
+            </p>
+          ) : (
+            <div>
+              {listItems.map((item) => (
+                <ShoppingRow
+                  key={item.ingredient.id}
+                  ingredientId={item.ingredient.id}
+                  name={item.ingredient.name}
+                  onCheckOff={() =>
+                    checkOff.mutate({ ingredientId: item.ingredient.id })
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </aside>
+      </div>
     </main>
   );
 }

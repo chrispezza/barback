@@ -1,4 +1,5 @@
 import { useLocation } from 'preact-iso';
+import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
@@ -17,10 +18,21 @@ function matchFor(c: Cocktail): 'full' | 'partial' | 'near' | 'none' {
 export function Drinks() {
   const barId = useBarId();
   const family = useActiveFamily();
-  const { route } = useLocation();
+  const { route, url, query } = useLocation();
 
+  const page = Math.max(1, Number(query['page']) || 1);
   const filters = family?.tagId !== undefined ? { tag_id: family.tagId } : {};
-  const cocktails = useCocktails(barId, filters, 50);
+  const cocktails = useCocktails(barId, filters, 50, true, page);
+
+  function goToPage(next: number) {
+    const path = url.split('?')[0] ?? '/drinks';
+    const params = new URLSearchParams();
+    const suffix = query['family'];
+    if (suffix) params.set('family', suffix);
+    if (next > 1) params.set('page', String(next));
+    const qs = params.toString();
+    route(qs ? `${path}?${qs}` : path);
+  }
 
   // Family stock summary (frontend-spec §6): two count-only queries.
   const hasFamilyTag = family?.tagId !== undefined;
@@ -48,8 +60,10 @@ export function Drinks() {
         }`
       : null;
 
+  const lastPage = cocktails.data?.meta?.last_page ?? 1;
+
   return (
-    <main class="screen">
+    <main class="screen screen--index">
       <h1>Drinks</h1>
       <FamilyPicker />
 
@@ -82,6 +96,20 @@ export function Drinks() {
           </li>
         ))}
       </ul>
+
+      {lastPage > 1 && (
+        <div class="pager">
+          <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
+            Previous
+          </Button>
+          <span class="pager-info">
+            Page {page} of {lastPage}
+          </span>
+          <Button variant="ghost" size="sm" disabled={page >= lastPage} onClick={() => goToPage(page + 1)}>
+            Next
+          </Button>
+        </div>
+      )}
     </main>
   );
 }

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:deploy": "tsc -b && VITE_API_URL=/bar VITE_MEILISEARCH_URL=/search vite build"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",

@@ -40,10 +40,12 @@ export function FamilyPicker() {
   }
 
   return (
-    <FamilyFilterBar
-      families={[ALL, ...FAMILIES.map((f) => f.displayName)]}
-      value={activeDef?.displayName ?? ALL}
-      onChange={onChange}
-    />
+    <div class="family-scroll">
+      <FamilyFilterBar
+        families={[ALL, ...FAMILIES.map((f) => f.displayName)]}
+        value={activeDef?.displayName ?? ALL}
+        onChange={onChange}
+      />
+    </div>
   );
 }

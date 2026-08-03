@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LocationProvider, Router, Route, useLocation } from 'preact-iso';
 import type { ComponentChildren } from 'preact';
 import { isAuthenticated } from './auth';
+import { useBarId, useCocktails, useShelf } from './api/queries';
+import { ToastHost } from './components/toasts';
 import { Login } from './screens/Login';
 import { Tonight } from './screens/Tonight';
 import { Shelf } from './screens/Shelf';
@@ -12,11 +14,18 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1 } },
 });
 
-function Nav() {
+const NAV = [
+  { href: '/tonight', label: 'Tonight' },
+  { href: '/shelf', label: 'Shelf' },
+  { href: '/drinks', label: 'Drinks' },
+];
+
+function NavLink({ href, label, className }: { href: string; label: string; className: string }) {
   const { route, path } = useLocation();
-  const link = (href: string, label: string) => (
+  return (
     <a
       href={href}
+      class={className}
       aria-current={path === href ? 'page' : undefined}
       onClick={(e) => {
         e.preventDefault();
@@ -26,11 +35,42 @@ function Nav() {
       {label}
     </a>
   );
+}
+
+/** Desktop 212px rail: brand, fleuron, nav, shelf standing in the footer. */
+function RailNav() {
+  const barId = useBarId();
+  const shelf = useShelf(barId);
+  const canMake = useCocktails(barId, { on_shelf: true }, 1);
+  const bottles = shelf.data?.meta?.total ?? shelf.data?.data.length;
+  const pourable = canMake.data?.meta?.total;
   return (
-    <nav class="top-nav">
-      {link('/tonight', 'Tonight')}
-      {link('/shelf', 'Shelf')}
-      {link('/drinks', 'Drinks')}
+    <nav class="nav-rail" aria-label="Main">
+      <div class="rail-brand">Barback</div>
+      <div class="rail-fleuron" aria-hidden="true">
+        <span />◆<span />
+      </div>
+      <div class="rail-items">
+        {NAV.map((n) => (
+          <NavLink key={n.href} href={n.href} label={n.label} className="rail-item" />
+        ))}
+      </div>
+      {bottles !== undefined && pourable !== undefined && (
+        <div class="rail-foot">
+          {bottles} bottles · {pourable} pourable
+        </div>
+      )}
+    </nav>
+  );
+}
+
+/** Mobile bottom tab bar (56px targets, brass top border marks the active tab). */
+function TabBar() {
+  return (
+    <nav class="tab-bar" aria-label="Main">
+      {NAV.map((n) => (
+        <NavLink key={n.href} href={n.href} label={n.label} className="tab-item" />
+      ))}
     </nav>
   );
 }
@@ -42,10 +82,11 @@ function Authed({ children }: { children: ComponentChildren }) {
     return null;
   }
   return (
-    <>
-      <Nav />
-      {children}
-    </>
+    <div class="app-shell">
+      <RailNav />
+      <div class="app-main">{children}</div>
+      <TabBar />
+    </div>
   );
 }
 
@@ -68,6 +109,7 @@ export function App() {
           <Route path="/drinks/:slug" component={DrinkDetailRoute} />
           <Route default component={() => <Authed><Tonight /></Authed>} />
         </Router>
+        <ToastHost />
       </LocationProvider>
     </QueryClientProvider>
   );

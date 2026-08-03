@@ -1,9 +1,11 @@
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import { api } from './client';
+import { showToast } from '../components/toasts';
 import type {
   Bar,
   Cocktail,
@@ -81,15 +83,17 @@ export function useCocktails(
   filters: CocktailFilters,
   perPage = 24,
   enabled = true,
+  page = 1,
 ) {
   return useQuery({
-    queryKey: ['cocktails', barId, filters, perPage],
+    queryKey: ['cocktails', barId, filters, perPage, page],
     queryFn: () =>
       api<ListResponse<Cocktail>>(
-        `/cocktails?${cocktailQueryString(filters, perPage)}`,
+        `/cocktails?${cocktailQueryString(filters, perPage)}&page=${page}`,
         { barId },
       ),
     enabled: barId !== undefined && enabled,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -153,6 +157,7 @@ export function useShoppingMutation(
             barId,
             body: { ingredients: ingredientIds.map((id) => ({ id })) },
           }),
+    onError: () => showToast({ message: 'The list didn’t take that change.' }),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
     },
@@ -182,6 +187,8 @@ export function useCheckOff(
         body: { ingredients: [{ id: ingredientId }] },
       });
     },
+    onError: () =>
+      showToast({ message: 'That didn’t move — the bottle is still on the list.' }),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['shelf'] });
       void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
@@ -207,6 +214,25 @@ export function useShelfMutation(
         barId,
         body: { ingredients: [ingredientId] },
       }),
+    onError: () => showToast({ message: 'The shelf didn’t take that change.' }),
+    onSuccess: (_data, vars) => {
+      if (vars.action !== 'remove') return;
+      showToast({
+        message: 'Bottle removed from the shelf.',
+        tone: 'destructive',
+        actionLabel: 'Undo',
+        onAction: () => {
+          void api(`/users/${userId}/ingredients/batch-store`, {
+            method: 'POST',
+            barId,
+            body: { ingredients: [vars.ingredientId] },
+          }).then(() => {
+            void queryClient.invalidateQueries({ queryKey: ['shelf'] });
+            void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
+          });
+        },
+      });
+    },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['shelf'] });
       void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
