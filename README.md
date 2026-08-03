@@ -34,7 +34,10 @@ python3 scripts/tag_families.py      # family:* tags + assignments (idempotent)
 ```
 
 Family curation lives in [scripts/family-assignments.json](scripts/family-assignments.json)
-(normalized slugs → family tag); edit it and re-run the script.
+(normalized slugs → family tag); edit it and re-run the script. For the
+uncurated backlog, `python3 scripts/propose_families.py` drafts structural
+proposals with reasons to [scripts/family-proposals.json](scripts/family-proposals.json)
+— review, move keepers into the assignments file, rerun the tag script.
 
 - App (single-origin front door): http://localhost:8080 — proxies `/bar/` → API,
   `/search/` → Meilisearch; set `BARBACK_ORIGIN` in `deploy/.env` for LAN access

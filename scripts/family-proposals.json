@@ -1,0 +1,2551 @@
+{
+  "_comment": "Heuristic DRAFT — review, move agreed slugs into family-assignments.json, rerun tag_families.py, then delete this file.",
+  "proposals": {
+    "family:dessert": [
+      {
+        "slug": "20th-century",
+        "name": "20th Century",
+        "reason": "dairy/coffee weight: cacao"
+      },
+      {
+        "slug": "apapacho-cafe",
+        "name": "Apapacho Café",
+        "reason": "dairy/coffee weight: cream, coffee"
+      },
+      {
+        "slug": "as-kingston-negroni",
+        "name": "A.S. Kingston Negroni",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "aspen-crud",
+        "name": "Aspen Crud",
+        "reason": "dairy/coffee weight: cream, ice cream"
+      },
+      {
+        "slug": "b-52",
+        "name": "B-52",
+        "reason": "dairy/coffee weight: cream, coffee"
+      },
+      {
+        "slug": "black-russian",
+        "name": "Black Russian",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "bluebird-eggnog",
+        "name": "Bluebird Eggnog",
+        "reason": "dairy/coffee weight: cream"
+      },
+      {
+        "slug": "bourbon-lift",
+        "name": "Bourbon Lift",
+        "reason": "dairy/coffee weight: cream, coffee"
+      },
+      {
+        "slug": "cafe-ireland",
+        "name": "Cafe Ireland",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "cafe-martini",
+        "name": "Cafe Martini",
+        "reason": "dairy/coffee weight: coffee, espresso"
+      },
+      {
+        "slug": "cafe-racer",
+        "name": "Cafe Racer",
+        "reason": "dairy/coffee weight: cacao, coffee"
+      },
+      {
+        "slug": "carajillo",
+        "name": "Carajillo",
+        "reason": "dairy/coffee weight: espresso"
+      },
+      {
+        "slug": "clarified-new-york-sour",
+        "name": "Clarified New York Sour",
+        "reason": "dairy/coffee weight: milk"
+      },
+      {
+        "slug": "coffee-cigarettes",
+        "name": "Coffee & Cigarettes",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "coffee-enzoni",
+        "name": "Coffee Enzoni",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "coffee-julep",
+        "name": "Coffee Julep",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "coffee-negroni",
+        "name": "Coffee Negroni",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "day-o-fashioned",
+        "name": "Day-O’ Fashioned",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "eggnog",
+        "name": "Eggnog",
+        "reason": "dairy/coffee weight: cream, milk"
+      },
+      {
+        "slug": "five-point-palm-exploding-heart-technique",
+        "name": "Five Point Palm Exploding Heart Technique",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "frozen-mudslide",
+        "name": "Frozen Mudslide",
+        "reason": "dairy/coffee weight: cream, ice cream, coffee"
+      },
+      {
+        "slug": "gentlemans-exchange",
+        "name": "Gentleman’s Exchange",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "golden-dream",
+        "name": "Golden Dream",
+        "reason": "dairy/coffee weight: cream"
+      },
+      {
+        "slug": "grasshopper-blanco",
+        "name": "Grasshopper Blanco",
+        "reason": "dairy/coffee weight: cream, cacao"
+      },
+      {
+        "slug": "haymaker",
+        "name": "Haymaker",
+        "reason": "dairy/coffee weight: coffee, espresso"
+      },
+      {
+        "slug": "highland-diver",
+        "name": "Highland Diver",
+        "reason": "dairy/coffee weight: cream"
+      },
+      {
+        "slug": "honeyed-coffee-gin-tonic",
+        "name": "Honeyed Coffee Gin & Tonic",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "irish-coffee-2",
+        "name": "Irish Coffee",
+        "reason": "dairy/coffee weight: cream, coffee"
+      },
+      {
+        "slug": "j-tonys-kold-brew-americano",
+        "name": "J & Tony’s Kold Brew Americano",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "jamaican-milk-punch",
+        "name": "Jamaican Milk Punch",
+        "reason": "dairy/coffee weight: cream, milk"
+      },
+      {
+        "slug": "keoke-coffee",
+        "name": "Keoke Coffee",
+        "reason": "dairy/coffee weight: cream, cacao, coffee"
+      },
+      {
+        "slug": "koffie-van-brunt",
+        "name": "Koffie Van Brunt",
+        "reason": "dairy/coffee weight: cream, espresso"
+      },
+      {
+        "slug": "la-dominicana",
+        "name": "La Dominicana",
+        "reason": "dairy/coffee weight: cream, coffee"
+      },
+      {
+        "slug": "lite-treason",
+        "name": "Lite Treason",
+        "reason": "dairy/coffee weight: cream, coffee"
+      },
+      {
+        "slug": "midnight-marauder-no-2",
+        "name": "Midnight Marauder No. 2",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "mr-brown",
+        "name": "Mr. Brown",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "navel-duties",
+        "name": "Navel Duties",
+        "reason": "dairy/coffee weight: espresso"
+      },
+      {
+        "slug": "painkiller-the-mothership",
+        "name": "Painkiller (The Mothership)",
+        "reason": "dairy/coffee weight: cream"
+      },
+      {
+        "slug": "pina-verde",
+        "name": "Piña Verde",
+        "reason": "dairy/coffee weight: cream"
+      },
+      {
+        "slug": "quilty",
+        "name": "Quilty",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "ramos-fizz",
+        "name": "Ramos Fizz",
+        "reason": "dairy/coffee weight: cream"
+      },
+      {
+        "slug": "reading-nook",
+        "name": "Reading Nook",
+        "reason": "dairy/coffee weight: espresso"
+      },
+      {
+        "slug": "red-morning-light",
+        "name": "Red Morning Light",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "revolver",
+        "name": "Revolver",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "roman-holiday",
+        "name": "Roman Holiday",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "sno-cone",
+        "name": "Sno-Cone",
+        "reason": "dairy/coffee weight: cacao"
+      },
+      {
+        "slug": "squeaky-wheel",
+        "name": "Squeaky Wheel",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "st-john-frizells-irish-coffee",
+        "name": "St. John Frizell’s Irish Coffee",
+        "reason": "dairy/coffee weight: cream, espresso"
+      },
+      {
+        "slug": "tango-nuevo",
+        "name": "Tango Nuevo",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "the-coffee-house",
+        "name": "The Coffee House",
+        "reason": "dairy/coffee weight: coffee"
+      },
+      {
+        "slug": "the-flatliner",
+        "name": "The Flatliner",
+        "reason": "dairy/coffee weight: cream, coffee"
+      },
+      {
+        "slug": "the-ole-bull",
+        "name": "The Ole Bull",
+        "reason": "dairy/coffee weight: cacao"
+      },
+      {
+        "slug": "thunderbird",
+        "name": "Thunderbird",
+        "reason": "dairy/coffee weight: cream"
+      },
+      {
+        "slug": "verte-chaud",
+        "name": "Verte Chaud",
+        "reason": "dairy/coffee weight: cream, chocolate"
+      },
+      {
+        "slug": "white-russian-gus-sip-and-dip",
+        "name": "White Russian (Gus’ Sip and Dip)",
+        "reason": "dairy/coffee weight: cream, coffee"
+      },
+      {
+        "slug": "wiz-fizz",
+        "name": "Wiz Fizz",
+        "reason": "dairy/coffee weight: cream"
+      }
+    ],
+    "family:highball": [
+      {
+        "slug": "212",
+        "name": "212",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "absinthe-frappe",
+        "name": "Absinthe Frappé",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "after-all-imperial",
+        "name": "After All Imperial",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "airmail",
+        "name": "Airmail",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "amaro-highball",
+        "name": "Amaro Highball",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "andalusian-buck",
+        "name": "Andalusian Buck",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "apb-melrose-gin-tonic",
+        "name": "APB Melrose Gin & Tonic",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "apero-spritz",
+        "name": "Apèro Spritz",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "aperol-spritz",
+        "name": "Aperol Spritz",
+        "reason": "lengthened with club soda, prosecco"
+      },
+      {
+        "slug": "arrowhead-limited",
+        "name": "Arrowhead Limited",
+        "reason": "lengthened with beer"
+      },
+      {
+        "slug": "assunta",
+        "name": "Assunta",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "backlash-tonic",
+        "name": "Backlash & Tonic",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "backsliding-presbyterian",
+        "name": "Backsliding Presbyterian",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "baltimore-southside",
+        "name": "Baltimore Southside",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "batanga",
+        "name": "Batanga",
+        "reason": "lengthened with cola"
+      },
+      {
+        "slug": "bellini",
+        "name": "Bellini",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "beton",
+        "name": "Beton",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "betty-is-back",
+        "name": "Betty Is Back",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "blood-moon",
+        "name": "Blood Moon",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "boothby",
+        "name": "Boothby",
+        "reason": "lengthened with sparkling"
+      },
+      {
+        "slug": "calvados-tonic",
+        "name": "Calvados & Tonic",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "cameron-park-spritz",
+        "name": "Cameron Park Spritz",
+        "reason": "lengthened with club soda, prosecco"
+      },
+      {
+        "slug": "campari-spritz",
+        "name": "Campari Spritz",
+        "reason": "lengthened with club soda, prosecco"
+      },
+      {
+        "slug": "caribbean-parachute",
+        "name": "Caribbean Parachute",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "champagne-cocktail",
+        "name": "Champagne Cocktail",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "champagne-cocktail-1862",
+        "name": "Champagne Cocktail (1862)",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "ciderhouse-mule",
+        "name": "Ciderhouse Mule",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "cosa-nostra-2",
+        "name": "Cosa Nostra №2",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "cucumber-gimlet",
+        "name": "Cucumber Gimlet",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "dead-sea-mule",
+        "name": "Dead Sea Mule",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "e-tonico",
+        "name": "E Tonico",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "electric-current-fizz",
+        "name": "Electric Current Fizz",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "femme-fatale",
+        "name": "Femme Fatale",
+        "reason": "lengthened with sparkling"
+      },
+      {
+        "slug": "fernandito",
+        "name": "Fernandito",
+        "reason": "lengthened with cola"
+      },
+      {
+        "slug": "floppydisk",
+        "name": "Floppydisk",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "floradora",
+        "name": "Floradora",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "french-75",
+        "name": "French 75",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "fumata-bianca",
+        "name": "Fumata Bianca",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "garibaldi-spritz",
+        "name": "Garibaldi Spritz",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "gemist",
+        "name": "Gemišt",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "gin-fizz",
+        "name": "Gin Fizz",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "gin-gin-mule",
+        "name": "Gin-Gin Mule",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "gin-rickey",
+        "name": "Gin Rickey",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "gin-tonic",
+        "name": "Gin & Tonic",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "go-to",
+        "name": "Go-To",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "grand-collins",
+        "name": "Grand Collins",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "happy-bastard",
+        "name": "Happy Bastard",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "harvard",
+        "name": "Harvard",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "horses-neck",
+        "name": "Horse’s Neck",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "hugo-spritz",
+        "name": "Hugo Spritz",
+        "reason": "lengthened with club soda, prosecco"
+      },
+      {
+        "slug": "insanely-good-gin-tonic",
+        "name": "Insanely Good Gin & Tonic",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "italicus-spritz",
+        "name": "Italicus Spritz",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "jungle-cruise",
+        "name": "Jungle Cruise",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "jungle-spritz",
+        "name": "Jungle Spritz",
+        "reason": "lengthened with club soda, prosecco"
+      },
+      {
+        "slug": "keystone-highball",
+        "name": "Keystone Highball",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "kingston-club",
+        "name": "Kingston Club",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "limoncello-spritz",
+        "name": "Limoncello Spritz",
+        "reason": "lengthened with club soda, prosecco"
+      },
+      {
+        "slug": "long-island-ice-tea",
+        "name": "Long Island Ice Tea",
+        "reason": "lengthened with cola"
+      },
+      {
+        "slug": "mango-mule",
+        "name": "Mango Mule",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "margarita-soda",
+        "name": "Margarita Soda",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "marigold-mule",
+        "name": "Marigold Mule",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "merry-spritzmas",
+        "name": "Merry Spritzmas",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "mezcal-mule",
+        "name": "Mezcal Mule",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "michelada",
+        "name": "Michelada",
+        "reason": "lengthened with beer"
+      },
+      {
+        "slug": "mimosa",
+        "name": "Mimosa",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "monks-respite",
+        "name": "Monk’s Respite",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "monte-mule-recipe",
+        "name": "Monte Mule Recipe",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "morning-glory-fizz",
+        "name": "Morning Glory Fizz",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "mule-in-paradise",
+        "name": "Mule in Paradise",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "negroni-sbagliato",
+        "name": "Negroni Sbagliato",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "neruda",
+        "name": "Neruda",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "nice-by-way-of-antibes",
+        "name": "Nice (by Way of Antibes)",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "non-alc-hurricane",
+        "name": "Non-Alc Hurricane",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "old-cuban",
+        "name": "Old Cuban",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "old-haitian",
+        "name": "Old Haitian",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "padua-paloma",
+        "name": "Padua Paloma",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "parisian-dispatch",
+        "name": "Parisian Dispatch",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "pasion",
+        "name": "Pasión",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "poolside-gossip",
+        "name": "Poolside Gossip",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "poppas-pride",
+        "name": "Poppa’s Pride",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "porn-star-martini",
+        "name": "Porn Star Martini",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "prince-charles-dont-surf",
+        "name": "Prince Charles Don’t Surf",
+        "reason": "lengthened with beer"
+      },
+      {
+        "slug": "rabbit-szn",
+        "name": "Rabbit Szn",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "rib-tickler",
+        "name": "Rib Tickler",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "ritz-cocktail",
+        "name": "Ritz Cocktail",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "rome-with-a-view",
+        "name": "Rome With a View",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "room-key",
+        "name": "Room Key",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "rubino-tequila-spritz",
+        "name": "Rubino Tequila Spritz",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "russian-spring-punch",
+        "name": "Russian Spring Punch",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "salmoncito",
+        "name": "Salmoncito",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "sauvignon-blanc-punch",
+        "name": "Sauvignon Blanc Punch",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "second-serve",
+        "name": "Second Serve",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "seelbach",
+        "name": "Seelbach",
+        "reason": "lengthened with champagne"
+      },
+      {
+        "slug": "sex-work-is-real-work",
+        "name": "Sex Work Is Real Work",
+        "reason": "lengthened with sparkling"
+      },
+      {
+        "slug": "shannon-tebays-paloma",
+        "name": "Shannon Tebay’s Paloma",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "shirley-temple",
+        "name": "Shirley Temple",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "skeleton-key",
+        "name": "Skeleton Key",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "smooth-kiss",
+        "name": "Smooth Kiss",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "sour-strawberry-highball",
+        "name": "Sour Strawberry Highball",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "spiced-cranberry-orange-punch",
+        "name": "Spiced Cranberry-Orange Punch",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "strukani-pelin",
+        "name": "Štrukani Pelin",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "suffering-bastard",
+        "name": "Suffering Bastard",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "t-summer-night",
+        "name": "T. Summer Night",
+        "reason": "lengthened with club soda, prosecco"
+      },
+      {
+        "slug": "tea-time",
+        "name": "Tea Time",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "temperance-grapefruit-collins",
+        "name": "Temperance Grapefruit Collins",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "tequila-spritz",
+        "name": "Tequila Spritz",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "the-last-chateau",
+        "name": "The Last Chateau",
+        "reason": "lengthened with sparkling"
+      },
+      {
+        "slug": "the-last-spritz",
+        "name": "The Last Spritz",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "the-st-germain-spritz",
+        "name": "The St-Germain Spritz",
+        "reason": "lengthened with club soda, champagne"
+      },
+      {
+        "slug": "the-west-8th",
+        "name": "The West 8th",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "toby-cecchinis-gin-tonic",
+        "name": "Toby Cecchini’s Gin & Tonic",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "tonic-rickey",
+        "name": "Tonic Rickey",
+        "reason": "lengthened with club soda, tonic"
+      },
+      {
+        "slug": "tonico-di-corte",
+        "name": "Tonico di Corte",
+        "reason": "lengthened with club soda, tonic"
+      },
+      {
+        "slug": "tropical-popsicle",
+        "name": "Tropical Popsicle",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "ume-paloma",
+        "name": "Ume Paloma",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "vitamin-parade",
+        "name": "Vitamin Parade",
+        "reason": "lengthened with ginger beer, beer"
+      },
+      {
+        "slug": "washingtons-mule",
+        "name": "Washington's Mule",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "whisky-highball",
+        "name": "Whisky Highball",
+        "reason": "lengthened with club soda"
+      },
+      {
+        "slug": "white-negroni-sbagliato",
+        "name": "White Negroni Sbagliato",
+        "reason": "lengthened with prosecco"
+      },
+      {
+        "slug": "whitechapel-gt",
+        "name": "Whitechapel G&T",
+        "reason": "lengthened with tonic"
+      },
+      {
+        "slug": "your-mothers-spritz",
+        "name": "Your Mother’s Spritz",
+        "reason": "lengthened with grapefruit soda"
+      }
+    ],
+    "family:sour": [
+      {
+        "slug": "1934-cosmo",
+        "name": "1934 Cosmo",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "2-to-2",
+        "name": "2 to 2",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "alabazam",
+        "name": "Alabazam",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "amaretto-sour-jeffrey-morgenthaler",
+        "name": "Amaretto Sour (Jeffrey Morgenthaler)",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "amoxicillin",
+        "name": "Amoxicillin",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "ancho-problem",
+        "name": "Ancho Problem",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "angie",
+        "name": "Angie",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "apple-amaretto-sour",
+        "name": "Apple Amaretto Sour",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "apples-all-the-way-down",
+        "name": "Apples All the Way Down",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "army-navy",
+        "name": "Army & Navy",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "art-of-choke",
+        "name": "Art of Choke",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "avenue-scotch",
+        "name": "Avenue Scotch",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "baby-turtle",
+        "name": "Baby Turtle",
+        "reason": "lime juice, grapefruit juice against syrup"
+      },
+      {
+        "slug": "bacardi-cocktail",
+        "name": "Bacardi Cocktail",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "banana-daiquiri",
+        "name": "Banana Daiquiri",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "barbacoa",
+        "name": "Barbacoa",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "barmuda-triangle",
+        "name": "Barmuda Triangle",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "bebbo",
+        "name": "Bebbo",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "beet-it",
+        "name": "Beet It",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "beuser-angus-special",
+        "name": "Beuser & Angus Special",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "blackberry-whiskey-smash",
+        "name": "Blackberry Whiskey Smash",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "blinker",
+        "name": "Blinker",
+        "reason": "grapefruit juice against syrup"
+      },
+      {
+        "slug": "bourbon-renewal",
+        "name": "Bourbon Renewal",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "bramble",
+        "name": "Bramble",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "brandy-crusta",
+        "name": "Brandy Crusta",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "brasserie-special",
+        "name": "Brasserie Special",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "breakfast-margarita",
+        "name": "Breakfast Margarita",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "brown-derby",
+        "name": "Brown Derby",
+        "reason": "lemon juice, grapefruit juice against syrup"
+      },
+      {
+        "slug": "cable-car",
+        "name": "Cable Car",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "canchanchara",
+        "name": "Canchànchara",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "cane-tables-royal-hawaiian",
+        "name": "Cane & Table’s Royal Hawaiian",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "celery-gin-sour",
+        "name": "Celery Gin Sour",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "central-park-to-lumphini",
+        "name": "Central Park to Lumphini",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "coronado-cocktail",
+        "name": "Coronado Cocktail",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "daiquiri-4",
+        "name": "Daiquiri #4",
+        "reason": "lime juice against sugar"
+      },
+      {
+        "slug": "dead-mans-handle",
+        "name": "Dead Man's Handle",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "debbie-dont",
+        "name": "Debbie, Don't",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "deep-south",
+        "name": "Deep South",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "eastside",
+        "name": "Eastside",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "el-pepe",
+        "name": "El Pepe",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "employees-onlys-mezcal-margarita",
+        "name": "Employees Only’s Mezcal Margarita",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "enzoni",
+        "name": "Enzoni",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "eponine-collins",
+        "name": "Eponine Collins",
+        "reason": "lemon juice, grapefruit juice against syrup"
+      },
+      {
+        "slug": "fairy-sugar-momma",
+        "name": "Fairy Sugar Momma",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "flannel-shirt",
+        "name": "Flannel Shirt",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "french-pearl",
+        "name": "French Pearl",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "french-pearl-2",
+        "name": "French Pearl",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "frozen-margarita",
+        "name": "Frozen Margarita",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "ghost-coast",
+        "name": "Ghost Coast",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "gin-basil-smash",
+        "name": "Gin Basil Smash",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "gin-daisy-new-school",
+        "name": "Gin Daisy (New School)",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "giving-basil",
+        "name": "Giving Basil",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "gold-rush",
+        "name": "Gold Rush",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "good-christian-pear",
+        "name": "Good Christian Pear",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "gram-arita",
+        "name": "Gram-Arita",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "grapefruit-reviver",
+        "name": "Grapefruit Reviver",
+        "reason": "grapefruit juice against syrup"
+      },
+      {
+        "slug": "green-eyes",
+        "name": "Green Eyes",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "greta-garbo",
+        "name": "Greta Garbo",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "grog",
+        "name": "Grog",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "gunshop-fizz",
+        "name": "Gunshop Fizz",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "halekulani",
+        "name": "Halekulani",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "hoodwinked",
+        "name": "Hoodwinked",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "humuhumunukunukuapuaa",
+        "name": "Humuhumunukunukuapua'a",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "im-on-fire",
+        "name": "I’m on Fire",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "industry-sour",
+        "name": "Industry Sour",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "irish-maid",
+        "name": "Irish Maid",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "jack-rose",
+        "name": "Jack Rose",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "jagerita",
+        "name": "Jägerita",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "john-debarys-singapore-sling",
+        "name": "John deBary’s Singapore Sling",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "juliet-romeo",
+        "name": "Juliet & Romeo",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "kiwito",
+        "name": "Kiwito",
+        "reason": "lime juice against sugar"
+      },
+      {
+        "slug": "lantern-fly",
+        "name": "Lantern Fly",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "lena",
+        "name": "Leña",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "lone-ranger",
+        "name": "Lone Ranger",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "love-murder",
+        "name": "Love & Murder",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "lust-for-life",
+        "name": "Lust for Life",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "mary-celeste",
+        "name": "Mary Celeste",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "medicina-latina",
+        "name": "Medicina Latina",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "mexican-firing-squad",
+        "name": "Mexican Firing Squad",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "mexican-razor-blade",
+        "name": "Mexican Razor Blade",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "mezcal-sour",
+        "name": "Mezcal Sour",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "mezchine-head",
+        "name": "Mezchine Head",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "modern-medicine",
+        "name": "Modern Medicine",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "more-supreme",
+        "name": "More Supreme",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "mosquito",
+        "name": "Mosquito",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "new-york-sour",
+        "name": "New York Sour",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "norwegian-paralysis",
+        "name": "Norwegian Paralysis",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "oaxacanite",
+        "name": "Oaxacanite",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "ol-poets-smoke",
+        "name": "Ol’ Poet’s Smoke",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "old-salt",
+        "name": "Old Salt",
+        "reason": "lime juice, grapefruit juice against syrup"
+      },
+      {
+        "slug": "paris-is-burning",
+        "name": "Paris is Burning",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "penicillin",
+        "name": "Penicillin",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "picante-de-la-casa",
+        "name": "Picante de la Casa",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "pinch-hitter",
+        "name": "Pinch Hitter",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "pink-lady",
+        "name": "Pink Lady",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "planters-punch",
+        "name": "Planter’s Punch",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "poached-pear",
+        "name": "Poached Pear",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "port-light",
+        "name": "Port Light",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "queen-of-the-rodeo",
+        "name": "Queen of the Rodeo",
+        "reason": "lime juice, grapefruit juice against syrup"
+      },
+      {
+        "slug": "queens-park-hotel-super-cocktail",
+        "name": "Queen's Park Hotel Super Cocktail",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "queens-park-swizzle",
+        "name": "Queens Park Swizzle",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "rattlesnake",
+        "name": "Rattlesnake",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "ric-pear-blanc",
+        "name": "Ric Pear Blanc",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "rocket-power",
+        "name": "Rocket Power",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "saisonniere",
+        "name": "Saisonnière",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "saturn",
+        "name": "Saturn",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "sawyer",
+        "name": "Sawyer",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "scofflaw",
+        "name": "Scofflaw",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "scotch-sling",
+        "name": "Scotch Sling",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "sea-legs",
+        "name": "Sea Legs",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "second-serve-2",
+        "name": "Second Serve",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "see-you-on-wednesday",
+        "name": "See You on Wednesday",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "seven-seas-swizzle",
+        "name": "Seven Seas Swizzle",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "shliva-sour",
+        "name": "Shliva Sour",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "siesta",
+        "name": "Siesta",
+        "reason": "lime juice, grapefruit juice against syrup"
+      },
+      {
+        "slug": "singapore-sling",
+        "name": "Singapore Sling",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "single-village-fix",
+        "name": "Single Village Fix",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "smoke-follows-beauty",
+        "name": "Smoke Follows Beauty",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "snake-eyes",
+        "name": "Snake Eyes",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "southside",
+        "name": "Southside",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "spaceface-from-young-american",
+        "name": "Spaceface from Young American",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "spanish-monk",
+        "name": "Spanish Monk",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "spicy-fifty",
+        "name": "Spicy Fifty",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "stones-throw",
+        "name": "Stone’s Throw",
+        "reason": "lemon juice against curaçao"
+      },
+      {
+        "slug": "strawberry-daiquiri",
+        "name": "Strawberry Daiquiri",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "strictly-business",
+        "name": "Strictly Business",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "tequila-daisy",
+        "name": "Tequila Daisy",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "the-cutter",
+        "name": "The Cutter",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "the-dead-rabbit",
+        "name": "The Dead Rabbit",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "the-infante",
+        "name": "The Infante",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "the-mahatma",
+        "name": "The Mahatma",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "the-mystical-one",
+        "name": "The Mystical One",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "tom-macys-gimlet",
+        "name": "Tom Macy’s Gimlet",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "tommys-margarita",
+        "name": "Tommy’s Margarita",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "trader-vics-sour",
+        "name": "Trader Vic's Sour",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "trinidad-sour",
+        "name": "Trinidad Sour",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "truly-scrumptious",
+        "name": "Truly Scrumptious",
+        "reason": "lime juice against syrup"
+      },
+      {
+        "slug": "twelve-mile-limit",
+        "name": "Twelve Mile Limit",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "vento",
+        "name": "VE.N.TO",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "ward-eight",
+        "name": "Ward Eight",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "white-lady",
+        "name": "White Lady",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "wildest-redhead",
+        "name": "Wildest Redhead",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "willsour",
+        "name": "Willsour",
+        "reason": "lemon juice against syrup"
+      },
+      {
+        "slug": "zombie-spritz",
+        "name": "Zombie Spritz",
+        "reason": "lime juice, grapefruit juice against syrup"
+      }
+    ],
+    "family:spirit-forward": [
+      {
+        "slug": "8-amaro-sazerac",
+        "name": "8 Amaro Sazerac",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "absinthe-old-fashioned",
+        "name": "Absinthe Old Fashioned",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "adonis",
+        "name": "Adonis",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "affinity",
+        "name": "Affinity",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "alaska",
+        "name": "Alaska",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "algonquin",
+        "name": "Algonquin",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "amen-corner",
+        "name": "Amen Corner",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "appetizer-a-litalienne",
+        "name": "Appetizer à l’Italienne",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "apple-kickin",
+        "name": "Apple Kickin'",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "bay-ridge",
+        "name": "Bay Ridge",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "bee-sting",
+        "name": "Bee Sting",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "bentons-old-fashioned",
+        "name": "Benton’s Old-Fashioned",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "bijou",
+        "name": "Bijou",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "bijou-blanc",
+        "name": "Bijou Blanc",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "black-manhattan",
+        "name": "Black Manhattan",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "black-walnut-old-fashioned",
+        "name": "Black Walnut Old Fashioned",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "blackthorn",
+        "name": "Blackthorn",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "blood-and-sand",
+        "name": "Blood and Sand",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "brainstorm",
+        "name": "Brainstorm",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "campbeltown",
+        "name": "Campbeltown",
+        "reason": "no juice; modified by chartreuse"
+      },
+      {
+        "slug": "cardinale",
+        "name": "Cardinale",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "ce-soir",
+        "name": "Ce Soir",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "chauncey",
+        "name": "Chauncey",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "chocolate-martica",
+        "name": "Chocolate Martica",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "chrysanthemum",
+        "name": "Chrysanthemum",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "coffee-cocktail",
+        "name": "Coffee Cocktail",
+        "reason": "no juice; modified by port"
+      },
+      {
+        "slug": "conference-cocktail",
+        "name": "Conference Cocktail",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "death-flip",
+        "name": "Death Flip",
+        "reason": "no juice; modified by chartreuse"
+      },
+      {
+        "slug": "dirty-martini",
+        "name": "Dirty Martini",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "don-lockwood",
+        "name": "Don Lockwood",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "drifter",
+        "name": "Drifter",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "eel-bars-marianito",
+        "name": "Eel Bar’s Marianito",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "eeyores-requiem",
+        "name": "Eeyore’s Requiem",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "el-abuelo",
+        "name": "El Abuelo",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "el-gibson",
+        "name": "El Gibson",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "el-presidente",
+        "name": "El Presidente",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "elder-fashion-gin",
+        "name": "Elder Fashion (Gin)",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "endless-summer",
+        "name": "Endless Summer",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "enzo",
+        "name": "Enzo",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "eric-alperins-tuxedo-no-2",
+        "name": "Eric Alperin’s Tuxedo No. 2",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "fancy-free",
+        "name": "Fancy Free",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "fiore-di-francia",
+        "name": "Fiore di Francia",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "gaz-regans-negroni",
+        "name": "Gaz Regan’s Negroni",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "gibson",
+        "name": "Gibson",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "gin-blossom",
+        "name": "Gin Blossom",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "gin-it",
+        "name": "Gin & It",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "gin-pahit",
+        "name": "Gin Pahit",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "godfather-iv",
+        "name": "Godfather IV",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "going-out-west",
+        "name": "Going Out West",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "guillotine",
+        "name": "Guillotine",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "hanky-panky",
+        "name": "Hanky Panky",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "heart-of-stone",
+        "name": "Heart of Stone",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "home-on-the-range",
+        "name": "Home on the Range",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "how-bout-them-salty-apples",
+        "name": "How Bout Them Salty Apples",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "income-tax",
+        "name": "Income Tax",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "japanese-cocktail",
+        "name": "Japanese cocktail",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "jersey-cocktail-1862",
+        "name": "Jersey Cocktail (1862)",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "jimmy-dean",
+        "name": "Jimmy Dean",
+        "reason": "no juice; modified by liqueur"
+      },
+      {
+        "slug": "ken-burns-effect",
+        "name": "Ken Burns Effect",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "kingstone-negroni",
+        "name": "Kingstone Negroni",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "la-louisiane",
+        "name": "La Louisiane",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "la-rosita",
+        "name": "La Rosita",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "left-hand",
+        "name": "Left Hand",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "little-italy",
+        "name": "Little Italy",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "lucien-gaudin",
+        "name": "Lucien Gaudin",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "managers-meeting",
+        "name": "Manager's Meeting",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "maria-mole",
+        "name": "Maria Mole",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "martinez",
+        "name": "Martinez",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "matador",
+        "name": "Matador",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "mickey-finn",
+        "name": "Mickey Finn",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "mm-mezcal-montenegro",
+        "name": "M&M Mezcal Montenegro",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "needle-in-the-hay",
+        "name": "Needle in the Hay",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "negroni-tredici",
+        "name": "Negroni Tredici",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "negroski",
+        "name": "Negroski",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "new-fashioned",
+        "name": "New Fashioned",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "oak-kin",
+        "name": "OAK->KIN",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "oaxaca-old-fashioned",
+        "name": "Oaxaca Old Fashioned",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "obituary",
+        "name": "Obituary",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "old-fashioned-romance",
+        "name": "Old Fashioned Romance",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "old-pal",
+        "name": "Old Pal",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "palmetto-no-1",
+        "name": "Palmetto No. 1",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "palmetto-no-2",
+        "name": "Palmetto No. 2",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "pear-martini",
+        "name": "Pear Martini",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "poets-dream",
+        "name": "Poet’s Dream",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "poseidon",
+        "name": "Poseidon",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "puritan",
+        "name": "Puritan",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "rabo-de-galo",
+        "name": "Rabo de Galo",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "rainy-day-fund",
+        "name": "Rainy Day Fund",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "red-hook",
+        "name": "Red Hook",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "remember-the-alimony",
+        "name": "Remember the Alimony",
+        "reason": "no juice; modified by sherry"
+      },
+      {
+        "slug": "remember-the-maine",
+        "name": "Remember the Maine",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "rocinante",
+        "name": "Rocinante",
+        "reason": "no juice; modified by liqueur"
+      },
+      {
+        "slug": "rum-old-fashioned",
+        "name": "Rum Old Fashioned",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "savoy-special-1",
+        "name": "Savoy Special #1",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "scorched-earth",
+        "name": "Scorched Earth",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "sentimental-gentleman",
+        "name": "Sentimental Gentleman",
+        "reason": "no juice; modified by liqueur"
+      },
+      {
+        "slug": "sex-on-the-beach",
+        "name": "Sex on the Beach",
+        "reason": "no juice; modified by liqueur"
+      },
+      {
+        "slug": "shade-thrower",
+        "name": "Shade Thrower",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "shoot-the-moon",
+        "name": "Shoot the Moon",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "sin-cyn",
+        "name": "Sin Cyn",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "smokeroni",
+        "name": "SmokeRoni",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "spaghetti-western",
+        "name": "Spaghetti Western",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "star",
+        "name": "Star",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "telekinesis",
+        "name": "Telekinesis",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "tequila-old-fashioned",
+        "name": "Tequila Old Fashioned",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "thad-voglers-el-presidente",
+        "name": "Thad Vogler’s El Presidente",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "the-greenpoint",
+        "name": "The Greenpoint",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "the-perfect-bqe",
+        "name": "The Perfect BQE",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "the-second-marriage",
+        "name": "The Second Marriage",
+        "reason": "no juice; modified by sherry"
+      },
+      {
+        "slug": "the-wardays",
+        "name": "The Warday’s",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "thief-of-hearts",
+        "name": "Thief of Hearts",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "three-of-a-kind",
+        "name": "Three of a Kind",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "tipperary",
+        "name": "Tipperary",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "toronto",
+        "name": "Toronto",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "tradewinds-negroni",
+        "name": "Tradewinds Negroni",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "treacle",
+        "name": "Treacle",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "tunnel",
+        "name": "Tunnel",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "turf-club",
+        "name": "Turf Club",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "tuxedo",
+        "name": "Tuxedo",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "valkyrie",
+        "name": "Valkyrie",
+        "reason": "no juice; modified by amaro"
+      },
+      {
+        "slug": "vieille-place",
+        "name": "Vieille Place",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "wardman-park",
+        "name": "Wardman Park",
+        "reason": "no juice; modified by sherry"
+      },
+      {
+        "slug": "whiskey-smash",
+        "name": "Whiskey Smash",
+        "reason": "no juice; modified by bitters"
+      },
+      {
+        "slug": "white-mezcal-negroni",
+        "name": "White Mezcal Negroni",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "white-negroni-corpse-revived",
+        "name": "White Negroni (Corpse revived)",
+        "reason": "no juice; modified by vermouth"
+      },
+      {
+        "slug": "winterized-negroni",
+        "name": "Winterized Negroni",
+        "reason": "no juice; modified by vermouth"
+      }
+    ],
+    "family:tiki": [
+      {
+        "slug": "absent-stars",
+        "name": "Absent Stars",
+        "reason": "rum + passionfruit"
+      },
+      {
+        "slug": "absinthe-colada",
+        "name": "Absinthe Colada",
+        "reason": "rum + coconut, pineapple"
+      },
+      {
+        "slug": "artichoke-hold",
+        "name": "Artichoke Hold",
+        "reason": "rum + orgeat"
+      },
+      {
+        "slug": "barracuda",
+        "name": "Barracuda",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "bitter-mai-tai",
+        "name": "Bitter Mai Tai",
+        "reason": "rum + orgeat"
+      },
+      {
+        "slug": "blue-hawaii",
+        "name": "Blue Hawaii",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "bywater",
+        "name": "Bywater",
+        "reason": "rum + falernum"
+      },
+      {
+        "slug": "caribbean-ember",
+        "name": "Caribbean Ember",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "charles-dickens-punch",
+        "name": "Charles Dickens’ Punch",
+        "reason": "2 rums"
+      },
+      {
+        "slug": "disgruntled-mai-tai",
+        "name": "Disgruntled Mai Tai",
+        "reason": "rum + orgeat"
+      },
+      {
+        "slug": "dons-mai-tai",
+        "name": "Don’s Mai Tai",
+        "reason": "rum + falernum"
+      },
+      {
+        "slug": "doubleplusgood",
+        "name": "Doubleplusgood",
+        "reason": "rum + orgeat"
+      },
+      {
+        "slug": "four-points",
+        "name": "Four Points",
+        "reason": "rum + passionfruit"
+      },
+      {
+        "slug": "getaway-car",
+        "name": "Getaway Car",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "hurricane",
+        "name": "Hurricane",
+        "reason": "rum + passionfruit"
+      },
+      {
+        "slug": "hurricane-2",
+        "name": "Hurricane",
+        "reason": "rum + passionfruit"
+      },
+      {
+        "slug": "illegal",
+        "name": "Illegal",
+        "reason": "rum + falernum"
+      },
+      {
+        "slug": "kiwi-swizzle",
+        "name": "Kiwi Swizzle",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "la-concha",
+        "name": "La Concha",
+        "reason": "rum + coconut, pineapple"
+      },
+      {
+        "slug": "maracuya-mojito",
+        "name": "Maracuyá Mojito",
+        "reason": "rum + passionfruit"
+      },
+      {
+        "slug": "mary-pickford",
+        "name": "Mary Pickford",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "missionarys-downfall",
+        "name": "Missionary’s Downfall",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "navy-grog",
+        "name": "Navy Grog",
+        "reason": "3 rums"
+      },
+      {
+        "slug": "nuclear-daiquiri",
+        "name": "Nuclear Daiquiri",
+        "reason": "rum + falernum"
+      },
+      {
+        "slug": "pancho-villa",
+        "name": "Pancho Villa",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "pearl-diver",
+        "name": "Pearl Diver",
+        "reason": "3 rums"
+      },
+      {
+        "slug": "pineapple-daiquiri",
+        "name": "Pineapple Daiquiri",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "real-charmers-daiquiri",
+        "name": "Real Charmer’s Daiquiri",
+        "reason": "rum + coconut"
+      },
+      {
+        "slug": "scorpion-bowl",
+        "name": "Scorpion Bowl",
+        "reason": "rum + orgeat"
+      },
+      {
+        "slug": "scorpion-reef",
+        "name": "Scorpion Reef",
+        "reason": "rum + orgeat, pineapple"
+      },
+      {
+        "slug": "scotch-and-coconut",
+        "name": "Scotch and Coconut",
+        "reason": "rum + coconut"
+      },
+      {
+        "slug": "spindrift",
+        "name": "Spindrift",
+        "reason": "3 rums"
+      },
+      {
+        "slug": "step-into-liquid",
+        "name": "Step Into Liquid",
+        "reason": "rum + pineapple"
+      },
+      {
+        "slug": "surfer-on-acid",
+        "name": "Surfer on Acid",
+        "reason": "3 rums"
+      },
+      {
+        "slug": "the-last-rainstorm",
+        "name": "The Last Rainstorm",
+        "reason": "2 rums"
+      },
+      {
+        "slug": "the-old-man-and-the-sea",
+        "name": "The Old Man and the Sea",
+        "reason": "rum + coconut"
+      },
+      {
+        "slug": "the-turnbuckle",
+        "name": "The Turnbuckle",
+        "reason": "rum + orgeat, passionfruit"
+      },
+      {
+        "slug": "three-dots-and-a-dash",
+        "name": "Three Dots and a Dash",
+        "reason": "2 rums"
+      },
+      {
+        "slug": "ti-punch-highball",
+        "name": "Ti’ Punch Highball",
+        "reason": "rum + coconut"
+      },
+      {
+        "slug": "tia-mia",
+        "name": "Tia Mia",
+        "reason": "rum + orgeat"
+      },
+      {
+        "slug": "tropical-storm",
+        "name": "Tropical Storm",
+        "reason": "rum + passionfruit"
+      },
+      {
+        "slug": "zombie-apocalypse",
+        "name": "Zombie Apocalypse",
+        "reason": "2 rums"
+      }
+    ]
+  },
+  "unclassified": [
+    "angel-face",
+    "annas-revenge",
+    "archangel",
+    "basil-julep",
+    "between-the-sheets",
+    "bitter-giuseppe",
+    "bloody-caesar",
+    "bloody-mary",
+    "breakfast-martini",
+    "brown-bomber",
+    "caipirinha",
+    "cantaritos",
+    "casino",
+    "clover-leaf",
+    "comte-de-sureau",
+    "corpse-reviver-2",
+    "cynar-flip",
+    "dantes-garibaldi",
+    "diki-diki",
+    "division-bell",
+    "dreamy-dorini-smoking-martini",
+    "english-garden",
+    "ferrari",
+    "final-ward",
+    "first-frost",
+    "french-connection",
+    "french-gimlet",
+    "french-martini",
+    "godfather",
+    "grand-armys-amaretto-sour",
+    "hard-sell",
+    "harvey-wallbanger",
+    "hemingway-daiquiri",
+    "hemingway-special",
+    "honeymoon",
+    "hot-buttered-rum",
+    "hot-oaxacan-penicillin",
+    "hot-toddy",
+    "house-of-gucci-mane",
+    "jasmine",
+    "kentucky-flyer",
+    "kir",
+    "last-word",
+    "lemon-drop-martini",
+    "metexa",
+    "mezcal-margarita",
+    "mint-julep",
+    "mis-mas",
+    "misis-negroni-sour",
+    "monkey-gland",
+    "monte-cassino",
+    "mulled-wine",
+    "naked-and-famous",
+    "old-friend",
+    "paper-airplane",
+    "paper-plane",
+    "paradise",
+    "parisien-mojito",
+    "pegu-club",
+    "pimms-cup",
+    "porto-flip",
+    "risorgimento-ditalia",
+    "rusty-nail",
+    "rusty-ringo",
+    "sakura-martini",
+    "sang-amer",
+    "sangria",
+    "screwdriver",
+    "sea-breeze",
+    "south-slope",
+    "st-regis-julep",
+    "stinger",
+    "stork-club",
+    "sunflower-cocktail-recipe",
+    "tequila-matador",
+    "tequila-sunrise",
+    "teton-tanya",
+    "thyme-after-thyme",
+    "ti-punch",
+    "ultima-palabra",
+    "vesper",
+    "whiskey-apple-highball",
+    "whiskey-peach-smash",
+    "white-negroni",
+    "wisconsin-old-fashioned",
+    "wray-and-ting",
+    "yellow",
+    "yellow-bird",
+    "yuzu-negroni"
+  ]
+}
