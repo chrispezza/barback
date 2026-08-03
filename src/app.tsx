@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LocationProvider, Router, Route, useLocation } from 'preact-iso';
 import type { ComponentChildren } from 'preact';
+import { useEffect } from 'preact/hooks';
 import { isAuthenticated } from './auth';
 import { useBarId, useCocktails, useShelf } from './api/queries';
 import { ToastHost } from './components/toasts';
@@ -75,6 +76,17 @@ function TabBar() {
   );
 }
 
+/** ADR-002 validation (frontend-spec §3): dev-only, tree-shaken from prod. */
+function DevReports() {
+  const barId = useBarId();
+  useEffect(() => {
+    if (barId !== undefined) {
+      void import('./dev/reports').then((m) => m.runDevReports(barId));
+    }
+  }, [barId]);
+  return null;
+}
+
 function Authed({ children }: { children: ComponentChildren }) {
   const { route } = useLocation();
   if (!isAuthenticated()) {
@@ -86,6 +98,7 @@ function Authed({ children }: { children: ComponentChildren }) {
       <RailNav />
       <div class="app-main">{children}</div>
       <TabBar />
+      {import.meta.env.DEV && <DevReports />}
     </div>
   );
 }

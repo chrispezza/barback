@@ -278,6 +278,40 @@ a {
   font-family: var(--font-serif);
 }
 
+/* Restock suggestions (Tonight rail, below the list) */
+.restock-section {
+  margin-top: var(--space-6);
+}
+
+.restock-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.restock-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.restock-unlocks {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: var(--caption);
+  color: var(--cream-400);
+  white-space: nowrap;
+}
+
+/* Recipe detail additions */
+.favorite-row {
+  margin: calc(-1 * var(--space-3)) 0 0;
+}
+
+.similar-section {
+  margin-top: var(--space-7);
+}
+
 /* Login */
 .login-form {
   display: grid;

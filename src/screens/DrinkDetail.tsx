@@ -1,4 +1,7 @@
+import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
+import { DrinkCard } from '@ds/drinks/DrinkCard';
+import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
 import { ShelfRow } from '@ds/inventory/ShelfRow';
 import {
@@ -7,15 +10,36 @@ import {
   useProfile,
   useShoppingList,
   useShoppingMutation,
+  useSimilarCocktails,
+  useToggleFavorite,
 } from '../api/queries';
+import type { Cocktail } from '../api/types';
 import { ratioForSlug } from '../data/ratios';
+
+function toCardIngredients(cocktail: Cocktail) {
+  return cocktail.ingredients.map((entry) => ({
+    name: entry.ingredient.name,
+    have: entry.in_shelf || entry.optional,
+  }));
+}
+
+function cardMatch(cocktail: Cocktail): 'full' | 'partial' | 'near' {
+  if (cocktail.in_shelf) return 'full';
+  const missing = cocktail.ingredients.filter(
+    (i) => !i.in_shelf && !i.optional,
+  ).length;
+  return missing === 1 ? 'near' : 'partial';
+}
 
 export function DrinkDetail({ slug }: { slug: string }) {
   const barId = useBarId();
+  const { route } = useLocation();
   const { data: cocktail, isLoading } = useCocktail(barId, slug);
   const { data: profile } = useProfile();
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
+  const similar = useSimilarCocktails(barId, cocktail?.id);
+  const toggleFavorite = useToggleFavorite(barId);
 
   if (isLoading) return <main class="screen screen--narrow" />;
   if (!cocktail) return <main class="screen screen--narrow">Not found.</main>;
@@ -30,6 +54,20 @@ export function DrinkDetail({ slug }: { slug: string }) {
   return (
     <main class="screen screen--narrow">
       <h1>{cocktail.name}</h1>
+
+      <p class="favorite-row">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (!toggleFavorite.isPending) {
+              toggleFavorite.mutate({ cocktailId: cocktail.id, slug });
+            }
+          }}
+        >
+          {cocktail.is_favorited ? '♦ Favorited' : '◇ Favorite'}
+        </Button>
+      </p>
 
       {ratio && (
         <div class="recipe-ratio">
@@ -87,6 +125,24 @@ export function DrinkDetail({ slug }: { slug: string }) {
           <p class="recipe-aside">Garnish: {cocktail.garnish}</p>
         )}
       </section>
+
+      {similar.data && similar.data.length > 0 && (
+        <section class="similar-section">
+          <MatchHeader label="In the same vein" align="left" />
+          <ul class="card-list">
+            {similar.data.slice(0, 4).map((c) => (
+              <li key={c.id}>
+                <DrinkCard
+                  name={c.name}
+                  ingredients={toCardIngredients(c)}
+                  match={cardMatch(c)}
+                  onSelect={() => route(`/drinks/${c.slug}`)}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }

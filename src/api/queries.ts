@@ -13,6 +13,7 @@ import type {
   ItemResponse,
   ListResponse,
   Profile,
+  RecommendedIngredient,
   ShoppingListItem,
   Tag,
 } from './types';
@@ -138,6 +139,65 @@ export function useIngredientUnlocks(
   });
 }
 
+/**
+ * Restock recommendations (frontend-spec §5): server-ranked bottles that open
+ * the most drinks. Shelf-derived, so shelf mutations invalidate ['recommend'].
+ */
+export function useRecommendations(barId: number | undefined) {
+  return useQuery({
+    queryKey: ['recommend', barId],
+    queryFn: () =>
+      api<ListResponse<RecommendedIngredient>>(
+        `/bars/${barId}/ingredients/recommend`,
+        { barId },
+      ),
+    enabled: barId !== undefined,
+    select: (r) => r.data,
+  });
+}
+
+/** GET /cocktails/{id}/similar — full cocktail resources with stock flags. */
+export function useSimilarCocktails(
+  barId: number | undefined,
+  cocktailId: number | undefined,
+) {
+  return useQuery({
+    queryKey: ['similar', barId, cocktailId],
+    queryFn: () =>
+      api<ListResponse<Cocktail>>(`/cocktails/${cocktailId}/similar`, { barId }),
+    enabled: barId !== undefined && cocktailId !== undefined,
+    staleTime: BOOTSTRAP_STALE_MS,
+    select: (r) => r.data,
+  });
+}
+
+/** Optimistic favorite flip on the detail cache; rolled back on error (§5). */
+export function useToggleFavorite(barId: number | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ cocktailId }: { cocktailId: number; slug: string }) =>
+      api(`/cocktails/${cocktailId}/toggle-favorite`, { method: 'POST', barId }),
+    onMutate: async ({ slug }) => {
+      await queryClient.cancelQueries({ queryKey: ['cocktail', barId, slug] });
+      const prev = queryClient.getQueryData<ItemResponse<Cocktail>>([
+        'cocktail',
+        barId,
+        slug,
+      ]);
+      if (prev) {
+        queryClient.setQueryData(['cocktail', barId, slug], {
+          data: { ...prev.data, is_favorited: !prev.data.is_favorited },
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, { slug }, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['cocktail', barId, slug], ctx.prev);
+      showToast({ message: 'The favorite didn’t take.' });
+    },
+  });
+}
+
 /** Add or remove shopping-list entries. Payload keys differ from the shelf batch. */
 export function useShoppingMutation(
   barId: number | undefined,
@@ -194,6 +254,7 @@ export function useCheckOff(
       void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
       void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
       void queryClient.invalidateQueries({ queryKey: ['ingredient-extra'] });
+      void queryClient.invalidateQueries({ queryKey: ['recommend'] });
     },
   });
 }
@@ -237,6 +298,7 @@ export function useShelfMutation(
       void queryClient.invalidateQueries({ queryKey: ['shelf'] });
       void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
       void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
+      void queryClient.invalidateQueries({ queryKey: ['recommend'] });
     },
   });
 }

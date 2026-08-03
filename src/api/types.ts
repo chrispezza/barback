@@ -74,3 +74,11 @@ export interface ShoppingListItem {
   ingredient: { id: number; slug: string; name: string };
   quantity: number | null;
 }
+
+/** GET /bars/{id}/ingredients/recommend entry. */
+export interface RecommendedIngredient {
+  id: number;
+  slug: string;
+  name: string;
+  potential_cocktails: number;
+}

@@ -1,4 +1,5 @@
 import { useLocation } from 'preact-iso';
+import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { EmptyState } from '@ds/feedback/EmptyState';
@@ -6,10 +7,14 @@ import {
   useBarId,
   useCheckOff,
   useCocktails,
+  useIngredientUnlocks,
   useProfile,
+  useRecommendations,
+  useShelf,
   useShoppingList,
+  useShoppingMutation,
 } from '../api/queries';
-import type { Cocktail } from '../api/types';
+import type { Cocktail, RecommendedIngredient } from '../api/types';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ShoppingRow } from '../components/ShoppingRow';
 
@@ -18,6 +23,31 @@ function toCardIngredients(cocktail: Cocktail) {
     name: entry.ingredient.name,
     have: entry.in_shelf || entry.optional,
   }));
+}
+
+/** One restock suggestion: live "unlocks N" (same voice as the shopping list). */
+function RestockRow({
+  suggestion,
+  onList,
+  disabled,
+}: {
+  suggestion: RecommendedIngredient;
+  onList: () => void;
+  disabled: boolean;
+}) {
+  const barId = useBarId();
+  const { data: unlocks } = useIngredientUnlocks(barId, suggestion.id);
+  return (
+    <div class="restock-row">
+      <span class="restock-name">{suggestion.name}</span>
+      {unlocks !== undefined && unlocks > 0 && (
+        <span class="restock-unlocks">unlocks {unlocks}</span>
+      )}
+      <Button size="sm" variant="ghost" disabled={disabled} onClick={onList}>
+        List it
+      </Button>
+    </div>
+  );
 }
 
 export function Tonight() {
@@ -36,6 +66,20 @@ export function Tonight() {
   const shelfIsBare = canMakeTotal === 0 && nearMiss.data?.meta?.total === 0;
 
   const listItems = shoppingList.data?.data ?? [];
+
+  // Restock (frontend-spec §5): server-ranked, minus what's already listed or
+  // owned — upstream recommend doesn't exclude on-shelf bottles (ADR-001:
+  // client-side filter, never an upstream patch).
+  const recommendations = useRecommendations(barId);
+  const shelf = useShelf(barId);
+  const shoppingMutation = useShoppingMutation(barId, profile?.id);
+  const ownedOrListed = new Set([
+    ...listItems.map((item) => item.ingredient.id),
+    ...(shelf.data?.data.map((i) => i.id) ?? []),
+  ]);
+  const suggestions = (recommendations.data ?? [])
+    .filter((r) => !ownedOrListed.has(r.id))
+    .slice(0, 5);
 
   return (
     <main class="screen">
@@ -78,7 +122,14 @@ export function Tonight() {
           {shelfIsBare && (
             <EmptyState
               title="The shelf is bare"
-              body="Add a spirit, a citrus and a sweetener and the first drinks open up."
+              body={
+                suggestions.length > 0
+                  ? `Start with ${suggestions
+                      .slice(0, 3)
+                      .map((s) => s.name)
+                      .join(', ')} — they open the most drinks.`
+                  : 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
+              }
             />
           )}
         </div>
@@ -104,6 +155,25 @@ export function Tonight() {
                 />
               ))}
             </div>
+          )}
+
+          {suggestions.length > 0 && (
+            <section class="restock-section">
+              <MatchHeader label="Restock next" align="left" />
+              {suggestions.map((s) => (
+                <RestockRow
+                  key={s.id}
+                  suggestion={s}
+                  disabled={shoppingMutation.isPending}
+                  onList={() =>
+                    shoppingMutation.mutate({
+                      ingredientIds: [s.id],
+                      action: 'add',
+                    })
+                  }
+                />
+              ))}
+            </section>
           )}
         </aside>
       </div>
