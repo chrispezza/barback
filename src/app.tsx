@@ -1,104 +1,74 @@
-import { useState } from 'preact/hooks'
-import preactLogo from './assets/preact.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './app.css'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { LocationProvider, Router, Route, useLocation } from 'preact-iso';
+import type { ComponentChildren } from 'preact';
+import { isAuthenticated } from './auth';
+import { Login } from './screens/Login';
+import { Tonight } from './screens/Tonight';
+import { Shelf } from './screens/Shelf';
+import { Drinks } from './screens/Drinks';
+import { DrinkDetail } from './screens/DrinkDetail';
 
-export function App() {
-  const [count, setCount] = useState(0)
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: 1 } },
+});
 
+function Nav() {
+  const { route, path } = useLocation();
+  const link = (href: string, label: string) => (
+    <a
+      href={href}
+      aria-current={path === href ? 'page' : undefined}
+      onClick={(e) => {
+        e.preventDefault();
+        route(href);
+      }}
+    >
+      {label}
+    </a>
+  );
+  return (
+    <nav class="top-nav">
+      {link('/tonight', 'Tonight')}
+      {link('/shelf', 'Shelf')}
+      {link('/drinks', 'Drinks')}
+    </nav>
+  );
+}
+
+function Authed({ children }: { children: ComponentChildren }) {
+  const { route } = useLocation();
+  if (!isAuthenticated()) {
+    route('/login', true);
+    return null;
+  }
   return (
     <>
-      <section id="center">
-        <div class="hero">
-          <img src={heroImg} class="base" width="170" height="179" alt="" />
-          <img src={preactLogo} class="framework" alt="Preact logo" />
-          <img src={viteLogo} class="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/app.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          class="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div class="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg class="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img class="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://preactjs.com/" target="_blank">
-                <img class="button-icon" src={preactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg class="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg class="button-icon" role="presentation" aria-hidden="true">
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg class="button-icon" role="presentation" aria-hidden="true">
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg class="button-icon" role="presentation" aria-hidden="true">
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg class="button-icon" role="presentation" aria-hidden="true">
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div class="ticks"></div>
-      <section id="spacer"></section>
+      <Nav />
+      {children}
     </>
-  )
+  );
+}
+
+function DrinkDetailRoute({ slug }: { slug?: string }) {
+  return (
+    <Authed>
+      <DrinkDetail slug={slug ?? ''} />
+    </Authed>
+  );
+}
+
+export function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LocationProvider>
+        <Router>
+          <Route path="/login" component={Login} />
+          <Route path="/shelf" component={() => <Authed><Shelf /></Authed>} />
+          <Route path="/drinks" component={() => <Authed><Drinks /></Authed>} />
+          <Route path="/drinks/:slug" component={DrinkDetailRoute} />
+          <Route default component={() => <Authed><Tonight /></Authed>} />
+        </Router>
+      </LocationProvider>
+    </QueryClientProvider>
+  );
 }
