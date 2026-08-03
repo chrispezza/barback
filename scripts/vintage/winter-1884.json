@@ -1,0 +1,197 @@
+{
+  "_source": "George Winter, How to Mix Drinks — Bar Keeper's Handbook (New York, 1884). Public domain. Vision-transcribed from the archive.org scan (howtomixdrinksba00wint) page images via IIIF — not from OCR text. Printed pages 24, 47, 48, 52.",
+  "_notes": "Period measures modernized: wine-glass = 60 ml, half wine-glass = 30 ml, tablespoon = 15 ml. 'Peruvian Bitters' and 'Orinoco Bitters' mapped to Angostura aromatic bitters with notes; gum syrup to simple syrup; Italian Vermouth / 'Vermouth' to sweet vermouth; Holland gin to Genever. The book's Whiskey Cocktail is omitted: its continuation pages (49-50) are missing from the scan and a faithful transcription cannot be completed.",
+  "collection": {
+    "name": "Winter 1884",
+    "description": "From George Winter's Bar Keeper's Handbook (1884) — the bar as it stood one year before the ledger this app is dressed as. Contains an equal-parts Manhattan and the Turf Club, the Martini's immediate ancestor."
+  },
+  "recipes": [
+    {
+      "recipe": {
+        "name": "Gin Cocktail (1884)",
+        "instructions": "Add the gum syrup, bitters, absinthe and gin to a large bar glass. Fill with fine ice; stir well; squeeze from a lemon peel on top, and serve.",
+        "description": "From George Winter's Bar Keeper's Handbook (1884), p. 24. Made with Holland gin — the malty Dutch style that preceded London dry in American bars.",
+        "source": "George Winter, How to Mix Drinks (1884), p. 24",
+        "garnish": "Lemon peel",
+        "tags": ["vintage:winter-1884"],
+        "glass": "Lowball",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "genever", "amount": 60, "units": "ml", "optional": false, "note": "Holland gin in the original", "sort": 1 },
+          { "_id": "simple-syrup", "amount": 3, "units": "dash", "optional": false, "note": "Gum syrup in the original", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "note": "Orinoco Bitters in the original", "sort": 3 },
+          { "_id": "absinthe", "amount": 2, "units": "dash", "optional": false, "sort": 4 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "genever", "name": "Genever" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" },
+        { "_id": "absinthe", "name": "Absinthe" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Absinthe Cocktail (1884)",
+        "instructions": "Fill a large bar glass with ice. Add the gum syrup, bitters, curaçao, water and absinthe. Stir it well with a spoon; strain into a fancy cocktail glass; squeeze lemon peel on top, then serve.",
+        "description": "From George Winter's Bar Keeper's Handbook (1884), p. 24. Three-quarters of a wine glass of absinthe — the 1880s did not sip it in dashes.",
+        "source": "George Winter, How to Mix Drinks (1884), p. 24",
+        "garnish": "Lemon peel",
+        "tags": ["vintage:winter-1884"],
+        "glass": "Coupe",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "absinthe", "amount": 45, "units": "ml", "optional": false, "note": "Three-quarter wine glass", "sort": 1 },
+          { "_id": "water", "amount": 15, "units": "ml", "optional": false, "note": "One-quarter wine glass", "sort": 2 },
+          { "_id": "simple-syrup", "amount": 4, "units": "dash", "optional": false, "note": "Gum syrup in the original", "sort": 3 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "note": "Orinoco Bitters in the original", "sort": 4 },
+          { "_id": "orange-curacao", "amount": 2, "units": "dash", "optional": false, "sort": 5 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "absinthe", "name": "Absinthe" },
+        { "_id": "water", "name": "Water" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" },
+        { "_id": "orange-curacao", "name": "Orange Curaçao" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Turf Club Cocktail (1884)",
+        "instructions": "Add the bitters, Tom gin and Italian vermouth to a glass. Fill three-quarters full of fine ice, stir well with a spoon and strain into a fancy cocktail glass, then serve.",
+        "description": "From George Winter's Bar Keeper's Handbook (1884), p. 47. Equal parts Old Tom gin and Italian vermouth with bitters — the drink standing directly between the Manhattan and the Martini, printed years before the word Martini reached a book.",
+        "source": "George Winter, How to Mix Drinks (1884), p. 47",
+        "garnish": null,
+        "tags": ["vintage:winter-1884"],
+        "glass": "Coupe",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "old-tom-gin", "amount": 30, "units": "ml", "optional": false, "note": "One-half wine glass of Tom gin", "sort": 1 },
+          { "_id": "sweet-vermouth", "amount": 30, "units": "ml", "optional": false, "note": "Italian Vermouth in the original", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 3, "units": "dash", "optional": false, "note": "Peruvian Bitters in the original", "sort": 3 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "old-tom-gin", "name": "Old Tom Gin" },
+        { "_id": "sweet-vermouth", "name": "Sweet Vermouth" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Sam Ward (1884)",
+        "instructions": "Fill a fancy cocktail glass with fine crystal ice. Add the Chartreuse and curaçao. Stir well with a spoon. Peel the rind of a lemon the same as you would an apple, dip in sugar and place on top in tasty manner, then serve.",
+        "description": "From George Winter's Bar Keeper's Handbook (1884), p. 47. Named for Samuel Ward — lobbyist, gourmet, and \"King of the Lobby\" — an equal-parts liqueur cocktail with a sugared lemon rind.",
+        "source": "George Winter, How to Mix Drinks (1884), p. 47",
+        "garnish": "Sugared lemon rind, pared in one piece",
+        "tags": ["vintage:winter-1884"],
+        "glass": "Coupe",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "green-chartreuse", "amount": 30, "units": "ml", "optional": false, "note": "One-half wine glass of Chartreuse", "sort": 1 },
+          { "_id": "orange-curacao", "amount": 30, "units": "ml", "optional": false, "note": "Curacoa in the original", "sort": 2 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "green-chartreuse", "name": "Green Chartreuse" },
+        { "_id": "orange-curacao", "name": "Orange Curaçao" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Golden Fizz (1884)",
+        "instructions": "Add the lemon juice, sugar, Old Tom gin and egg yolk to a large bar glass. Fill the glass three-quarters full of fine ice. Shake well with shaker, strain into a fancy fizz glass, fill the balance with syphon seltzer, and serve.",
+        "description": "From George Winter's Bar Keeper's Handbook (1884), p. 48. A gin fizz with the yolk only — its silver twin takes the white.",
+        "source": "George Winter, How to Mix Drinks (1884), p. 48",
+        "garnish": null,
+        "tags": ["vintage:winter-1884"],
+        "glass": "Highball",
+        "method": "Shake",
+        "ingredients": [
+          { "_id": "old-tom-gin", "amount": 60, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "lemon-juice", "amount": 3, "units": "dash", "optional": false, "sort": 2 },
+          { "_id": "white-sugar", "amount": 10, "units": "ml", "optional": false, "note": "One small tablespoon", "sort": 3 },
+          { "_id": "egg-yolk", "amount": 1, "units": "parts", "optional": false, "note": "The yolk only", "sort": 4 },
+          { "_id": "club-soda", "amount": 60, "units": "ml", "optional": false, "note": "Syphon seltzer to fill", "sort": 5 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "old-tom-gin", "name": "Old Tom Gin" },
+        { "_id": "lemon-juice", "name": "Lemon juice" },
+        { "_id": "white-sugar", "name": "White sugar" },
+        { "_id": "egg-yolk", "name": "Egg yolk" },
+        { "_id": "club-soda", "name": "Club soda" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Old Tom Gin Cocktail (1884)",
+        "instructions": "Add the bitters, gum syrup and absinthe to a large bar glass. Fill the glass with fine shaved ice. Add the Old Tom gin; stir well with a spoon, strain into a fancy cocktail glass, twist the oil from a piece of lemon peel on top, then serve.",
+        "description": "From George Winter's Bar Keeper's Handbook (1884), p. 48.",
+        "source": "George Winter, How to Mix Drinks (1884), p. 48",
+        "garnish": "Lemon peel, oil twisted on top",
+        "tags": ["vintage:winter-1884"],
+        "glass": "Coupe",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "old-tom-gin", "amount": 60, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "simple-syrup", "amount": 3, "units": "dash", "optional": false, "note": "Gum syrup in the original", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "note": "Orinoco Bitters in the original", "sort": 3 },
+          { "_id": "absinthe", "amount": 2, "units": "dash", "optional": false, "sort": 4 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "old-tom-gin", "name": "Old Tom Gin" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" },
+        { "_id": "absinthe", "name": "Absinthe" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Manhattan Cocktail (1884)",
+        "instructions": "Add the bitters, gum syrup, whiskey and vermouth to a large bar glass. Fill the glass three-quarters full of fine shaved ice, mix well with a spoon, strain into a fancy cocktail glass and serve.",
+        "description": "From George Winter's Bar Keeper's Handbook (1884), p. 52 — one of the earliest printed Manhattans: equal parts whiskey and vermouth, Peruvian bitters, a touch of gum.",
+        "source": "George Winter, How to Mix Drinks (1884), p. 52",
+        "garnish": null,
+        "tags": ["vintage:winter-1884"],
+        "glass": "Coupe",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "rye-whiskey", "amount": 30, "units": "ml", "optional": false, "note": "One-half wine glass; simply 'whiskey' in the original", "sort": 1 },
+          { "_id": "sweet-vermouth", "amount": 30, "units": "ml", "optional": false, "note": "Simply 'Vermouth' in the original — Italian in period", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 3, "units": "dash", "optional": false, "note": "Peruvian Bitters in the original", "sort": 3 },
+          { "_id": "simple-syrup", "amount": 2, "units": "dash", "optional": false, "note": "Gum syrup in the original", "sort": 4 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "rye-whiskey", "name": "Rye whiskey" },
+        { "_id": "sweet-vermouth", "name": "Sweet Vermouth" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Gin Puff (1884)",
+        "instructions": "Add the Holland gin to a large fancy bar glass. Fill the glass half full of fresh milk and the balance with syphon seltzer, then serve.",
+        "description": "From George Winter's Bar Keeper's Handbook (1884), p. 52. Gin, milk and seltzer — the puff was the 1880s' idea of a light drink.",
+        "source": "George Winter, How to Mix Drinks (1884), p. 52",
+        "garnish": null,
+        "tags": ["vintage:winter-1884"],
+        "glass": "Highball",
+        "ingredients": [
+          { "_id": "genever", "amount": 60, "units": "ml", "optional": false, "note": "Holland gin in the original", "sort": 1 },
+          { "_id": "milk", "amount": 90, "units": "ml", "optional": false, "note": "Fresh milk, half the glass", "sort": 2 },
+          { "_id": "club-soda", "amount": 90, "units": "ml", "optional": false, "note": "Syphon seltzer to fill", "sort": 3 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "genever", "name": "Genever" },
+        { "_id": "milk", "name": "Milk" },
+        { "_id": "club-soda", "name": "Club soda" }
+      ]
+    }
+  ]
+}
