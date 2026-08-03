@@ -56,6 +56,52 @@ export const RATIOS: RatioTemplate[] = [
       { value: '1', label: 'VERMOUTH' },
     ],
   },
+  {
+    cocktailSlug: 'gimlet',
+    parts: [
+      { value: '2', label: 'GIN' },
+      { value: '¾', label: 'LIME' },
+      { value: '¾', label: 'SYRUP' },
+    ],
+  },
+  {
+    cocktailSlug: 'martini',
+    parts: [
+      { value: '2', label: 'GIN' },
+      { value: '1', label: 'VERMOUTH' },
+    ],
+  },
+  {
+    cocktailSlug: 'negroni',
+    parts: [
+      { value: '1', label: 'GIN' },
+      { value: '1', label: 'CAMPARI' },
+      { value: '1', label: 'VERMOUTH' },
+    ],
+  },
+  {
+    cocktailSlug: 'sazerac',
+    parts: [
+      { value: '2', label: 'RYE' },
+      { value: '¼', label: 'SYRUP' },
+      { value: '3 d', label: 'BITTERS' },
+    ],
+  },
+  // Vintage equal-parts stirred drinks — ratios as printed (Winter 1884).
+  {
+    cocktailSlug: 'manhattan-cocktail-1884',
+    parts: [
+      { value: '1', label: 'WHISKEY' },
+      { value: '1', label: 'VERMOUTH' },
+    ],
+  },
+  {
+    cocktailSlug: 'turf-club-cocktail-1884',
+    parts: [
+      { value: '1', label: 'GIN' },
+      { value: '1', label: 'VERMOUTH' },
+    ],
+  },
 ];
 
 export function ratioForSlug(slug: string): RatioTemplate | undefined {

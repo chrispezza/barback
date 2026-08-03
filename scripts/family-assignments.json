@@ -11,7 +11,10 @@
     "pisco-sour",
     "clover-club",
     "bees-knees",
-    "aviation"
+    "aviation",
+    "brandy-crusta-1862",
+    "whiskey-crusta-1862",
+    "golden-fizz-1884"
   ],
   "family:spirit-forward": [
     "old-fashioned",
@@ -21,7 +24,16 @@
     "boulevardier",
     "sazerac",
     "vieux-carre",
-    "rob-roy-no-3"
+    "rob-roy-no-3",
+    "brandy-cocktail-1862",
+    "whiskey-cocktail-1862",
+    "gin-cocktail-1862",
+    "japanese-cocktail-1862",
+    "gin-cocktail-1884",
+    "old-tom-gin-cocktail-1884",
+    "absinthe-cocktail-1884",
+    "turf-club-cocktail-1884",
+    "manhattan-cocktail-1884"
   ],
   "family:highball": [
     "cuba-libre",
@@ -30,7 +42,8 @@
     "john-collins",
     "paloma",
     "americano",
-    "mojito"
+    "mojito",
+    "gin-puff-1884"
   ],
   "family:tiki": [
     "mai-tai",
@@ -45,6 +58,7 @@
     "white-russian",
     "grasshopper",
     "espresso-martini",
-    "irish-coffee"
+    "irish-coffee",
+    "sam-ward-1884"
   ]
 }
