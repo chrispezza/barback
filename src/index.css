@@ -1,6 +1,5 @@
-/* Skeleton-grade base only — The Back Bar's full visual layer replaces this.
-   Tokens are the design system's non-negotiables (docs/design/tokens.css). */
-@import '../docs/design/tokens.css';
+/* Foundation comes from the delivered design system — single entry point. */
+@import '../The Back Bar Design System/styles.css';
 
 * {
   box-sizing: border-box;
@@ -8,35 +7,138 @@
 
 body {
   margin: 0;
-  background: var(--green-900);
-  color: var(--cream-100);
-  font-family: var(--font-body, Georgia, 'Times New Roman', serif);
+  background: var(--surface-app);
+  color: var(--text-body);
+  font-family: var(--font-body);
+  font-size: var(--body-2);
+  line-height: var(--body-2-lh);
 }
 
 .screen {
   max-width: 40rem;
   margin: 0 auto;
-  padding: 1rem;
+  padding: var(--space-5) var(--gutter-mobile) var(--space-8);
+}
+
+.screen > h1 {
+  font-family: var(--font-display);
+  font-size: var(--display-2);
+  line-height: var(--display-2-lh);
+  letter-spacing: var(--track-display);
+  color: var(--cream-100);
+  font-weight: 400;
+  margin: 0 0 var(--space-5);
 }
 
 .top-nav {
   display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  border-bottom: var(--border-card, 1px solid var(--brass-500));
+  gap: var(--space-5);
+  padding: var(--space-4) var(--gutter-mobile);
+  border-bottom: 1px solid var(--rule-hairline);
 }
 
-a {
+.top-nav a {
+  font-family: var(--font-body);
+  font-weight: var(--caps-weight);
+  font-size: var(--caps-2);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  text-indent: var(--track-caps);
+  color: var(--cream-400);
+  text-decoration: none;
+  transition: var(--transition-state);
+}
+
+.top-nav a:hover {
+  color: var(--cream-100);
+}
+
+.top-nav a[aria-current='page'] {
   color: var(--brass-500);
 }
 
-.ratio-values {
-  font-family: var(--font-display, inherit);
-  font-size: 2rem;
+.top-nav a:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
-.ratio-labels {
-  letter-spacing: var(--caps-tracking-min, 0.12em);
-  font-size: 0.75rem;
+a {
+  color: var(--link);
+}
+
+/* Stacked lists of drink cards */
+.card-list {
+  list-style: none;
+  margin: var(--space-4) 0 var(--space-6);
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Recipe detail */
+.recipe-ratio {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-6) 0;
+}
+
+.recipe-ingredients {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recipe-aside {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--cream-400);
+}
+
+.missing-line {
+  font-size: var(--caption);
+  color: var(--rose-400);
+}
+
+.missing-line em {
+  font-family: var(--font-serif);
+}
+
+/* Login */
+.login-form {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 22rem;
+  margin: var(--space-8) auto 0;
+}
+
+.login-form label {
+  display: grid;
+  gap: var(--space-2);
+  font-weight: var(--caps-weight);
+  font-size: var(--caps-3);
   text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  color: var(--cream-400);
+}
+
+.login-form input {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  background: var(--surface-inset);
+  border: 1px solid var(--rule-hairline);
+  border-radius: var(--radius);
+  color: var(--cream-100);
+  font-family: var(--font-body);
+  font-size: var(--body-2);
+  transition: var(--transition-state);
+}
+
+.login-form input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.login-error {
+  color: var(--rose-300);
+  font-size: var(--caption);
 }

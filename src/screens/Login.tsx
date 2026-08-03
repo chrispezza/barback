@@ -1,5 +1,6 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
+import { Button } from '@ds/core/Button';
 import { login } from '../api/client';
 
 export function Login() {
@@ -8,6 +9,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   async function onSubmit(e: SubmitEvent) {
     e.preventDefault();
@@ -17,7 +19,7 @@ export function Login() {
       await login(email, password);
       route('/tonight');
     } catch {
-      setError('Login failed — check email and password.');
+      setError('That login did not take — check the email and password.');
     } finally {
       setIsSubmitting(false);
     }
@@ -25,8 +27,8 @@ export function Login() {
 
   return (
     <main class="screen">
-      <h1>Barback</h1>
-      <form onSubmit={onSubmit}>
+      <form ref={formRef} class="login-form" onSubmit={onSubmit}>
+        <h1>Barback</h1>
         <label>
           Email
           <input
@@ -45,10 +47,14 @@ export function Login() {
             required
           />
         </label>
-        <button type="submit" disabled={isSubmitting}>
+        <Button disabled={isSubmitting} onClick={() => formRef.current?.requestSubmit()}>
           Log in
-        </button>
-        {error && <p role="alert">{error}</p>}
+        </Button>
+        {error && (
+          <p class="login-error" role="alert">
+            {error}
+          </p>
+        )}
       </form>
     </main>
   );

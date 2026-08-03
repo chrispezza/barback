@@ -1,4 +1,5 @@
 import { useLocation } from 'preact-iso';
+import { FamilyFilterBar } from '@ds/navigation/FamilyFilterBar';
 import { FAMILIES, familyByTag, type FamilyDef } from '../data/families';
 import { useBarId, useTags } from '../api/queries';
 
@@ -20,37 +21,29 @@ export function useActiveFamily(): ActiveFamily | undefined {
   return { def, tagId: tags?.find((t) => t.name === def.tag)?.id };
 }
 
-/**
- * Segmented, single-select family bar (frontend-spec §6). Skeleton markup —
- * The Back Bar's caps utility styling lands with the design system.
- */
+const ALL = 'ALL';
+
+/** Segmented, single-select family bar (frontend-spec §6). */
 export function FamilyPicker() {
   const { route, url, query } = useLocation();
-  const active = query['family'];
+  const activeSuffix = query['family'];
+  const activeDef = activeSuffix ? familyByTag(`family:${activeSuffix}`) : undefined;
 
-  function select(suffix: string | null) {
+  function onChange(name: string) {
     const path = url.split('?')[0] ?? '/';
-    route(suffix ? `${path}?family=${suffix}` : path);
+    if (name === ALL) {
+      route(path);
+      return;
+    }
+    const def = FAMILIES.find((f) => f.displayName === name);
+    if (def) route(`${path}?family=${def.tag.replace('family:', '')}`);
   }
 
   return (
-    <nav aria-label="Drink family">
-      <button type="button" aria-pressed={!active} onClick={() => select(null)}>
-        ALL
-      </button>
-      {FAMILIES.map((f) => {
-        const suffix = f.tag.replace('family:', '');
-        return (
-          <button
-            type="button"
-            key={f.tag}
-            aria-pressed={active === suffix}
-            onClick={() => select(suffix)}
-          >
-            {f.displayName}
-          </button>
-        );
-      })}
-    </nav>
+    <FamilyFilterBar
+      families={[ALL, ...FAMILIES.map((f) => f.displayName)]}
+      value={activeDef?.displayName ?? ALL}
+      onChange={onChange}
+    />
   );
 }

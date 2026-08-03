@@ -1,9 +1,15 @@
-# The Back Bar — Design System
+# The Back Bar — Design System (brief — superseded)
 
-Design system for the home-bartender pantry application (inventory shelf, "what can I
-make," shopping-list gap analysis, recipe index). The visual identity is established and
-**non-negotiable** — extend it, don't reinterpret it. Tokens live in
-[`tokens.css`](./tokens.css); treat that file as the source of truth for values.
+> **Superseded 2026-08-02.** The authored design system now lives at
+> [`../../The Back Bar Design System/`](../../The%20Back%20Bar%20Design%20System/readme.md)
+> — tokens, components, guidelines and UI kits. Its readme documents deliberate,
+> reasoned departures from this brief (Instrument Sans as the interface voice,
+> contrast-driven palette revisions to sage/surface/oxblood, tightened caps
+> tracking). This file and [`tokens.css`](./tokens.css) remain as the original
+> brief for historical intent; **do not** treat their values as current.
+
+Design system brief for the home-bartender pantry application (inventory shelf, "what
+can I make," shopping-list gap analysis, recipe index).
 
 ## Concept
 
