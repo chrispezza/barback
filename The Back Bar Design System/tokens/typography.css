@@ -1,0 +1,25 @@
+:root{
+--font-display:"Libre Caslon Display",Georgia,serif;
+--font-body:"Instrument Sans",system-ui,sans-serif;
+--font-serif:"Libre Caslon Text",Georgia,serif; /* italic ingredient names, editorial asides */
+
+/* Display — drink names, screen titles, ratio numerals. Never below 20px. */
+--display-1:44px; --display-1-lh:1.08; /* @kind other */
+--display-2:32px; --display-2-lh:1.12; /* @kind other */
+--display-3:24px; --display-3-lh:1.18; /* @kind other */
+
+/* Body */
+--body-1:17px; --body-1-lh:1.5; /* @kind other */
+--body-2:15px; --body-2-lh:1.5; /* @kind other */
+--caption:13px; --caption-lh:1.4; /* @kind other */
+
+/* Utility caps — the system's utility voice */
+--caps-1:13px; --caps-2:12px; --caps-3:11px;
+--caps-weight:600;
+--track-caps:0.10em;   /* eyebrows, buttons */
+--track-caps-wide:0.16em; /* section headers, ratio labels */
+--track-display:-0.005em;
+
+--weight-regular:400;
+--weight-bold:700;
+}

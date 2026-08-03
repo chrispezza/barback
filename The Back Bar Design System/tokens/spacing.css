@@ -1,0 +1,16 @@
+:root{
+--space-1:4px;
+--space-2:8px;
+--space-3:12px;
+--space-4:16px;
+--space-5:24px;
+--space-6:32px;
+--space-7:48px;
+--space-8:64px;
+
+--gutter-mobile:20px;   /* 390px screens */
+--gutter-desktop:32px;
+--measure:64ch;         /* max reading width */
+--tap-min:44px;         /* minimum interactive target */
+--row-height:56px;      /* shelf row */
+}

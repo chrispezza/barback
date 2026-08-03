@@ -1,0 +1,14 @@
+<!-- @dsCard group="Brand" viewport="700x150" name="Motion" subtitle="150–200ms ease-out on state change; nothing else moves" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>html,body{margin:0}body{background:var(--green-900);color:var(--cream-100);font-family:var(--font-body);padding:18px 22px}
+.sw{display:flex;gap:0}.sw>div{flex:1;height:74px;display:flex;flex-direction:column;justify-content:flex-end;padding:8px 10px;border-radius:2px}
+.hex{font-size:10px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;opacity:0.9}
+.tok{font-size:10px;letter-spacing:0.06em;opacity:0.75;margin-top:2px}
+.cap{font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:0.10em;color:var(--cream-400)}
+.mut{color:var(--cream-400);font-size:13px}
+</style></head><body><div style="font-size:15px;line-height:1.8;color:var(--cream-100)">
+<div><span class="cap">Fast</span> &nbsp;150ms · chip select, hover, focus &nbsp;<span style="color:var(--sage-600)">--dur-fast</span></div>
+<div><span class="cap">Base</span> &nbsp;200ms · card stock-state flip, modal fade &nbsp;<span style="color:var(--sage-600)">--dur-base</span></div>
+<div><span class="cap">Ease</span> &nbsp;cubic-bezier(.2,0,.2,1) &nbsp;<span style="color:var(--sage-600)">--ease-out</span></div>
+<div class="tok" style="color:var(--sage-600);margin-top:10px">No parallax, no page transitions, no entrance animation. Durations collapse to 0 under prefers-reduced-motion.</div>
+</div></body></html>

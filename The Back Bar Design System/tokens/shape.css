@@ -1,0 +1,10 @@
+:root{
+--radius:2px;          /* maximum radius in the system */
+--radius-none:0px;
+--border-1:1px;
+--frame-outer:3px;     /* double-rule: page & modal frames only */
+--frame-offset:4px;    /* gap between the 3px and 1px rules */
+--focus-width:2px;
+--focus-offset:2px;
+--fleuron:"—◆—"; /* @kind other */       /* the only decorative mark */
+}

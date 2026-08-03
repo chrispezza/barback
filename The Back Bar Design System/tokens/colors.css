@@ -1,0 +1,49 @@
+:root{
+/* Base palette. Three values were revised after contrast testing — see
+   readme.md § Palette revisions. The brass and creams are untouched. */
+--green-900:#122E26; /* ballroom green — app background */
+--green-800:#1E4438; /* card / raised surface (was #1A3B2F — too close to read as a surface) */
+--brass-500:#C6A15B; /* primary accent, selection, in-stock */
+--cream-100:#F1E8D6; /* primary text */
+--cream-400:#B9AE97; /* secondary text, labels */
+--sage-600:#9CAFA4;  /* not-in-bar ingredient (was #6E8177 — failed AA at 3.4:1) */
+--sage-700:#6E8177;  /* decorative only: chip borders, dividers. Never text. */
+--rose-300:#D8A79A;  /* near-miss section headers */
+--rose-400:#C99287;  /* missing-ingredient callouts */
+--ox-700:#5F2E33;    /* destructive (was #7A3B33 — read as a value of rose) */
+
+/* Derived rules & washes — brass at fixed alphas, never new hues */
+--rule-hairline:rgba(198,161,91,0.30);
+--rule-strong:rgba(198,161,91,0.55);
+--rule-faint:rgba(198,161,91,0.16);
+--brass-wash:rgba(198,161,91,0.10);
+--rose-wash:rgba(201,146,135,0.12);
+--ox-wash:rgba(95,46,51,0.30);
+--scrim:rgba(9,23,19,0.72);
+
+/* Semantic aliases — the UX vocabulary. Keep strict. */
+--surface-app:var(--green-900);
+--surface-card:var(--green-800);
+--surface-inset:#0E241E;
+--surface-card-hover:#244C3D;
+--surface-card-active:#1A3B2F;
+--border-absent:rgba(110,129,119,0.45);
+--border-card:var(--rule-hairline);
+--border-frame:var(--rule-strong);
+
+--text-body:var(--cream-100);
+--text-muted:var(--cream-400);
+--text-absent:var(--sage-600);      /* you don't have it */
+--text-on-brass:var(--green-900);
+
+--state-have:var(--brass-500);      /* in shelf / selected / can pour */
+--state-gap:var(--rose-400);        /* actionable gap, shopping list */
+--state-gap-header:var(--rose-300);
+--state-destructive:var(--ox-700);
+
+--accent:var(--brass-500);
+--focus-ring:var(--brass-500);
+--caret:var(--brass-500);
+--link:var(--brass-500);
+--link-hover:var(--cream-100);
+}

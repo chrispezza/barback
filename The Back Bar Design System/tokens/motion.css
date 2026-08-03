@@ -1,0 +1,7 @@
+:root{
+--dur-fast:150ms; /* @kind other */
+--dur-base:200ms; /* @kind other */
+--ease-out:cubic-bezier(0.2,0.0,0.2,1); /* @kind other */
+--transition-state:color var(--dur-fast) var(--ease-out),background-color var(--dur-fast) var(--ease-out),border-color var(--dur-fast) var(--ease-out);
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:0ms; /* @kind other */ --dur-base:0ms /* @kind other */}}

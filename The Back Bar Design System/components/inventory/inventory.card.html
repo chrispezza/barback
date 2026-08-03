@@ -1,0 +1,37 @@
+<!-- @dsCard group="Components" viewport="700x260" name="Inventory" subtitle="Ingredient chip, shelf row, quantity stepper" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>html,body{margin:0}body{background:var(--green-900);color:var(--cream-100);font-family:var(--font-body);padding:20px 24px}.lbl{font-family:var(--font-body);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:0.10em;color:var(--sage-600);margin:0 0 8px}.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.cols{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}</style>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const { IngredientChip, ShelfRow, QuantityStepper } = window.TheBackBarDesignSystem_3399bd;
+
+function Demo(){
+  const [on,setOn]=React.useState(true);
+  return (<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'28px'}}>
+    <div>
+      <p className="lbl">Ingredient chip</p>
+      <div className="row">
+        <IngredientChip label="Rye whiskey" state={on?'have':'default'} onToggle={()=>setOn(!on)}/>
+        <IngredientChip label="Lime juice" state="default"/>
+        <IngredientChip label="Orgeat" state="absent"/>
+        <IngredientChip label="Absinthe" state="default" disabled/>
+      </div>
+      <p className="lbl" style={{marginTop:'22px'}}>Quantity stepper</p>
+      <div className="row"><QuantityStepper value={2} unit="btl" onChange={()=>{}}/></div>
+    </div>
+    <div>
+      <p className="lbl">Shelf row</p>
+      <ShelfRow name="Rye whiskey" brand="Rittenhouse" volume="750ml" remaining="¾" onRemove={()=>{}}/>
+      <ShelfRow name="Sweet vermouth" brand="Cocchi di Torino" volume="750ml" remaining="⅓" onRemove={()=>{}}/>
+      <ShelfRow name="Lime juice" brand="Fresh" empty onRemove={()=>{}}/>
+    </div>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script>
+</body></html>
