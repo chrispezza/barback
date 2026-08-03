@@ -1,0 +1,196 @@
+{
+  "_source": "Jerry Thomas, How to Mix Drinks, or The Bon-Vivant's Companion (New York: Dick & Fitzgerald, 1862). Public domain. Transcribed from the archive.org scan (howtomixdrinkso00schugoog), recipes 106-117.",
+  "_notes": "Period measures modernized: wine-glass = 60 ml, pony = 30 ml, teaspoon = 5 ml, tablespoon = 15 ml. 'Bogart's bitters' in the scan is Boker's bitters; mapped to Angostura aromatic bitters with a note. Gum (gomme) syrup mapped to simple syrup with a note.",
+  "collection": {
+    "name": "Thomas 1862",
+    "description": "The cocktail chapter of Jerry Thomas's How to Mix Drinks (1862) — the first bartender's guide ever published. The cocktail as it existed before vermouth: spirit, bitters, sugar, curaçao."
+  },
+  "recipes": [
+    {
+      "recipe": {
+        "name": "Brandy Cocktail (1862)",
+        "instructions": "Add the syrup, bitters, brandy and curaçao to a small bar glass. Squeeze lemon peel; fill one-third full of ice, and stir with a spoon.",
+        "description": "№ 107 in Jerry Thomas's How to Mix Drinks (1862). \"The 'Cocktail' is a modern invention, and is generally used on fishing and other sporting parties, although some patients insist that it is good in the morning as a tonic.\"",
+        "source": "Jerry Thomas, How to Mix Drinks (1862), № 107",
+        "garnish": "Lemon peel",
+        "tags": ["vintage:thomas-1862"],
+        "glass": "Lowball",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "brandy", "amount": 60, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "simple-syrup", "amount": 4, "units": "dash", "optional": false, "note": "Gum (gomme) syrup in the original", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "note": "Boker's bitters in the original", "sort": 3 },
+          { "_id": "orange-curacao", "amount": 2, "units": "dash", "optional": false, "sort": 4 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "brandy", "name": "Brandy" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" },
+        { "_id": "orange-curacao", "name": "Orange Curaçao" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Whiskey Cocktail (1862)",
+        "instructions": "Add the syrup, bitters and whiskey to a small bar glass with a piece of lemon peel. Fill one-third full of fine ice; shake and strain into a fancy red wine-glass.",
+        "description": "№ 109 in Jerry Thomas's How to Mix Drinks (1862). The drink that would later take on ice and a muddled cube and become the Old Fashioned.",
+        "source": "Jerry Thomas, How to Mix Drinks (1862), № 109",
+        "garnish": "Lemon peel",
+        "tags": ["vintage:thomas-1862"],
+        "glass": "Coupe",
+        "method": "Shake",
+        "ingredients": [
+          { "_id": "rye-whiskey", "amount": 60, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "simple-syrup", "amount": 4, "units": "dash", "optional": false, "note": "Gum (gomme) syrup in the original", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "note": "Boker's bitters in the original", "sort": 3 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "rye-whiskey", "name": "Rye whiskey" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Gin Cocktail (1862)",
+        "instructions": "Add the syrup, bitters, gin and curaçao to a small bar glass with a small piece of lemon peel. Fill one-third full of fine ice; shake well, and strain into a glass.",
+        "description": "№ 111 in Jerry Thomas's How to Mix Drinks (1862). Gin in 1862 meant Old Tom or Holland gin — this predates the London dry style.",
+        "source": "Jerry Thomas, How to Mix Drinks (1862), № 111",
+        "garnish": "Lemon peel",
+        "tags": ["vintage:thomas-1862"],
+        "glass": "Coupe",
+        "method": "Shake",
+        "ingredients": [
+          { "_id": "old-tom-gin", "amount": 60, "units": "ml", "optional": false, "note": "Old Tom or Holland gin in period", "sort": 1 },
+          { "_id": "simple-syrup", "amount": 4, "units": "dash", "optional": false, "note": "Gum (gomme) syrup in the original", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "note": "Boker's bitters in the original", "sort": 3 },
+          { "_id": "orange-curacao", "amount": 2, "units": "dash", "optional": false, "sort": 4 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "old-tom-gin", "name": "Old Tom Gin" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" },
+        { "_id": "orange-curacao", "name": "Orange Curaçao" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Champagne Cocktail (1862)",
+        "instructions": "Put the sugar, bitters and lemon peel in a tumbler. Fill one-third full of broken ice, and fill the balance with wine. Shake well and serve.",
+        "description": "№ 110 in Jerry Thomas's How to Mix Drinks (1862). One bottle of wine to every six large glasses.",
+        "source": "Jerry Thomas, How to Mix Drinks (1862), № 110",
+        "garnish": "Lemon peel",
+        "tags": ["vintage:thomas-1862"],
+        "glass": "Champagne flute",
+        "ingredients": [
+          { "_id": "champagne", "amount": 120, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "white-sugar", "amount": 2.5, "units": "ml", "optional": false, "note": "Half a teaspoonful", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "sort": 3 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "champagne", "name": "Champagne" },
+        { "_id": "white-sugar", "name": "White sugar" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Japanese Cocktail (1862)",
+        "instructions": "Add the orgeat, bitters and brandy to a tumbler with one or two pieces of lemon peel. Fill the tumbler one-third with ice, and stir well with a spoon.",
+        "description": "№ 113 in Jerry Thomas's How to Mix Drinks (1862). Nothing Japanese in the glass — likely named for the first Japanese diplomatic mission's 1860 visit to New York.",
+        "source": "Jerry Thomas, How to Mix Drinks (1862), № 113",
+        "garnish": "Lemon peel",
+        "tags": ["vintage:thomas-1862"],
+        "glass": "Lowball",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "brandy", "amount": 60, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "orgeat-syrup", "amount": 15, "units": "ml", "optional": false, "note": "One tablespoonful", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2.5, "units": "ml", "optional": false, "note": "Half a teaspoonful of Boker's in the original", "sort": 3 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "brandy", "name": "Brandy" },
+        { "_id": "orgeat-syrup", "name": "Orgeat Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Jersey Cocktail (1862)",
+        "instructions": "Put the sugar and bitters in a tumbler. Fill the tumbler with cider, and mix well, with lemon peel on top.",
+        "description": "№ 114 in Jerry Thomas's How to Mix Drinks (1862). The cocktail formula applied to hard cider — no spirit at all.",
+        "source": "Jerry Thomas, How to Mix Drinks (1862), № 114",
+        "garnish": "Lemon peel",
+        "tags": ["vintage:thomas-1862"],
+        "glass": "Highball",
+        "ingredients": [
+          { "_id": "hard-cider", "amount": 150, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "white-sugar", "amount": 5, "units": "ml", "optional": false, "note": "One teaspoonful", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "sort": 3 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "hard-cider", "name": "Hard cider" },
+        { "_id": "white-sugar", "name": "White sugar" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Brandy Crusta (1862)",
+        "instructions": "Mix the ingredients in a small tumbler with a little lemon juice and a small lump of ice. Take a fancy red wine-glass, rub a sliced lemon around the rim and dip it in pulverized white sugar. Pare half a lemon in one piece so the paring fits in the wine-glass, and strain the crusta from the tumbler into it. Then smile.",
+        "description": "№ 116 in Jerry Thomas's How to Mix Drinks (1862). \"The 'Crusta' is an improvement on the 'Cocktail,' and is said to have been invented by Santina, a celebrated Spanish caterer.\" The sugared rim and citrus made it the ancestor of the Sidecar and the entire sour-with-liqueur line. The closing instruction is Thomas's own.",
+        "source": "Jerry Thomas, How to Mix Drinks (1862), № 116",
+        "garnish": "Sugared rim; the paring of half a lemon in one piece",
+        "tags": ["vintage:thomas-1862"],
+        "glass": "Coupe",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "brandy", "amount": 60, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "simple-syrup", "amount": 4, "units": "dash", "optional": false, "note": "Gum (gomme) syrup in the original", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "note": "Boker's bitters in the original", "sort": 3 },
+          { "_id": "orange-curacao", "amount": 2, "units": "dash", "optional": false, "sort": 4 },
+          { "_id": "lemon-juice", "amount": 5, "units": "ml", "optional": false, "note": "\"A little lemon juice\"", "sort": 5 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "brandy", "name": "Brandy" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" },
+        { "_id": "orange-curacao", "name": "Orange Curaçao" },
+        { "_id": "lemon-juice", "name": "Lemon juice" }
+      ]
+    },
+    {
+      "recipe": {
+        "name": "Whiskey Crusta (1862)",
+        "instructions": "Made the same as the Brandy Crusta, using whiskey instead of brandy: mix with a little lemon juice and a small lump of ice, and strain into a wine-glass rimmed with sugar and lined with a lemon paring.",
+        "description": "№ 117 in Jerry Thomas's How to Mix Drinks (1862).",
+        "source": "Jerry Thomas, How to Mix Drinks (1862), № 117",
+        "garnish": "Sugared rim; the paring of half a lemon in one piece",
+        "tags": ["vintage:thomas-1862"],
+        "glass": "Coupe",
+        "method": "Stir",
+        "ingredients": [
+          { "_id": "rye-whiskey", "amount": 60, "units": "ml", "optional": false, "sort": 1 },
+          { "_id": "simple-syrup", "amount": 4, "units": "dash", "optional": false, "note": "Gum (gomme) syrup in the original", "sort": 2 },
+          { "_id": "angostura-aromatic-bitters", "amount": 2, "units": "dash", "optional": false, "note": "Boker's bitters in the original", "sort": 3 },
+          { "_id": "orange-curacao", "amount": 2, "units": "dash", "optional": false, "sort": 4 },
+          { "_id": "lemon-juice", "amount": 5, "units": "ml", "optional": false, "sort": 5 }
+        ]
+      },
+      "ingredients": [
+        { "_id": "rye-whiskey", "name": "Rye whiskey" },
+        { "_id": "simple-syrup", "name": "Simple Syrup" },
+        { "_id": "angostura-aromatic-bitters", "name": "Angostura aromatic bitters" },
+        { "_id": "orange-curacao", "name": "Orange Curaçao" },
+        { "_id": "lemon-juice", "name": "Lemon juice" }
+      ]
+    }
+  ]
+}

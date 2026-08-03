@@ -42,7 +42,12 @@ export function DrinkDetail({ slug }: { slug: string }) {
           <li key={entry.ingredient.id}>
             <ShelfRow
               name={entry.ingredient.name}
-              brand={entry.formatted.oz.full_text}
+              brand={
+                // Dashes, barspoons etc. must not be unit-converted (2 dash, not 0.02 oz)
+                ['ml', 'cl', 'oz'].includes(entry.units)
+                  ? entry.formatted.oz.full_text
+                  : `${entry.amount} ${entry.units} ${entry.ingredient.name}`
+              }
               empty={!entry.in_shelf && !entry.optional}
             />
           </li>

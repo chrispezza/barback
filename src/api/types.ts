@@ -46,6 +46,9 @@ export interface FormattedAmount {
 }
 
 export interface CocktailIngredientEntry {
+  amount: number;
+  /** Original units as authored — may be non-volumetric ('dash', 'barspoon'). */
+  units: string;
   /** Keyed by unit system — pick per the bar's default units. */
   formatted: { ml: FormattedAmount; oz: FormattedAmount; cl: FormattedAmount };
   optional: boolean;
