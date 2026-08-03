@@ -14,14 +14,14 @@ import {
   useShoppingList,
   useShoppingMutation,
 } from '../api/queries';
-import type { Cocktail, RecommendedIngredient } from '../api/types';
+import { isStocked, type Cocktail, type RecommendedIngredient } from '../api/types';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ShoppingRow } from '../components/ShoppingRow';
 
 function toCardIngredients(cocktail: Cocktail) {
   return cocktail.ingredients.map((entry) => ({
     name: entry.ingredient.name,
-    have: entry.in_shelf || entry.optional,
+    have: isStocked(entry) || entry.optional,
   }));
 }
 

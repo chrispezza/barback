@@ -53,8 +53,29 @@ export interface CocktailIngredientEntry {
   formatted: { ml: FormattedAmount; oz: FormattedAmount; cl: FormattedAmount };
   optional: boolean;
   in_shelf: boolean;
+  /** Satisfied by a descendant on the shelf (upstream sets these only when the
+   *  relation is loaded — treat absent as false). */
+  in_shelf_as_variant?: boolean;
+  in_shelf_as_substitute?: boolean;
+  in_shelf_as_complex_ingredient?: boolean;
   in_bar_shelf: boolean;
   ingredient: { id: number; slug: string; name: string };
+}
+
+/**
+ * Stock-coloring parity with upstream shelf matching: an entry counts as
+ * stocked when held exactly OR satisfied by a shelf variant, substitute, or
+ * complex ingredient — the same cases getCocktailsByIngredients counts.
+ * Exact `in_shelf` alone would paint a drink "missing tequila" while the
+ * matcher happily pours it with the blanco.
+ */
+export function isStocked(entry: CocktailIngredientEntry): boolean {
+  return (
+    entry.in_shelf ||
+    entry.in_shelf_as_variant === true ||
+    entry.in_shelf_as_substitute === true ||
+    entry.in_shelf_as_complex_ingredient === true
+  );
 }
 
 export interface Cocktail {

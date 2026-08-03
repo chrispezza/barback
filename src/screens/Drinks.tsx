@@ -4,11 +4,11 @@ import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
 import { useBarId, useCocktails } from '../api/queries';
-import type { Cocktail } from '../api/types';
+import { isStocked, type Cocktail } from '../api/types';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 
 function matchFor(c: Cocktail): 'full' | 'partial' | 'near' | 'none' {
-  const missing = c.ingredients.filter((i) => !i.in_shelf && !i.optional).length;
+  const missing = c.ingredients.filter((i) => !isStocked(i) && !i.optional).length;
   if (missing === 0) return 'full';
   if (missing === 1) return 'near';
   if (missing <= 3) return 'partial';
@@ -88,7 +88,7 @@ export function Drinks() {
               name={c.name}
               ingredients={c.ingredients.map((entry) => ({
                 name: entry.ingredient.name,
-                have: entry.in_shelf || entry.optional,
+                have: isStocked(entry) || entry.optional,
               }))}
               match={matchFor(c)}
               onSelect={() => route(`/drinks/${c.slug}`)}

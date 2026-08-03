@@ -66,7 +66,7 @@ filtering applies to Tonight sections natively.
 | Browse + family filter | `GET /cocktails?filter[tag_id]=<family tag ids>` (paginated) |
 | Search-as-you-type | Meilisearch direct with `search_token` (ADR-004) |
 | Recipe detail | `GET /cocktails/{id}` (`include=ingredients` variants as needed) |
-| Per-ingredient stock color | native: each ingredient entry in the cocktail resource carries `in_shelf` / `in_bar_shelf` booleans, and the cocktail itself carries `in_shelf` (verified live against v5.15.3) |
+| Per-ingredient stock color | native: each ingredient entry carries `in_shelf` plus `in_shelf_as_variant` / `_as_substitute` / `_as_complex_ingredient`; the client's `isStocked()` ORs them for parity with upstream shelf matching, which counts descendants when `is_specified` is false (verified live against v5.15.3) |
 | Favorite | `POST /cocktails/{id}/toggle-favorite` |
 | Similar drinks | `GET /cocktails/{id}/similar` |
 

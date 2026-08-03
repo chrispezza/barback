@@ -13,20 +13,20 @@ import {
   useSimilarCocktails,
   useToggleFavorite,
 } from '../api/queries';
-import type { Cocktail } from '../api/types';
+import { isStocked, type Cocktail } from '../api/types';
 import { ratioForSlug } from '../data/ratios';
 
 function toCardIngredients(cocktail: Cocktail) {
   return cocktail.ingredients.map((entry) => ({
     name: entry.ingredient.name,
-    have: entry.in_shelf || entry.optional,
+    have: isStocked(entry) || entry.optional,
   }));
 }
 
 function cardMatch(cocktail: Cocktail): 'full' | 'partial' | 'near' {
   if (cocktail.in_shelf) return 'full';
   const missing = cocktail.ingredients.filter(
-    (i) => !i.in_shelf && !i.optional,
+    (i) => !isStocked(i) && !i.optional,
   ).length;
   return missing === 1 ? 'near' : 'partial';
 }
@@ -45,7 +45,7 @@ export function DrinkDetail({ slug }: { slug: string }) {
   if (!cocktail) return <main class="screen screen--narrow">Not found.</main>;
 
   const ratio = ratioForSlug(cocktail.slug);
-  const missing = cocktail.ingredients.filter((i) => !i.in_shelf && !i.optional);
+  const missing = cocktail.ingredients.filter((i) => !isStocked(i) && !i.optional);
   const listed = new Set(
     shoppingList.data?.data.map((item) => item.ingredient.id) ?? [],
   );
@@ -86,7 +86,7 @@ export function DrinkDetail({ slug }: { slug: string }) {
                   ? entry.formatted.oz.full_text
                   : `${entry.amount} ${entry.units} ${entry.ingredient.name}`
               }
-              empty={!entry.in_shelf && !entry.optional}
+              empty={!isStocked(entry) && !entry.optional}
             />
           </li>
         ))}
