@@ -128,7 +128,7 @@ export function Drinks() {
         </header>
       )}
 
-      <p class="favorite-row">
+      <p class="favorites-filter-row">
         <Button
           variant={showFavorites ? 'secondary' : 'ghost'}
           size="sm"

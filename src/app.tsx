@@ -19,6 +19,7 @@ const queryClient = new QueryClient({
 const NAV = [
   { href: '/tonight', label: 'Tonight', hint: 'pour now' },
   { href: '/shelf', label: 'Shelf', hint: 'what you have' },
+  { href: '/first-pours', label: 'Classics', hint: 'drinks to aim for' },
   { href: '/drinks', label: 'Drinks', hint: 'the full index' },
 ];
 
@@ -56,11 +57,21 @@ function RailNav() {
   const barId = useBarId();
   const shelf = useShelf(barId);
   const canMake = useCocktails(barId, { on_shelf: true }, 1);
+  const { route } = useLocation();
   const bottles = shelf.data?.meta?.total ?? shelf.data?.data.length;
   const pourable = canMake.data?.meta?.total;
   return (
     <nav class="nav-rail" aria-label="Main">
-      <div class="rail-brand">Barback</div>
+      <a
+        href="/tonight"
+        class="rail-brand"
+        onClick={(e) => {
+          e.preventDefault();
+          route('/tonight');
+        }}
+      >
+        Barback
+      </a>
       <div class="rail-fleuron" aria-hidden="true">
         <span />◆<span />
       </div>

@@ -93,10 +93,21 @@ body {
 }
 
 .rail-brand {
+  display: block;
   font-family: var(--font-display);
   font-size: var(--display-3);
   line-height: 1.15;
   color: var(--cream-100);
+  text-decoration: none;
+}
+
+.rail-brand:hover {
+  color: var(--brass-500);
+}
+
+.rail-brand:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 .rail-fleuron {
@@ -304,6 +315,11 @@ a {
 
 .missing-line em {
   font-family: var(--font-serif);
+}
+
+/* Favorites filter on the index — clear of the search field above it */
+.favorites-filter-row {
+  margin: var(--space-4) 0 var(--space-3);
 }
 
 /* Cocktail search results (Drinks): name in the display voice, run in italics */

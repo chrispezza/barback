@@ -71,14 +71,14 @@ export function FirstPours() {
 
   return (
     <main class="screen screen--index">
-      <h1>First pours</h1>
+      <h1>The classics</h1>
       <p class="recipe-aside">
         Pick the drinks your bar should pour. Each choice queues the bottles
         it’s missing — the list assembles the bar for you.
       </p>
 
       {pours.isError && <ErrorLine onRetry={() => void pours.refetch()} />}
-      <MatchHeader label="The classics" count={pours.data?.length} />
+      <MatchHeader label="The roster" count={pours.data?.length} />
       <ul class="card-list">
         {pours.data?.map((c) => {
           const unqueued = c.ingredients.filter(
