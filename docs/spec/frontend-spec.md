@@ -11,8 +11,9 @@ and behavior only.
 | Route | Screen | Purpose |
 |---|---|---|
 | `/shelf` | **Shelf** | Inventory: what's in the bar, add/remove bottles |
-| `/tonight` | **Tonight** | What can I make now + near misses + shopping list |
-| `/drinks` | **Index** | Full recipe index, family filter bar, search |
+| `/tonight` | **Tonight** | Dashboard: pour now + near misses + the buy list |
+| `/first-pours` | **Classics** | Aspiration roster: favorite a classic, queue its missing bottles |
+| `/drinks` | **Index** | Full recipe index, family filter bar, search, favorites |
 | `/drinks/:slug` | **Recipe** | Ratio device + recipe detail with stock coloring |
 | `/login` | Auth | Token acquisition |
 
@@ -208,3 +209,31 @@ outline):
 - Bottle-level "volume remaining" has no upstream field; candidate homes:
   user ingredient note or price/inventory records. Resolve when Shelf rows
   gain bottle detail (post-MVP).
+- Offline write-sync (queued mutations) — see ADR-007; deferred until
+  Barback has users who won't run a VPN.
+
+## 9. Shipped since this spec was cut
+
+This document is the v1 contract; the surfaces below landed after it and are
+governed by the referenced ADRs rather than retrofitted sections above.
+
+- **Tonight as dashboard**: whole-bar status line; grid order puts the buy
+  list above the near-miss stack on one column; "The list" heading is now
+  **To buy**.
+- **Purchasing intelligence** (ADR-008): Buy next card, favorites-gap group,
+  par-staple standing orders with auto-queue and row attribution, per-row
+  drop, free-form add, printable list.
+- **Classics roster** (`/first-pours`) and nav role hints; brand mark links
+  home.
+- **Installable PWA + offline posture** (ADR-007): manifest/icons, shell
+  cache worker, stamped list snapshot, safe-area and iOS text-inflation
+  fixes.
+- **Cocktail search** on the Index (Meilisearch `cocktails` index, REST
+  fallback per ADR-004); favorites filter (`filter[favorites]`).
+- **Recipe screen**: favorite toggle, similar drinks, per-ingredient
+  "+ List", back affordance, quiet loading/error voices (`ErrorLine`).
+- **Shelf ledger**: rows grouped by root ancestor via `materialized_path`;
+  always-visible remove (touch-reachable).
+- **Hierarchy-aware brands**: brand-level child ingredients (e.g. Laphroaig
+  10 under Islay Scotch) count toward parent-called recipes; list rows say
+  what a zero-unlock bottle builds toward ("in 12 drinks as Islay Scotch").
