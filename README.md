@@ -62,3 +62,32 @@ python3 scripts/import_vintage.py scripts/vintage/thomas-1862.json
 pnpm install
 pnpm dev
 ```
+
+## A note before exposing this to the internet
+
+The compose stack is tuned for a home LAN: the API (`:8000`) and Meilisearch
+(`:7700`) publish their ports directly, `ALLOW_REGISTRATION` is on, and nothing
+terminates TLS. That is the right posture behind your router and the wrong one
+on a public host. If you must expose it, close the direct ports (front door
+only), turn registration off after creating your user, and put real TLS and an
+auth proxy in front.
+
+## Built on
+
+Barback is a client; the heavy lifting is upstream open source, consumed as
+pinned Docker images (ADR-001) and gratefully acknowledged:
+
+- [Bar Assistant](https://github.com/karlomikus/bar-assistant) (MIT, Karlo
+  Mikuš) — inventory, matching and recipe engine
+- [Salt Rim](https://github.com/karlomikus/vue-salt-rim) (MIT, Karlo Mikuš) —
+  upstream web client, kept alongside as the admin/reference UI
+- [Meilisearch](https://github.com/meilisearch/meilisearch) (MIT) — search
+- [Preact](https://preactjs.com) + [preact-iso](https://github.com/preactjs/preact-iso),
+  [TanStack Query](https://tanstack.com/query), [Vite](https://vite.dev),
+  [TypeScript](https://www.typescriptlang.org) — the client stack
+- Libre Caslon Display & Text (SIL OFL) — the system's two voices
+- Jerry Thomas' *How to Mix Drinks* (1862) and George Winter's *How to Mix
+  Drinks — Bar Keepers' Handbook* (1884) — public-domain sources for the
+  vintage imports
+
+Barback itself is [MIT licensed](LICENSE).
