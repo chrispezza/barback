@@ -127,9 +127,37 @@ export function Tonight() {
     );
   }, [staplesOut.map((s) => s.id).join(','), profile?.id, shoppingList.data === undefined]);
 
-  // Staples own their group; keep them out of the general suggestions.
+  // What the favorited drinks still need — aspiration outranks the generic
+  // server ranking, so these pin above Restock next.
+  const favorites = useCocktails(barId, { favorites: true }, 100);
+  const favoriteGaps = new Map<number, { name: string; count: number }>();
+  for (const c of favorites.data?.data ?? []) {
+    for (const e of c.ingredients) {
+      if (!isStocked(e) && !e.optional && !ownedOrListed.has(e.ingredient.id)) {
+        const gap = favoriteGaps.get(e.ingredient.id) ?? {
+          name: e.ingredient.name,
+          count: 0,
+        };
+        gap.count += 1;
+        favoriteGaps.set(e.ingredient.id, gap);
+      }
+    }
+  }
+  const favoriteNeeds = [...favoriteGaps.entries()]
+    .map(([id, gap]) => ({ id, ...gap }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  const favoriteNeedIds = new Set(favoriteNeeds.map((f) => f.id));
+
+  // Staples and favorite gaps own their groups; keep both out of the
+  // general suggestions.
   const suggestions = (recommendations.data ?? [])
-    .filter((r) => !ownedOrListed.has(r.id) && !stapleIds.has(r.id))
+    .filter(
+      (r) =>
+        !ownedOrListed.has(r.id) &&
+        !stapleIds.has(r.id) &&
+        !favoriteNeedIds.has(r.id),
+    )
     .slice(0, 5);
 
   return (
@@ -286,9 +314,49 @@ export function Tonight() {
                       checkOff.mutate({ ingredientId: item.ingredient.id });
                     }
                   }}
+                  onDrop={() => {
+                    if (!shoppingMutation.isPending) {
+                      shoppingMutation.mutate({
+                        ingredientIds: [item.ingredient.id],
+                        action: 'remove',
+                      });
+                    }
+                  }}
                 />
               ))}
+              <p class="print-row">
+                <Button variant="ghost" size="sm" onClick={() => window.print()}>
+                  Print the list
+                </Button>
+              </p>
             </div>
+          )}
+
+          {favoriteNeeds.length > 0 && (
+            <section class="restock-section">
+              <MatchHeader label="For your favorites" align="left" tone="gap" />
+              {favoriteNeeds.map((f) => (
+                <div class="restock-row" key={f.id}>
+                  <span class="restock-name">{f.name}</span>
+                  <span class="restock-unlocks">
+                    in {f.count} favorite{f.count === 1 ? '' : 's'}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={shoppingMutation.isPending}
+                    onClick={() =>
+                      shoppingMutation.mutate({
+                        ingredientIds: [f.id],
+                        action: 'add',
+                      })
+                    }
+                  >
+                    List it
+                  </Button>
+                </div>
+              ))}
+            </section>
           )}
 
           {suggestions.length > 0 && (
