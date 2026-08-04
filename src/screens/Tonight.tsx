@@ -16,11 +16,13 @@ import {
   useShelf,
   useShoppingList,
   useShoppingMutation,
+  useStaples,
 } from '../api/queries';
 import { isStocked, type Cocktail, type RecommendedIngredient } from '../api/types';
 import { useIngredientSearch } from '../api/search';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ShoppingRow } from '../components/ShoppingRow';
+import { STAPLE_SLUGS } from '../data/staples';
 import { useDebounced } from '../hooks';
 
 function toCardIngredients(cocktail: Cocktail) {
@@ -91,14 +93,23 @@ export function Tonight() {
     ...listItems.map((item) => item.ingredient.id),
     ...(shelf.data?.data.map((i) => i.id) ?? []),
   ]);
-  const suggestions = (recommendations.data ?? [])
-    .filter((r) => !ownedOrListed.has(r.id))
-    .slice(0, 5);
-
   // Free-form add: same type-ahead the Shelf uses, writing to the list.
   const [listQuery, setListQuery] = useState('');
   const listResults = useIngredientSearch(useDebounced(listQuery, 200));
   const listedIds = new Set(listItems.map((item) => item.ingredient.id));
+
+  // Par-level staples: out of stock and not yet queued — pinned, never
+  // auto-added; the list only changes by the user's hand.
+  const staples = useStaples(barId, STAPLE_SLUGS);
+  const staplesOut = (staples.data ?? []).filter(
+    (s) => !s.in_shelf && !listedIds.has(s.id),
+  );
+  const stapleIds = new Set((staples.data ?? []).map((s) => s.id));
+
+  // Staples own their group; keep them out of the general suggestions.
+  const suggestions = (recommendations.data ?? [])
+    .filter((r) => !ownedOrListed.has(r.id) && !stapleIds.has(r.id))
+    .slice(0, 5);
 
   return (
     <main class="screen">
@@ -215,6 +226,30 @@ export function Tonight() {
                 />
               ))}
             </div>
+          )}
+
+          {staplesOut.length > 0 && (
+            <section class="restock-section">
+              <MatchHeader label="Staples out" align="left" tone="gap" />
+              {staplesOut.map((s) => (
+                <div class="restock-row" key={s.id}>
+                  <span class="restock-name">{s.name}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={shoppingMutation.isPending}
+                    onClick={() =>
+                      shoppingMutation.mutate({
+                        ingredientIds: [s.id],
+                        action: 'add',
+                      })
+                    }
+                  >
+                    List it
+                  </Button>
+                </div>
+              ))}
+            </section>
           )}
 
           {suggestions.length > 0 && (

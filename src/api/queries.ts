@@ -191,6 +191,38 @@ export function useIngredientReach(
 }
 
 /**
+ * Par-level staples (data/staples.ts) resolved against this bar: id, name and
+ * live shelf state per slug. Slugs carry the bar-id suffix upstream, so the
+ * canonical slug is completed at runtime. Missing slugs are dropped (and
+ * reported in dev) rather than failing the whole set.
+ */
+export function useStaples(barId: number | undefined, slugs: string[]) {
+  return useQuery({
+    queryKey: ['staples', barId],
+    queryFn: async () => {
+      const results = await Promise.all(
+        slugs.map(async (slug) => {
+          try {
+            const r = await api<ItemResponse<Ingredient>>(
+              `/ingredients/${slug}-${barId}`,
+              { barId },
+            );
+            return r.data;
+          } catch {
+            if (import.meta.env.DEV) {
+              console.warn(`[barback] staple slug did not resolve: ${slug}`);
+            }
+            return null;
+          }
+        }),
+      );
+      return results.filter((i): i is Ingredient => i !== null);
+    },
+    enabled: barId !== undefined,
+  });
+}
+
+/**
  * Restock recommendations (frontend-spec §5): server-ranked bottles that open
  * the most drinks. Shelf-derived, so shelf mutations invalidate ['recommend'].
  */
@@ -306,6 +338,7 @@ export function useCheckOff(
       void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
       void queryClient.invalidateQueries({ queryKey: ['ingredient-extra'] });
       void queryClient.invalidateQueries({ queryKey: ['recommend'] });
+      void queryClient.invalidateQueries({ queryKey: ['staples'] });
     },
   });
 }
@@ -350,6 +383,7 @@ export function useShelfMutation(
       void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
       void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
       void queryClient.invalidateQueries({ queryKey: ['recommend'] });
+      void queryClient.invalidateQueries({ queryKey: ['staples'] });
     },
   });
 }

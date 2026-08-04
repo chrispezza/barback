@@ -34,7 +34,10 @@ python3 scripts/tag_families.py      # family:* tags + assignments (idempotent)
 ```
 
 Family curation lives in [scripts/family-assignments.json](scripts/family-assignments.json)
-(normalized slugs → family tag); edit it and re-run the script. For the
+(normalized slugs → family tag); edit it and re-run the script. Par-level
+staples (bottles the bar should never run out of — Tonight pins a "Staples
+out" group when one leaves the shelf) are curated in
+[src/data/staples.ts](src/data/staples.ts) by canonical ingredient slug. For the
 uncurated backlog, `python3 scripts/propose_families.py` drafts structural
 proposals with reasons to [scripts/family-proposals.json](scripts/family-proposals.json)
 — review, move keepers into the assignments file, rerun the tag script.
