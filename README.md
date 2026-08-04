@@ -28,8 +28,9 @@ Decisions live in [docs/adr/](docs/adr/):
 ```bash
 cp deploy/.env.example deploy/.env   # then set MEILI_MASTER_KEY (openssl rand -base64 32)
 pnpm install && pnpm build:deploy    # the web container serves dist/ (ADR-005)
-docker compose -f deploy/docker-compose.yml up -d
-./scripts/seed.sh
+ALLOW_REGISTRATION=true docker compose -f deploy/docker-compose.yml up -d
+./scripts/seed.sh                    # creates your user while registration is open
+docker compose -f deploy/docker-compose.yml up -d   # re-up: registration closes
 python3 scripts/tag_families.py      # family:* tags + assignments (idempotent)
 ```
 
@@ -75,12 +76,12 @@ pnpm dev
 
 ## A note before exposing this to the internet
 
-The compose stack is tuned for a home LAN: the API (`:8000`) and Meilisearch
-(`:7700`) publish their ports directly, `ALLOW_REGISTRATION` is on, and nothing
-terminates TLS. That is the right posture behind your router and the wrong one
-on a public host. If you must expose it, close the direct ports (front door
-only), turn registration off after creating your user, and put real TLS and an
-auth proxy in front.
+The compose stack is tuned for a home LAN: the `:8080` front door is the only
+port the network sees (API, Meilisearch and Salt Rim bind to loopback),
+registration is closed outside first boot, and login is the only write gate —
+but nothing terminates TLS. That is the right posture behind your router and
+still the wrong one on a public host. If you must expose it, change the seeded
+password first, and put real TLS and an auth proxy in front.
 
 ## Built on
 

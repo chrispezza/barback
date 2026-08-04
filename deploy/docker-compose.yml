@@ -31,9 +31,13 @@ services:
       REDIS_HOST: redis
       CACHE_DRIVER: redis
       SESSION_DRIVER: redis
-      ALLOW_REGISTRATION: "true"
+      # Off by default: create your user on first boot (see README), then it
+      # stays closed. Anyone on the network can otherwise mint an account.
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-"false"}
     ports:
-      - "8000:8080"
+      # Loopback only — the LAN sees nothing but the :8080 front door.
+      # Dev (pnpm dev) talks to localhost:8000 from this machine, unaffected.
+      - "127.0.0.1:8000:8080"
     volumes:
       # All state: SQLite database + uploads. Back this up (ADR-005).
       - bar_data:/var/www/cocktails/storage/bar-assistant
@@ -48,7 +52,7 @@ services:
       API_URL: http://localhost:8000
       MEILISEARCH_URL: http://localhost:7700
     ports:
-      - "3000:8080"
+      - "127.0.0.1:3000:8080"
 
   meilisearch:
     image: getmeili/meilisearch:v1.15
@@ -57,7 +61,7 @@ services:
       MEILI_NO_ANALYTICS: "true"
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?set in deploy/.env}
     ports:
-      - "7700:7700"
+      - "127.0.0.1:7700:7700"
     volumes:
       - meili_data:/meili_data
 
