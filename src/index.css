@@ -5,6 +5,13 @@
   box-sizing: border-box;
 }
 
+html {
+  /* iOS inflates text on mobile otherwise — letterspaced caps runs then
+     overflow the layout viewport and the whole page pans sideways. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   background: var(--surface-app);
@@ -12,6 +19,9 @@ body {
   font-family: var(--font-body);
   font-size: var(--body-2);
   line-height: var(--body-2-lh);
+  /* clip, not hidden: no horizontal panning, and no new scroll container
+     (position: sticky in the desktop rail keeps working). */
+  overflow-x: clip;
 }
 
 /* ---------- App shell: mobile-first, rail on desktop ---------- */
@@ -25,7 +35,9 @@ body {
 }
 
 .app-main {
-  padding: var(--space-5) var(--gutter-mobile) calc(72px + var(--space-6));
+  /* Safe areas: standalone PWA renders under the notch and home indicator */
+  padding: calc(var(--space-5) + env(safe-area-inset-top)) var(--gutter-mobile)
+    calc(72px + var(--space-6) + env(safe-area-inset-bottom));
 }
 
 .tab-bar {
@@ -37,6 +49,7 @@ body {
   display: flex;
   background: var(--surface-app);
   border-top: 1px solid var(--rule-hairline);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .tab-item {
