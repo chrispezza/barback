@@ -35,6 +35,43 @@ function toCardIngredients(cocktail: Cocktail) {
   }));
 }
 
+/** The one bottle to buy next, with its reason in the aside voice. */
+function BuyNextCard({
+  id,
+  name,
+  reason,
+  disabled,
+  onList,
+}: {
+  id: number;
+  name: string;
+  reason?: string;
+  disabled: boolean;
+  onList: () => void;
+}) {
+  const barId = useBarId();
+  const { data: unlocks } = useIngredientUnlocks(barId, id);
+  const line =
+    reason ??
+    (unlocks !== undefined && unlocks > 0
+      ? `opens ${unlocks} drink${unlocks === 1 ? '' : 's'} tonight`
+      : 'ranked highest for your shelf');
+  return (
+    <section class="buy-next">
+      <MatchHeader label="Buy next" align="left" />
+      <div class="buy-next-card">
+        <div class="buy-next-main">
+          <span class="buy-next-name">{name}</span>
+          <span class="buy-next-reason">{line}</span>
+        </div>
+        <Button variant="secondary" size="sm" disabled={disabled} onClick={onList}>
+          List it
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 /** One restock suggestion: live "unlocks N" (same voice as the shopping list). */
 function RestockRow({
   suggestion,
@@ -160,6 +197,22 @@ export function Tonight() {
     )
     .slice(0, 5);
 
+  // Buy next: one decision-ready bottle. Favorites outrank the server rank.
+  const buyNext =
+    favoriteNeeds.length > 0
+      ? {
+          id: favoriteNeeds[0].id,
+          name: favoriteNeeds[0].name,
+          reason: `completes ${favoriteNeeds[0].count} favorite${
+            favoriteNeeds[0].count === 1 ? '' : 's'
+          }`,
+        }
+      : suggestions.length > 0
+        ? { id: suggestions[0].id, name: suggestions[0].name, reason: undefined }
+        : undefined;
+  const favoriteNeedsShown = favoriteNeeds.filter((f) => f.id !== buyNext?.id);
+  const suggestionsShown = suggestions.filter((r) => r.id !== buyNext?.id);
+
   return (
     <main class="screen">
       <h1>Tonight</h1>
@@ -168,7 +221,7 @@ export function Tonight() {
           <>
             You can pour <strong>{barCanMake.data?.meta?.total}</strong> ·{' '}
             <strong>{barNearMiss.data?.meta?.total}</strong> one bottle away ·{' '}
-            <strong>{listItems.length}</strong> on the list
+            <strong>{listItems.length}</strong> to buy
           </>
         ) : (
           '…'
@@ -240,8 +293,22 @@ export function Tonight() {
         </section>
 
         <aside class="tonight-rail">
+          {buyNext && (
+            <BuyNextCard
+              id={buyNext.id}
+              name={buyNext.name}
+              reason={buyNext.reason}
+              disabled={shoppingMutation.isPending}
+              onList={() =>
+                shoppingMutation.mutate({
+                  ingredientIds: [buyNext.id],
+                  action: 'add',
+                })
+              }
+            />
+          )}
           <MatchHeader
-            label="The list"
+            label="To buy"
             count={shoppingList.isError ? undefined : listItems.length}
             tone="gap"
           />
@@ -299,7 +366,7 @@ export function Tonight() {
           )}
           {listItems.length === 0 ? (
             <p class="recipe-aside">
-              Nothing on the list — a near miss puts its bottle here.
+              Nothing to buy yet — a near miss puts its bottle here.
             </p>
           ) : (
             <div>
@@ -332,10 +399,10 @@ export function Tonight() {
             </div>
           )}
 
-          {favoriteNeeds.length > 0 && (
+          {favoriteNeedsShown.length > 0 && (
             <section class="restock-section">
               <MatchHeader label="For your favorites" align="left" tone="gap" />
-              {favoriteNeeds.map((f) => (
+              {favoriteNeedsShown.map((f) => (
                 <div class="restock-row" key={f.id}>
                   <span class="restock-name">{f.name}</span>
                   <span class="restock-unlocks">
@@ -359,10 +426,10 @@ export function Tonight() {
             </section>
           )}
 
-          {suggestions.length > 0 && (
+          {suggestionsShown.length > 0 && (
             <section class="restock-section">
               <MatchHeader label="Restock next" align="left" />
-              {suggestions.map((s) => (
+              {suggestionsShown.map((s) => (
                 <RestockRow
                   key={s.id}
                   suggestion={s}
