@@ -363,6 +363,27 @@ a {
   min-width: 0;
 }
 
+/* First pours: card + its explicit choose action */
+.first-pour-item {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Offline list snapshot: names only, stamped, no actions */
+.snapshot-list {
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+}
+
+.snapshot-list li {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--cream-100);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid rgba(198, 161, 91, 0.15);
+}
+
 /* Way back on the recipe screen — standalone PWA has no browser chrome */
 .back-row {
   margin: 0 0 var(--space-2);

@@ -6,6 +6,7 @@ import { isAuthenticated } from './auth';
 import { useBarId, useCocktails, useShelf } from './api/queries';
 import { ToastHost } from './components/toasts';
 import { Login } from './screens/Login';
+import { FirstPours } from './screens/FirstPours';
 import { Tonight } from './screens/Tonight';
 import { Shelf } from './screens/Shelf';
 import { Drinks } from './screens/Drinks';
@@ -131,6 +132,7 @@ export function App() {
           <Route path="/login" component={Login} />
           <Route path="/shelf" component={() => <Authed><Shelf /></Authed>} />
           <Route path="/drinks" component={() => <Authed><Drinks /></Authed>} />
+          <Route path="/first-pours" component={() => <Authed><FirstPours /></Authed>} />
           <Route path="/drinks/:slug" component={DrinkDetailRoute} />
           <Route default component={() => <Authed><Tonight /></Authed>} />
         </Router>

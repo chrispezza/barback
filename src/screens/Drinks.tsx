@@ -143,7 +143,14 @@ export function Drinks() {
         count={cocktails.data?.meta?.total}
       />
       {showFavorites && cocktails.data?.meta?.total === 0 && (
-        <EmptyState body="Nothing favorited yet — the ♦ on any recipe starts the collection." />
+        <EmptyState
+          body="Nothing favorited yet — the ♦ on any recipe starts the collection."
+          action={
+            <Button variant="secondary" size="sm" onClick={() => route('/first-pours')}>
+              Start with the classics
+            </Button>
+          }
+        />
       )}
       {cocktails.isError && <ErrorLine onRetry={() => void cocktails.refetch()} />}
       <ul class="card-list">

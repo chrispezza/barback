@@ -35,9 +35,16 @@ python3 scripts/tag_families.py      # family:* tags + assignments (idempotent)
 
 Family curation lives in [scripts/family-assignments.json](scripts/family-assignments.json)
 (normalized slugs → family tag); edit it and re-run the script. Par-level
-staples (bottles the bar should never run out of — Tonight pins a "Staples
-out" group when one leaves the shelf) are curated in
-[src/data/staples.ts](src/data/staples.ts) by canonical ingredient slug. For the
+staples (bottles the bar should never run out of) are curated in
+[src/data/staples.ts](src/data/staples.ts) by canonical ingredient slug —
+the file is a standing order: a staple that leaves the shelf is queued to
+the shopping list automatically, with a toast and a "staple" note on the
+row. The First pours roster (onboarding classics; each pick favorites the
+drink and queues its missing bottles) lives in
+[src/data/first-pours.ts](src/data/first-pours.ts). A minimal shell-cache
+service worker plus a stamped localStorage snapshot keep the shopping list
+readable away from the LAN (the store aisle); the API itself is never
+cached. For the
 uncurated backlog, `python3 scripts/propose_families.py` drafts structural
 proposals with reasons to [scripts/family-proposals.json](scripts/family-proposals.json)
 — review, move keepers into the assignments file, rerun the tag script.

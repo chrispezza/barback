@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
@@ -7,6 +7,7 @@ import { EmptyState } from '@ds/feedback/EmptyState';
 import { SearchField } from '@ds/forms/SearchField';
 import { IngredientChip } from '@ds/inventory/IngredientChip';
 import {
+  readListSnapshot,
   useBarId,
   useCheckOff,
   useCocktails,
@@ -22,6 +23,7 @@ import { isStocked, type Cocktail, type RecommendedIngredient } from '../api/typ
 import { useIngredientSearch } from '../api/search';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ErrorLine } from '../components/ErrorLine';
+import { showToast } from '../components/toasts';
 import { ShoppingRow } from '../components/ShoppingRow';
 import { STAPLE_SLUGS } from '../data/staples';
 import { useDebounced } from '../hooks';
@@ -74,6 +76,7 @@ export function Tonight() {
   const shelfIsBare = canMakeTotal === 0 && nearMiss.data?.meta?.total === 0;
 
   const listItems = shoppingList.data?.data ?? [];
+  const snapshot = shoppingList.isError ? readListSnapshot() : null;
 
   // Dashboard lead: whole-bar counts, deliberately unscoped by family — the
   // line is the bar's status; the scoped story is told by the sections below.
@@ -99,13 +102,30 @@ export function Tonight() {
   const listResults = useIngredientSearch(useDebounced(listQuery, 200));
   const listedIds = new Set(listItems.map((item) => item.ingredient.id));
 
-  // Par-level staples: out of stock and not yet queued — pinned, never
-  // auto-added; the list only changes by the user's hand.
+  // Par-level staples: the curated file IS the standing order, so a staple
+  // that leaves the shelf is queued automatically — with attribution (toast +
+  // 'staple' note on the row). Once per session per staple; opt out by
+  // editing data/staples.ts.
   const staples = useStaples(barId, STAPLE_SLUGS);
-  const staplesOut = (staples.data ?? []).filter(
-    (s) => !s.in_shelf && !listedIds.has(s.id),
-  );
   const stapleIds = new Set((staples.data ?? []).map((s) => s.id));
+  const autoQueued = useRef(new Set<number>());
+  const staplesOut = (staples.data ?? []).filter(
+    (s) => !s.in_shelf && !listedIds.has(s.id) && !autoQueued.current.has(s.id),
+  );
+  useEffect(() => {
+    if (profile?.id === undefined || staplesOut.length === 0) return;
+    if (shoppingList.data === undefined) return; // don't queue against a stale view
+    for (const s of staplesOut) autoQueued.current.add(s.id);
+    shoppingMutation.mutate(
+      { ingredientIds: staplesOut.map((s) => s.id), action: 'add' },
+      {
+        onSuccess: () =>
+          showToast({
+            message: `Staples out — queued: ${staplesOut.map((s) => s.name).join(', ')}.`,
+          }),
+      },
+    );
+  }, [staplesOut.map((s) => s.id).join(','), profile?.id, shoppingList.data === undefined]);
 
   // Staples own their group; keep them out of the general suggestions.
   const suggestions = (recommendations.data ?? [])
@@ -160,6 +180,16 @@ export function Tonight() {
                       .join(', ')} — they open the most drinks.`
                   : 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
               }
+              action={
+                <>
+                  <Button variant="secondary" size="sm" onClick={() => route('/shelf')}>
+                    Stock the shelf
+                  </Button>{' '}
+                  <Button variant="ghost" size="sm" onClick={() => route('/first-pours')}>
+                    Start with the classics
+                  </Button>
+                </>
+              }
             />
           )}
         </section>
@@ -182,7 +212,32 @@ export function Tonight() {
         </section>
 
         <aside class="tonight-rail">
-          <MatchHeader label="The list" count={listItems.length} tone="gap" />
+          <MatchHeader
+            label="The list"
+            count={shoppingList.isError ? undefined : listItems.length}
+            tone="gap"
+          />
+          {shoppingList.isError && snapshot && (
+            <div>
+              <p class="recipe-aside">
+                Offline — the list as it stood{' '}
+                {new Date(snapshot.at).toLocaleString(undefined, {
+                  weekday: 'long',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+                .
+              </p>
+              <ul class="snapshot-list">
+                {snapshot.names.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {shoppingList.isError && !snapshot && (
+            <ErrorLine onRetry={() => void shoppingList.refetch()} />
+          )}
           <SearchField
             value={listQuery}
             label="Add to the list"
@@ -225,6 +280,7 @@ export function Tonight() {
                   key={item.ingredient.id}
                   ingredientId={item.ingredient.id}
                   name={item.ingredient.name}
+                  isStaple={stapleIds.has(item.ingredient.id)}
                   onCheckOff={() => {
                     if (!checkOff.isPending) {
                       checkOff.mutate({ ingredientId: item.ingredient.id });
@@ -233,30 +289,6 @@ export function Tonight() {
                 />
               ))}
             </div>
-          )}
-
-          {staplesOut.length > 0 && (
-            <section class="restock-section">
-              <MatchHeader label="Staples out" align="left" tone="gap" />
-              {staplesOut.map((s) => (
-                <div class="restock-row" key={s.id}>
-                  <span class="restock-name">{s.name}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={shoppingMutation.isPending}
-                    onClick={() =>
-                      shoppingMutation.mutate({
-                        ingredientIds: [s.id],
-                        action: 'add',
-                      })
-                    }
-                  >
-                    List it
-                  </Button>
-                </div>
-              ))}
-            </section>
           )}
 
           {suggestions.length > 0 && (

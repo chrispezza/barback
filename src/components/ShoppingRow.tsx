@@ -4,6 +4,8 @@ import { useBarId, useIngredientReach, useIngredientUnlocks } from '../api/queri
 interface ShoppingRowProps {
   ingredientId: number;
   name: string;
+  /** Auto-queued par staple — the row says so (attribution over surprise). */
+  isStaple?: boolean;
   onCheckOff: () => void;
 }
 
@@ -12,12 +14,13 @@ interface ShoppingRowProps {
  * honest but discouraging — it means "completes nothing by itself", not
  * "useless" — so those rows say what the bottle builds toward instead.
  */
-export function ShoppingRow({ ingredientId, name, onCheckOff }: ShoppingRowProps) {
+export function ShoppingRow({ ingredientId, name, isStaple, onCheckOff }: ShoppingRowProps) {
   const barId = useBarId();
   const { data: unlocks } = useIngredientUnlocks(barId, ingredientId);
-  const reach = useIngredientReach(barId, ingredientId, unlocks === 0);
-  const note =
-    unlocks === 0 && reach
+  const reach = useIngredientReach(barId, ingredientId, !isStaple && unlocks === 0);
+  const note = isStaple
+    ? 'staple'
+    : unlocks === 0 && reach
       ? `in ${reach.count} drink${reach.count === 1 ? '' : 's'}${
           reach.via ? ` as ${reach.via}` : ''
         }`

@@ -108,16 +108,47 @@ export function useCocktail(barId: number | undefined, idOrSlug: string) {
   });
 }
 
+export interface ListSnapshot {
+  at: string;
+  names: string[];
+}
+
+const LIST_SNAPSHOT_KEY = 'barback:list-snapshot';
+
+/** Last list the API served — the store-aisle fallback when it's unreachable. */
+export function readListSnapshot(): ListSnapshot | null {
+  try {
+    const raw = localStorage.getItem(LIST_SNAPSHOT_KEY);
+    return raw ? (JSON.parse(raw) as ListSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useShoppingList(
   barId: number | undefined,
   userId: number | undefined,
 ) {
   return useQuery({
     queryKey: ['shopping-list', barId],
-    queryFn: () =>
-      api<ListResponse<ShoppingListItem>>(`/users/${userId}/shopping-list`, {
-        barId,
-      }),
+    queryFn: async () => {
+      const res = await api<ListResponse<ShoppingListItem>>(
+        `/users/${userId}/shopping-list`,
+        { barId },
+      );
+      try {
+        localStorage.setItem(
+          LIST_SNAPSHOT_KEY,
+          JSON.stringify({
+            at: new Date().toISOString(),
+            names: res.data.map((i) => i.ingredient.name).sort(),
+          } satisfies ListSnapshot),
+        );
+      } catch {
+        // Snapshot is a courtesy — never fail the live list over it.
+      }
+      return res;
+    },
     enabled: barId !== undefined && userId !== undefined,
   });
 }
@@ -188,6 +219,33 @@ export function useIngredientReach(
     return { count: parentCount, via: parent.name };
   }
   return undefined;
+}
+
+/** First-pours roster (data/first-pours.ts): full cocktails resolved by slug. */
+export function useFirstPours(barId: number | undefined, slugs: string[]) {
+  return useQuery({
+    queryKey: ['first-pours', barId],
+    queryFn: async () => {
+      const results = await Promise.all(
+        slugs.map(async (slug) => {
+          try {
+            const r = await api<ItemResponse<Cocktail>>(
+              `/cocktails/${slug}-${barId}`,
+              { barId },
+            );
+            return r.data;
+          } catch {
+            if (import.meta.env.DEV) {
+              console.warn(`[barback] first-pour slug did not resolve: ${slug}`);
+            }
+            return null;
+          }
+        }),
+      );
+      return results.filter((c): c is Cocktail => c !== null);
+    },
+    enabled: barId !== undefined,
+  });
 }
 
 /** Batch name lookup (filter[id] is exact/comma) — shelf ledger group headers. */
@@ -293,6 +351,10 @@ export function useToggleFavorite(barId: number | undefined) {
     onError: (_err, { slug }, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(['cocktail', barId, slug], ctx.prev);
       showToast({ message: 'The favorite didn’t take.' });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['first-pours'] });
+      void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
     },
   });
 }
