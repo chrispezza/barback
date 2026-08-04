@@ -10,6 +10,7 @@ import type {
   Bar,
   Cocktail,
   Ingredient,
+  IngredientDetail,
   ItemResponse,
   ListResponse,
   Profile,
@@ -137,6 +138,56 @@ export function useIngredientUnlocks(
     staleTime: BOOTSTRAP_STALE_MS,
     select: (r) => r.data.length,
   });
+}
+
+/**
+ * How far a bottle reaches when it unlocks nothing outright: how many recipes
+ * reference it — or, for a brand-level child (Laphroaig 10), its parent
+ * (Islay Scotch), since upstream matching walks the hierarchy (ADR-001 clone,
+ * CocktailService::getCocktailsByIngredients).
+ */
+export function useIngredientReach(
+  barId: number | undefined,
+  ingredientId: number,
+  enabled: boolean,
+): { count: number; via?: string } | undefined {
+  const own = useQuery({
+    queryKey: ['ingredient-reach', barId, ingredientId],
+    queryFn: () =>
+      api<ItemResponse<IngredientDetail>>(
+        `/ingredients/${ingredientId}?include=cocktailsCount`,
+        { barId },
+      ),
+    enabled: barId !== undefined && enabled,
+    staleTime: BOOTSTRAP_STALE_MS,
+    select: (r) => r.data,
+  });
+  const parent = own.data?.hierarchy?.parent_ingredient ?? null;
+  const parentQuery = useQuery({
+    queryKey: ['ingredient-reach', barId, parent?.id],
+    queryFn: () =>
+      api<ItemResponse<IngredientDetail>>(
+        `/ingredients/${parent?.id}?include=cocktailsCount`,
+        { barId },
+      ),
+    enabled:
+      barId !== undefined &&
+      enabled &&
+      own.data?.cocktails_count === 0 &&
+      parent !== null,
+    staleTime: BOOTSTRAP_STALE_MS,
+    select: (r) => r.data,
+  });
+
+  if (!enabled) return undefined;
+  const ownCount = own.data?.cocktails_count;
+  if (ownCount === undefined) return undefined;
+  if (ownCount > 0) return { count: ownCount };
+  const parentCount = parentQuery.data?.cocktails_count;
+  if (parentCount !== undefined && parentCount > 0 && parent) {
+    return { count: parentCount, via: parent.name };
+  }
+  return undefined;
 }
 
 /**

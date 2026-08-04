@@ -76,20 +76,44 @@ export function DrinkDetail({ slug }: { slug: string }) {
       )}
 
       <ul class="recipe-ingredients">
-        {cocktail.ingredients.map((entry) => (
-          <li key={entry.ingredient.id}>
-            <ShelfRow
-              name={entry.ingredient.name}
-              brand={
-                // Dashes, barspoons etc. must not be unit-converted (2 dash, not 0.02 oz)
-                ['ml', 'cl', 'oz'].includes(entry.units)
-                  ? entry.formatted.oz.full_text
-                  : `${entry.amount} ${entry.units} ${entry.ingredient.name}`
-              }
-              empty={!isStocked(entry) && !entry.optional}
-            />
-          </li>
-        ))}
+        {cocktail.ingredients.map((entry) => {
+          const isMissing = !isStocked(entry) && !entry.optional;
+          const isListed = listed.has(entry.ingredient.id);
+          return (
+            <li key={entry.ingredient.id} class="recipe-ing-row">
+              <div class="recipe-ing-main">
+                <ShelfRow
+                  name={entry.ingredient.name}
+                  brand={
+                    // Dashes, barspoons etc. must not be unit-converted (2 dash, not 0.02 oz)
+                    ['ml', 'cl', 'oz'].includes(entry.units)
+                      ? entry.formatted.oz.full_text
+                      : `${entry.amount} ${entry.units} ${entry.ingredient.name}`
+                  }
+                  empty={isMissing}
+                />
+              </div>
+              {isMissing &&
+                (isListed ? (
+                  <span class="listed-mark">Listed</span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={shoppingMutation.isPending}
+                    onClick={() =>
+                      shoppingMutation.mutate({
+                        ingredientIds: [entry.ingredient.id],
+                        action: 'add',
+                      })
+                    }
+                  >
+                    + List
+                  </Button>
+                ))}
+            </li>
+          );
+        })}
       </ul>
 
       {missing.length > 0 && (

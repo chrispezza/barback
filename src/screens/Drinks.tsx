@@ -3,6 +3,7 @@ import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
+import { EmptyState } from '@ds/feedback/EmptyState';
 import { useBarId, useCocktails } from '../api/queries';
 import { isStocked, type Cocktail } from '../api/types';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
@@ -21,17 +22,26 @@ export function Drinks() {
   const { route, url, query } = useLocation();
 
   const page = Math.max(1, Number(query['page']) || 1);
-  const filters = family?.tagId !== undefined ? { tag_id: family.tagId } : {};
+  const showFavorites = query['fav'] === '1';
+  const filters = {
+    ...(family?.tagId !== undefined ? { tag_id: family.tagId } : {}),
+    ...(showFavorites ? { favorites: true } : {}),
+  };
   const cocktails = useCocktails(barId, filters, 50, true, page);
 
-  function goToPage(next: number) {
+  function buildUrl(next: number, fav: boolean) {
     const path = url.split('?')[0] ?? '/drinks';
     const params = new URLSearchParams();
     const suffix = query['family'];
     if (suffix) params.set('family', suffix);
+    if (fav) params.set('fav', '1');
     if (next > 1) params.set('page', String(next));
     const qs = params.toString();
-    route(qs ? `${path}?${qs}` : path);
+    return qs ? `${path}?${qs}` : path;
+  }
+
+  function goToPage(next: number) {
+    route(buildUrl(next, showFavorites));
   }
 
   // Family stock summary (frontend-spec §6): two count-only queries.
@@ -80,7 +90,23 @@ export function Drinks() {
         </header>
       )}
 
-      <MatchHeader label="The index" count={cocktails.data?.meta?.total} />
+      <p class="favorite-row">
+        <Button
+          variant={showFavorites ? 'secondary' : 'ghost'}
+          size="sm"
+          onClick={() => route(buildUrl(1, !showFavorites))}
+        >
+          {showFavorites ? '♦ Favorites' : '◇ Favorites'}
+        </Button>
+      </p>
+
+      <MatchHeader
+        label={showFavorites ? 'Favorites' : 'The index'}
+        count={cocktails.data?.meta?.total}
+      />
+      {showFavorites && cocktails.data?.meta?.total === 0 && (
+        <EmptyState body="Nothing favorited yet — the ♦ on any recipe starts the collection." />
+      )}
       <ul class="card-list">
         {cocktails.data?.data.map((c) => (
           <li key={c.id}>

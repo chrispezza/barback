@@ -1,8 +1,11 @@
+import { useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { EmptyState } from '@ds/feedback/EmptyState';
+import { SearchField } from '@ds/forms/SearchField';
+import { IngredientChip } from '@ds/inventory/IngredientChip';
 import {
   useBarId,
   useCheckOff,
@@ -15,8 +18,10 @@ import {
   useShoppingMutation,
 } from '../api/queries';
 import { isStocked, type Cocktail, type RecommendedIngredient } from '../api/types';
+import { useIngredientSearch } from '../api/search';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ShoppingRow } from '../components/ShoppingRow';
+import { useDebounced } from '../hooks';
 
 function toCardIngredients(cocktail: Cocktail) {
   return cocktail.ingredients.map((entry) => ({
@@ -90,6 +95,11 @@ export function Tonight() {
     .filter((r) => !ownedOrListed.has(r.id))
     .slice(0, 5);
 
+  // Free-form add: same type-ahead the Shelf uses, writing to the list.
+  const [listQuery, setListQuery] = useState('');
+  const listResults = useIngredientSearch(useDebounced(listQuery, 200));
+  const listedIds = new Set(listItems.map((item) => item.ingredient.id));
+
   return (
     <main class="screen">
       <h1>Tonight</h1>
@@ -155,6 +165,37 @@ export function Tonight() {
 
         <aside class="tonight-rail">
           <MatchHeader label="The list" count={listItems.length} tone="gap" />
+          <SearchField
+            value={listQuery}
+            label="Add to the list"
+            placeholder="Search ingredients"
+            onChange={setListQuery}
+            onClear={() => setListQuery('')}
+          />
+          {listQuery.trim().length >= 2 && (
+            <div class="chip-row">
+              {listResults.data?.map((hit) => {
+                const isListed = listedIds.has(hit.id);
+                return (
+                  <IngredientChip
+                    key={hit.id}
+                    label={hit.name}
+                    state={isListed ? 'have' : 'default'}
+                    disabled={shoppingMutation.isPending}
+                    onToggle={() =>
+                      shoppingMutation.mutate({
+                        ingredientIds: [hit.id],
+                        action: isListed ? 'remove' : 'add',
+                      })
+                    }
+                  />
+                );
+              })}
+              {listResults.data?.length === 0 && (
+                <p class="recipe-aside">Nothing by that name.</p>
+              )}
+            </div>
+          )}
           {listItems.length === 0 ? (
             <p class="recipe-aside">
               Nothing on the list — a near miss puts its bottle here.

@@ -96,6 +96,14 @@ export interface ShoppingListItem {
   quantity: number | null;
 }
 
+/** GET /ingredients/{id}?include=cocktailsCount — detail with hierarchy. */
+export interface IngredientDetail extends Ingredient {
+  cocktails_count?: number;
+  hierarchy?: {
+    parent_ingredient: { id: number; slug: string; name: string } | null;
+  };
+}
+
 /** GET /bars/{id}/ingredients/recommend entry. */
 export interface RecommendedIngredient {
   id: number;

@@ -1,0 +1,19 @@
+{
+  "name": "Barback",
+  "short_name": "Barback",
+  "description": "The Back Bar — shelf, tonight's pours, and the list.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#122e26",
+  "theme_color": "#122e26",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

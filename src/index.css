@@ -306,6 +306,27 @@ a {
   font-family: var(--font-serif);
 }
 
+/* Recipe ingredient rows: quiet per-bottle list action on missing rows */
+.recipe-ing-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.recipe-ing-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.listed-mark {
+  font-weight: var(--caps-weight);
+  font-size: var(--caps-3);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  color: var(--cream-400);
+  white-space: nowrap;
+}
+
 /* Dashboard lead on Tonight: the bar's status in the display voice */
 .bar-status {
   font-family: var(--font-display);

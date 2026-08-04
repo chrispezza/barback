@@ -1,19 +1,11 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { ShelfRow } from '@ds/inventory/ShelfRow';
 import { EmptyState } from '@ds/feedback/EmptyState';
 import { IngredientChip } from '@ds/inventory/IngredientChip';
 import { SearchField } from '@ds/forms/SearchField';
 import { useBarId, useProfile, useShelf, useShelfMutation } from '../api/queries';
 import { useIngredientSearch } from '../api/search';
-
-function useDebounced(value: string, ms: number): string {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return debounced;
-}
+import { useDebounced } from '../hooks';
 
 export function Shelf() {
   const barId = useBarId();
