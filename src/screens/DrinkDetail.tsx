@@ -14,6 +14,7 @@ import {
   useToggleFavorite,
 } from '../api/queries';
 import { isStocked, type Cocktail } from '../api/types';
+import { ErrorLine } from '../components/ErrorLine';
 import { ratioForSlug } from '../data/ratios';
 
 function toCardIngredients(cocktail: Cocktail) {
@@ -34,15 +35,52 @@ function cardMatch(cocktail: Cocktail): 'full' | 'partial' | 'near' {
 export function DrinkDetail({ slug }: { slug: string }) {
   const barId = useBarId();
   const { route } = useLocation();
-  const { data: cocktail, isLoading } = useCocktail(barId, slug);
+  const { data: cocktail, isLoading, isError, refetch } = useCocktail(barId, slug);
   const { data: profile } = useProfile();
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const similar = useSimilarCocktails(barId, cocktail?.id);
   const toggleFavorite = useToggleFavorite(barId);
 
-  if (isLoading) return <main class="screen screen--narrow" />;
-  if (!cocktail) return <main class="screen screen--narrow">Not found.</main>;
+  // Standalone PWA has no browser chrome — the screen carries its own way back.
+  const goBack = () => {
+    if (window.history.length > 1) window.history.back();
+    else route('/drinks');
+  };
+  const backRow = (
+    <p class="back-row">
+      <Button variant="ghost" size="sm" onClick={goBack}>
+        ← Back
+      </Button>
+    </p>
+  );
+
+  if (isLoading) {
+    return (
+      <main class="screen screen--narrow">
+        {backRow}
+        <p class="recipe-aside" aria-busy="true">
+          …
+        </p>
+      </main>
+    );
+  }
+  if (isError) {
+    return (
+      <main class="screen screen--narrow">
+        {backRow}
+        <ErrorLine onRetry={() => void refetch()} />
+      </main>
+    );
+  }
+  if (!cocktail) {
+    return (
+      <main class="screen screen--narrow">
+        {backRow}
+        <p class="recipe-aside">Not found.</p>
+      </main>
+    );
+  }
 
   const ratio = ratioForSlug(cocktail.slug);
   const missing = cocktail.ingredients.filter((i) => !isStocked(i) && !i.optional);
@@ -53,6 +91,7 @@ export function DrinkDetail({ slug }: { slug: string }) {
 
   return (
     <main class="screen screen--narrow">
+      {backRow}
       <h1>{cocktail.name}</h1>
 
       <p class="favorite-row">

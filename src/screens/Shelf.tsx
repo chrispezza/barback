@@ -1,11 +1,27 @@
 import { useState } from 'preact/hooks';
+import { Button } from '@ds/core/Button';
+import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { ShelfRow } from '@ds/inventory/ShelfRow';
 import { EmptyState } from '@ds/feedback/EmptyState';
 import { IngredientChip } from '@ds/inventory/IngredientChip';
 import { SearchField } from '@ds/forms/SearchField';
-import { useBarId, useProfile, useShelf, useShelfMutation } from '../api/queries';
+import {
+  useBarId,
+  useIngredientsByIds,
+  useProfile,
+  useShelf,
+  useShelfMutation,
+} from '../api/queries';
 import { useIngredientSearch } from '../api/search';
+import type { Ingredient } from '../api/types';
+import { ErrorLine } from '../components/ErrorLine';
 import { useDebounced } from '../hooks';
+
+/** Root ancestor id from the materialized path; a root groups under itself. */
+function rootIdOf(ingredient: Ingredient): number {
+  const first = ingredient.materialized_path?.split('/')[0];
+  return first ? Number(first) : ingredient.id;
+}
 
 export function Shelf() {
   const barId = useBarId();
@@ -18,6 +34,37 @@ export function Shelf() {
   const shelfIds = new Set(shelf.data?.data.map((i) => i.id) ?? []);
 
   const rows = shelf.data?.data ?? [];
+
+  // Ledger grouping: bottles under their root ancestor (Spirits, Liqueurs…).
+  const rootIds = [...new Set(rows.map(rootIdOf))];
+  const rootNames = useIngredientsByIds(barId, rootIds);
+  const groups = new Map<string, Ingredient[]>();
+  for (const row of rows) {
+    const label = rootNames.data?.get(rootIdOf(row)) ?? '';
+    groups.set(label, [...(groups.get(label) ?? []), row]);
+  }
+  // Spirits lead the ledger; the rest read alphabetically.
+  const groupNames = [...groups.keys()].sort((a, b) =>
+    a === 'Spirits' ? -1 : b === 'Spirits' ? 1 : a.localeCompare(b),
+  );
+  const isGrouped = rootNames.data !== undefined && !groups.has('');
+
+  function removeRow(ingredient: Ingredient) {
+    if (!mutation.isPending) {
+      mutation.mutate({ ingredientId: ingredient.id, action: 'remove' });
+    }
+  }
+
+  const shelfRowLine = (i: Ingredient) => (
+    <div class="shelf-row-line" key={i.id}>
+      <div class="shelf-row-main">
+        <ShelfRow name={i.name} />
+      </div>
+      <Button variant="destructive" size="sm" onClick={() => removeRow(i)}>
+        Remove
+      </Button>
+    </div>
+  );
 
   return (
     <main class="screen screen--narrow">
@@ -57,19 +104,19 @@ export function Shelf() {
       <p class="recipe-aside">
         {shelf.data ? `${shelf.data.meta?.total ?? rows.length} bottles on the shelf.` : '…'}
       </p>
-      <div>
-        {rows.map((i) => (
-          <ShelfRow
-            key={i.id}
-            name={i.name}
-            onRemove={() => {
-              if (!mutation.isPending) {
-                mutation.mutate({ ingredientId: i.id, action: 'remove' });
-              }
-            }}
-          />
-        ))}
-      </div>
+      {shelf.isError && <ErrorLine onRetry={() => void shelf.refetch()} />}
+
+      {isGrouped ? (
+        groupNames.map((label) => (
+          <section key={label}>
+            <MatchHeader label={label} count={groups.get(label)?.length} align="left" />
+            {groups.get(label)?.map(shelfRowLine)}
+          </section>
+        ))
+      ) : (
+        <div>{rows.map(shelfRowLine)}</div>
+      )}
+
       {shelf.data && rows.length === 0 && (
         <EmptyState
           title="Nothing on the shelf"

@@ -190,6 +190,22 @@ export function useIngredientReach(
   return undefined;
 }
 
+/** Batch name lookup (filter[id] is exact/comma) — shelf ledger group headers. */
+export function useIngredientsByIds(barId: number | undefined, ids: number[]) {
+  const key = [...ids].sort((a, b) => a - b).join(',');
+  return useQuery({
+    queryKey: ['ingredient-names', barId, key],
+    queryFn: () =>
+      api<ListResponse<Ingredient>>(
+        `/ingredients?filter[id]=${key}&per_page=${ids.length}`,
+        { barId },
+      ),
+    enabled: barId !== undefined && ids.length > 0,
+    staleTime: BOOTSTRAP_STALE_MS,
+    select: (r) => new Map(r.data.map((i) => [i.id, i.name])),
+  });
+}
+
 /**
  * Par-level staples (data/staples.ts) resolved against this bar: id, name and
  * live shelf state per slug. Slugs carry the bar-id suffix upstream, so the
@@ -332,6 +348,31 @@ export function useCheckOff(
     },
     onError: () =>
       showToast({ message: 'That didn’t move — the bottle is still on the list.' }),
+    // Store-aisle mis-taps are the likeliest mis-tap in the app: same undo
+    // courtesy the shelf-remove flow gets.
+    onSuccess: (_data, vars) => {
+      showToast({
+        message: 'Moved to the shelf.',
+        actionLabel: 'Undo',
+        onAction: () => {
+          void (async () => {
+            await api(`/users/${userId}/ingredients/batch-delete`, {
+              method: 'POST',
+              barId,
+              body: { ingredients: [vars.ingredientId] },
+            });
+            await api(`/users/${userId}/shopping-list/batch-store`, {
+              method: 'POST',
+              barId,
+              body: { ingredients: [{ id: vars.ingredientId }] },
+            });
+            for (const key of ['shelf', 'shopping-list', 'cocktails', 'recommend', 'staples']) {
+              void queryClient.invalidateQueries({ queryKey: [key] });
+            }
+          })();
+        },
+      });
+    },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['shelf'] });
       void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });

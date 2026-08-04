@@ -33,6 +33,40 @@ async function meiliSearch<T>(
   return body.hits;
 }
 
+export interface CocktailHit {
+  id: number;
+  slug: string;
+  name: string;
+  short_ingredients?: string[];
+}
+
+/** Type-ahead over the cocktails index; degrades to REST name filter. */
+export function useCocktailSearch(q: string) {
+  const { data: bars } = useBars();
+  const bar = bars?.[0];
+  const query = q.trim();
+  return useQuery({
+    queryKey: ['search', 'cocktails', query],
+    enabled: query.length >= 2 && bar !== undefined,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: async (): Promise<CocktailHit[]> => {
+      if (bar?.search_token) {
+        try {
+          return await meiliSearch<CocktailHit>('cocktails', bar.search_token, query);
+        } catch {
+          // Meilisearch down — browsing still works via REST (ADR-004).
+        }
+      }
+      const rest = await api<ListResponse<{ id: number; slug: string; name: string }>>(
+        `/cocktails?filter[name]=${encodeURIComponent(query)}&per_page=12`,
+        { barId: bar?.id },
+      );
+      return rest.data.map(({ id, slug, name }) => ({ id, slug, name }));
+    },
+  });
+}
+
 /** Type-ahead over the ingredients index; degrades to REST name filter. */
 export function useIngredientSearch(q: string) {
   const { data: bars } = useBars();

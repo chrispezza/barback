@@ -1,12 +1,17 @@
+import { useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
 import { EmptyState } from '@ds/feedback/EmptyState';
+import { SearchField } from '@ds/forms/SearchField';
 import { useBarId, useCocktails } from '../api/queries';
+import { useCocktailSearch } from '../api/search';
 import { isStocked, type Cocktail } from '../api/types';
+import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
+import { useDebounced } from '../hooks';
 
 function matchFor(c: Cocktail): 'full' | 'partial' | 'near' | 'none' {
   const missing = c.ingredients.filter((i) => !isStocked(i) && !i.optional).length;
@@ -20,6 +25,9 @@ export function Drinks() {
   const barId = useBarId();
   const family = useActiveFamily();
   const { route, url, query } = useLocation();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchHits = useCocktailSearch(useDebounced(searchQuery, 200));
 
   const page = Math.max(1, Number(query['page']) || 1);
   const showFavorites = query['fav'] === '1';
@@ -77,6 +85,36 @@ export function Drinks() {
       <h1>Drinks</h1>
       <FamilyPicker />
 
+      <SearchField
+        value={searchQuery}
+        label="Find a drink"
+        placeholder="Search by name"
+        onChange={setSearchQuery}
+        onClear={() => setSearchQuery('')}
+      />
+      {searchQuery.trim().length >= 2 && (
+        <div class="search-results">
+          {searchHits.data?.map((hit) => (
+            <button
+              key={hit.id}
+              type="button"
+              class="search-hit"
+              onClick={() => route(`/drinks/${hit.slug}`)}
+            >
+              <span class="search-hit-name">{hit.name}</span>
+              {hit.short_ingredients && hit.short_ingredients.length > 0 && (
+                <span class="search-hit-ingredients">
+                  {hit.short_ingredients.join(' · ')}
+                </span>
+              )}
+            </button>
+          ))}
+          {searchHits.data?.length === 0 && (
+            <p class="recipe-aside">Nothing by that name.</p>
+          )}
+        </div>
+      )}
+
       {family && (
         <header>
           <div class="recipe-ratio">
@@ -107,11 +145,12 @@ export function Drinks() {
       {showFavorites && cocktails.data?.meta?.total === 0 && (
         <EmptyState body="Nothing favorited yet — the ♦ on any recipe starts the collection." />
       )}
+      {cocktails.isError && <ErrorLine onRetry={() => void cocktails.refetch()} />}
       <ul class="card-list">
         {cocktails.data?.data.map((c) => (
           <li key={c.id}>
             <DrinkCard
-              name={c.name}
+              name={c.is_favorited ? `♦ ${c.name}` : c.name}
               ingredients={c.ingredients.map((entry) => ({
                 name: entry.ingredient.name,
                 have: isStocked(entry) || entry.optional,

@@ -21,6 +21,7 @@ import {
 import { isStocked, type Cocktail, type RecommendedIngredient } from '../api/types';
 import { useIngredientSearch } from '../api/search';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
+import { ErrorLine } from '../components/ErrorLine';
 import { ShoppingRow } from '../components/ShoppingRow';
 import { STAPLE_SLUGS } from '../data/staples';
 import { useDebounced } from '../hooks';
@@ -114,13 +115,17 @@ export function Tonight() {
   return (
     <main class="screen">
       <h1>Tonight</h1>
-      {statusReady && (
-        <p class="bar-status">
-          You can pour <strong>{barCanMake.data?.meta?.total}</strong> ·{' '}
-          <strong>{barNearMiss.data?.meta?.total}</strong> one bottle away ·{' '}
-          <strong>{listItems.length}</strong> on the list
-        </p>
-      )}
+      <p class="bar-status">
+        {statusReady ? (
+          <>
+            You can pour <strong>{barCanMake.data?.meta?.total}</strong> ·{' '}
+            <strong>{barNearMiss.data?.meta?.total}</strong> one bottle away ·{' '}
+            <strong>{listItems.length}</strong> on the list
+          </>
+        ) : (
+          '…'
+        )}
+      </p>
       <FamilyPicker />
 
       {/* Grid areas put the list ABOVE the near-miss stack on one column —
@@ -128,6 +133,7 @@ export function Tonight() {
       <div class="tonight-grid">
         <section class="tonight-pour">
           <MatchHeader label="You can pour" count={canMakeTotal} />
+          {canMake.isError && <ErrorLine onRetry={() => void canMake.refetch()} />}
           {canMakeTotal === 0 && !shelfIsBare && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
           )}
@@ -135,7 +141,7 @@ export function Tonight() {
             {canMake.data?.data.map((c) => (
               <li key={c.id}>
                 <DrinkCard
-                  name={c.name}
+                  name={c.is_favorited ? `♦ ${c.name}` : c.name}
                   ingredients={toCardIngredients(c)}
                   match="full"
                   onSelect={() => route(`/drinks/${c.slug}`)}
@@ -160,11 +166,12 @@ export function Tonight() {
 
         <section class="tonight-near">
           <MatchHeader label="One bottle away" count={nearMiss.data?.meta?.total} tone="gap" />
+          {nearMiss.isError && <ErrorLine onRetry={() => void nearMiss.refetch()} />}
           <ul class="card-list">
             {nearMiss.data?.data.map((c) => (
               <li key={c.id}>
                 <DrinkCard
-                  name={c.name}
+                  name={c.is_favorited ? `♦ ${c.name}` : c.name}
                   ingredients={toCardIngredients(c)}
                   match="near"
                   onSelect={() => route(`/drinks/${c.slug}`)}

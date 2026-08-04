@@ -306,6 +306,68 @@ a {
   font-family: var(--font-serif);
 }
 
+/* Cocktail search results (Drinks): name in the display voice, run in italics */
+.search-results {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+.search-hit {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--green-800);
+  border: var(--border-card);
+  border-radius: var(--radius-max);
+  padding: var(--space-3) var(--space-4);
+  min-height: var(--tap-min);
+  cursor: pointer;
+  transition: var(--transition-state);
+}
+
+.search-hit:hover {
+  border-color: var(--brass-500);
+}
+
+.search-hit:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.search-hit-name {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--display-3);
+  line-height: var(--display-3-lh);
+  color: var(--cream-100);
+}
+
+.search-hit-ingredients {
+  display: block;
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--cream-400);
+  font-size: var(--caption);
+}
+
+/* Shelf ledger rows: the remove action is always visible — never hover-gated */
+.shelf-row-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.shelf-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Way back on the recipe screen — standalone PWA has no browser chrome */
+.back-row {
+  margin: 0 0 var(--space-2);
+}
+
 /* Recipe ingredient rows: quiet per-bottle list action on missing rows */
 .recipe-ing-row {
   display: flex;

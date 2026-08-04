@@ -36,6 +36,8 @@ export interface Ingredient {
   strength: number;
   in_shelf?: boolean;
   in_bar_shelf?: boolean;
+  /** Ancestor id chain, root first ("129/119/"); null for root ingredients. */
+  materialized_path?: string | null;
 }
 
 export interface FormattedAmount {
