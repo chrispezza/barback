@@ -16,6 +16,7 @@ from pathlib import Path
 API = os.environ.get("API_URL", "http://localhost:8000")
 EMAIL = os.environ.get("SEED_EMAIL", "admin@example.com")
 PASSWORD = os.environ.get("SEED_PASSWORD", "password")
+TOKEN = os.environ.get("BARBACK_TOKEN")  # rotated instances: token beats password
 BAR_ID = os.environ.get("BAR_ID", "1")
 
 
@@ -65,7 +66,7 @@ def main() -> int:
     )
     assignments.pop("_comment", None)
 
-    token = call(
+    token = TOKEN or call(
         "/auth/login", "POST", {"email": EMAIL, "password": PASSWORD}
     )["data"]["token"]
 

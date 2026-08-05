@@ -16,6 +16,9 @@ from pathlib import Path
 API = os.environ.get("API_URL", "http://localhost:8000")
 EMAIL = os.environ.get("SEED_EMAIL", "admin@example.com")
 PASSWORD = os.environ.get("SEED_PASSWORD", "password")
+# Post-hardening the seeded password is rotated; a personal access token is
+# the durable way in (mint one in Salt Rim or the DB, export BARBACK_TOKEN).
+TOKEN = os.environ.get("BARBACK_TOKEN")
 BAR_ID = os.environ.get("BAR_ID", "1")
 
 
@@ -74,7 +77,7 @@ def classify(names: list[str]) -> tuple[str, str] | None:
 
 
 def main() -> int:
-    token = call("/auth/login", "POST", {"email": EMAIL, "password": PASSWORD})["data"]["token"]
+    token = TOKEN or call("/auth/login", "POST", {"email": EMAIL, "password": PASSWORD})["data"]["token"]
 
     cocktails = []
     page = 1
