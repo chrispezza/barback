@@ -24,6 +24,7 @@ Decisions live in [docs/adr/](docs/adr/):
 | [006](docs/adr/006-design-system-consumed-as-vendored-delivery.md) | Design system consumed as an unmodified vendored delivery via `@ds` alias |
 | [007](docs/adr/007-installable-client-offline-posture.md) | Installable PWA; shell-cache worker + list snapshot; API never cached; sync deferred |
 | [008](docs/adr/008-purchasing-intelligence-standing-orders.md) | Staples are standing orders (auto-queue); app suggestions require a tap; aspiration outranks server rank |
+| [009](docs/adr/009-remote-access-cloudflare-tunnel-access.md) | Public at barback.pezza.dev via Cloudflare Tunnel + Access; gated on migration to an always-on host |
 
 ## Running the stack
 
