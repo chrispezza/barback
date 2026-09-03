@@ -22,9 +22,10 @@ Consequences worth knowing:
 
 - **No logo was supplied.** The brand mark is the name set in Libre Caslon
   Display; `assets/` contains no wordmark file. Do not invent one.
-- **No font binaries were supplied.** Libre Caslon Display, Libre Caslon Text and
-  Instrument Sans are loaded from the Google Fonts CDN (see `tokens/fonts.css`).
-  Substitute licensed local files there if self-hosting.
+- **Fonts are self-hosted.** Libre Caslon Display, Libre Caslon Text and
+  Instrument Sans ship as latin-subset woff2 in `assets/fonts/` (SIL OFL,
+  licences alongside) and are declared in `tokens/fonts.css`. Revision 1 loaded
+  them from the Google Fonts CDN; see Revisions.
 - **No icon set was supplied** — see ICONOGRAPHY below; the system is
   deliberately icon-free.
 - The component inventory is exactly the one the brief enumerated, plus one
@@ -208,13 +209,13 @@ Everything else maps 1:1 to the brief's numbered inventory.
 | `tokens/spacing.css` | 4→64 scale, gutters, tap target, row height. |
 | `tokens/shape.css` | 2px radius, hairline/frame rules, focus geometry. |
 | `tokens/motion.css` | Durations, easing, reduced-motion collapse. |
-| `tokens/fonts.css` | Libre Caslon Display + Text (Google Fonts CDN). |
+| `tokens/fonts.css` | `@font-face` for the three faces, self-hosted from `assets/fonts/`. |
 | `guidelines/*.card.html` | 17 foundation specimen cards — Colors, Type, Spacing, Brand. |
 | `components/…` | The component library (below). |
 | `ui_kits/back-bar-app/` | Desktop + 390px screens: Shelf and Tonight. See its README. |
 | `thumbnail.html` | Homepage tile. |
 | `SKILL.md` | Agent Skills front matter for use in Claude Code. |
-| `assets/` | Empty by design — no logo, icons or imagery were supplied. |
+| `assets/fonts/` | The seven woff2 faces and their licences. No logo, icons or imagery — none were supplied. |
 
 ### Components
 
@@ -241,3 +242,30 @@ in ingredient runs; gradients, glassmorphism, neon, glow; steampunk drift
 (gears, aged paper, faux distressing); emoji; cocktail-glass iconography as
 decoration; rounded pills; progress rings; lightening the greens for
 "readability" — fix contrast with type weight and size first.
+
+---
+
+## Revisions
+
+### Revision 2 — 2 September 2026
+
+Findings from the first UX audit of the consuming app, fixed at the source
+(ADR-006: the app never patches the delivery; changes land here as a folder
+update). Every change is backward compatible; new props are optional.
+
+| Component | Change | Why |
+| --- | --- | --- |
+| `FamilyFilterBar` | Bar is `inline-flex; min-width: 100%`; segments `flex: 1 0 auto`. | At 375px the bar clipped its own segments (TIKI and DESSERT never rendered). It now overflows into the consumer's scrolling wrapper. |
+| `Button` | `size="sm"` keeps the 44px floor (padding drops to 12px). New `type` prop (default `"button"`). Typings gain `aria-label`, `title`. | The system states a 44px minimum and shipped a 36px variant; forms had no submit button, so Return did not submit. |
+| `DrinkCard` | `href` renders a real `<a>`; `favorited` renders a brass ◆ announced "Favorited"; ingredients accept `optional` (cream-400 + "optional", never missing). CAN POUR line is cream-400 with a brass ✓; missing-line is rose-300; no-match cards use the absent border and a cream-400 name instead of opacity; hover steps the border only. | A `<button>` around `<h3>`/`<p>` is invalid and unnamed, and a navigating card should be a link. Brass 11px on green-800 was 4.46:1 and rose-400 13px was 4.10:1; whole-card opacity took every colour below AA and signalled state by colour alone. On the hover surface the caps line and sage run also fell under AA. |
+| `ShoppingListItem` | New `detail` prop: one secondary line under the name, caps voice, shared with `unlocks`. `note` remains the trailing italic aside. | Consumers were putting three kinds of fact in two voices. |
+| `ShelfRow` | New `optional` prop; remove hover uses rose-300 on the ox wash. | Optional recipe lines need a word, not a strikethrough. Ox-700 text on green-900 was 1.33:1. |
+| `SearchField` | Hides the platform search-cancel glyph. | Two clear affordances, one in the platform's blue. |
+| `Toast` | `role="alert"` for the destructive tone; action gets a 44px box. | The Undo after a removal should be announced assertively. |
+| `RatioDevice` | Labels wrap to 12em. | Ingredient-named parts must fit 390px. |
+| all | Styles inject once per document (`<style id="bb-css-…">`) instead of once per instance. | A 50-card index shipped 50 copies of the card CSS. |
+| `tokens/fonts.css` | Self-hosted `@font-face`, `font-display: fallback`. | The runtime CDN dependency put the system-font fallback (anti-goal #1) on screen whenever the installed app was offline. |
+
+Not yet revised: the UI kit pages (`ui_kits/back-bar-app/*.html`) load
+`_ds_bundle.js`, which is a stale build of revision 1 and fails in a classic
+script; rebuild the bundle before relying on the kit.

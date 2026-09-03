@@ -8,11 +8,20 @@ const CSS = `
 .bb-empty__action{margin-top:20px;display:inline-flex}
 `;
 
+const STYLE_ID = "bb-css-empty-state";
+function injectOnce() {
+  if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = STYLE_ID;
+  el.textContent = CSS;
+  document.head.appendChild(el);
+}
+
 /** Directive, never apologetic. */
 export function EmptyState({ title, body, action }) {
+  injectOnce();
   return (
     <>
-      <style>{CSS}</style>
       <div className="bb-empty">
         <div className="bb-empty__fleuron" aria-hidden="true">—◆—</div>
         {title && <h3 className="bb-empty__title">{title}</h3>}

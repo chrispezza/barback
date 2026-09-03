@@ -5,9 +5,11 @@
  */
 export interface ShoppingListItemProps {
   name: string;
-  /** How many drinks this purchase unlocks. */
+  /** How many drinks this purchase unlocks (rose, actionable). */
   unlocks?: number;
-  /** Optional trailing editorial note, e.g. "any London dry". */
+  /** Secondary fact in the same caps line as unlocks, e.g. "Staple" or "In 12 drinks as Islay Scotch". */
+  detail?: string;
+  /** Optional trailing editorial note in italic, e.g. "any London dry". */
   note?: string;
   checked?: boolean;
   onToggle?: () => void;

@@ -14,11 +14,20 @@ const CSS = `
 .bb-chip__count{font-family:var(--font-body);font-style:normal;font-size:11px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase}
 `;
 
+const STYLE_ID = "bb-css-ingredient-chip";
+function injectOnce() {
+  if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = STYLE_ID;
+  el.textContent = CSS;
+  document.head.appendChild(el);
+}
+
 /** The atomic unit: one ingredient, in or out of the bar. */
 export function IngredientChip({ label, state = "default", count, disabled = false, onToggle, ...rest }) {
+  injectOnce();
   return (
     <>
-      <style>{CSS}</style>
       <button
         type="button"
         className="bb-chip"

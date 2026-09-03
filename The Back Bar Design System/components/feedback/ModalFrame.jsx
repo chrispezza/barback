@@ -10,8 +10,18 @@ const CSS = `
 .bb-scrim{position:fixed;inset:0;background:var(--scrim);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50}
 `;
 
+const STYLE_ID = "bb-css-modal-frame";
+function injectOnce() {
+  if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = STYLE_ID;
+  el.textContent = CSS;
+  document.head.appendChild(el);
+}
+
 /** The double-rule frame — reserved for modals and page frames. */
 export function ModalFrame({ eyebrow, title, children, footer, overlay = false, onDismiss }) {
+  injectOnce();
   const frame = (
     <div className="bb-frame" role="dialog" aria-modal={overlay} aria-label={title}>
       <div className="bb-frame__inner">
@@ -24,7 +34,6 @@ export function ModalFrame({ eyebrow, title, children, footer, overlay = false, 
   );
   return (
     <>
-      <style>{CSS}</style>
       {overlay ? <div className="bb-scrim" onClick={onDismiss}><div onClick={(e) => e.stopPropagation()}>{frame}</div></div> : frame}
     </>
   );

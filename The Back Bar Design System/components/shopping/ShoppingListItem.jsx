@@ -10,26 +10,44 @@ const CSS = `
 .bb-shop__main{flex:1;min-width:0}
 .bb-shop__name{font-family:var(--font-serif);font-size:17px;font-style:italic;color:var(--cream-100);transition:var(--transition-state)}
 .bb-shop[data-checked="true"] .bb-shop__name{color:var(--sage-600);text-decoration:line-through;text-decoration-color:rgba(156,175,164,0.6)}
-.bb-shop__unlocks{margin-top:3px;font-family:var(--font-body);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.10em;text-indent:0.10em;color:var(--rose-400)}
-.bb-shop[data-checked="true"] .bb-shop__unlocks{color:var(--sage-600)}
+.bb-shop__meta{display:block;margin-top:3px;font-family:var(--font-body);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.10em;text-indent:0.10em;color:var(--cream-400)}
+.bb-shop__unlocks{color:var(--rose-400)}
+.bb-shop__sep{color:var(--rule-strong);margin:0 4px}
+.bb-shop[data-checked="true"] .bb-shop__meta,.bb-shop[data-checked="true"] .bb-shop__unlocks{color:var(--sage-600)}
 .bb-shop__note{flex:none;font-family:var(--font-serif);font-size:13px;color:var(--cream-400);font-style:italic}
 `;
 
-/** One purchase on the list — rose accent, shows what it unlocks. */
-export function ShoppingListItem({ name, unlocks, note, checked = false, onToggle }) {
+const STYLE_ID = "bb-css-shopping-list-item";
+function injectOnce() {
+  if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = STYLE_ID;
+  el.textContent = CSS;
+  document.head.appendChild(el);
+}
+
+/** One purchase on the list — rose accent, shows what it unlocks. Secondary
+ *  facts (unlocks, detail) share one line under the name in one voice; `note`
+ *  stays the trailing editorial aside. */
+export function ShoppingListItem({ name, unlocks, detail, note, checked = false, onToggle }) {
+  injectOnce();
+  const hasMeta = unlocks != null || detail;
   return (
-    <>
-      <style>{CSS}</style>
-      <button type="button" className="bb-shop" data-checked={checked ? "true" : "false"} aria-pressed={checked} onClick={onToggle}>
-        <span className="bb-shop__box">
-          <span className="bb-shop__mark" aria-hidden="true">{checked ? "✓" : ""}</span>
-        </span>
-        <span className="bb-shop__main">
-          <span className="bb-shop__name">{name}</span>
-          {unlocks != null && <span className="bb-shop__unlocks" style={{ display: "block" }}>Unlocks {unlocks}</span>}
-        </span>
-        {note && <span className="bb-shop__note">{note}</span>}
-      </button>
-    </>
+    <button type="button" className="bb-shop" data-checked={checked ? "true" : "false"} aria-pressed={checked} onClick={onToggle}>
+      <span className="bb-shop__box">
+        <span className="bb-shop__mark" aria-hidden="true">{checked ? "✓" : ""}</span>
+      </span>
+      <span className="bb-shop__main">
+        <span className="bb-shop__name">{name}</span>
+        {hasMeta && (
+          <span className="bb-shop__meta">
+            {unlocks != null && <span className="bb-shop__unlocks">Unlocks {unlocks}</span>}
+            {unlocks != null && detail && <span className="bb-shop__sep" aria-hidden="true">·</span>}
+            {detail && <span>{detail}</span>}
+          </span>
+        )}
+      </span>
+      {note && <span className="bb-shop__note">{note}</span>}
+    </button>
   );
 }
