@@ -21,13 +21,36 @@ function matchFor(c: Cocktail): 'full' | 'partial' | 'near' | 'none' {
   return 'none';
 }
 
+function toCardIngredients(c: Cocktail) {
+  return c.ingredients.map((entry) => ({
+    name: entry.ingredient.name,
+    have: isStocked(entry),
+    optional: entry.optional,
+  }));
+}
+
 export function Drinks() {
   const barId = useBarId();
   const family = useActiveFamily();
   const { route, url, query } = useLocation();
 
+  // Search is a filter on the index, not a second list: Meilisearch (or the
+  // REST name filter) ranks the ids, then the full resources come back with
+  // stock flags so hits render as the same cards as everything else.
   const [searchQuery, setSearchQuery] = useState('');
+  const hasQuery = searchQuery.trim().length >= 1;
   const searchHits = useCocktailSearch(useDebounced(searchQuery, 200));
+  const hitIds = searchHits.data?.map((h) => h.id) ?? [];
+  const hitCocktails = useCocktails(
+    barId,
+    { id: hitIds.join(',') },
+    Math.max(hitIds.length, 1),
+    hasQuery && hitIds.length > 0,
+  );
+  const hitRank = new Map(hitIds.map((id, i) => [id, i]));
+  const hits = [...(hitCocktails.data?.data ?? [])].sort(
+    (a, b) => (hitRank.get(a.id) ?? 0) - (hitRank.get(b.id) ?? 0),
+  );
 
   const page = Math.max(1, Number(query['page']) || 1);
   const showFavorites = query['fav'] === '1';
@@ -80,6 +103,18 @@ export function Drinks() {
 
   const lastPage = cocktails.data?.meta?.last_page ?? 1;
 
+  const card = (c: Cocktail) => (
+    <li key={c.id}>
+      <DrinkCard
+        name={c.name}
+        favorited={c.is_favorited}
+        href={`/drinks/${c.slug}`}
+        ingredients={toCardIngredients(c)}
+        match={matchFor(c)}
+      />
+    </li>
+  );
+
   return (
     <main class="screen screen--index">
       <h1>Drinks</h1>
@@ -92,95 +127,78 @@ export function Drinks() {
         onChange={setSearchQuery}
         onClear={() => setSearchQuery('')}
       />
-      {searchQuery.trim().length >= 2 && (
-        <div class="search-results">
-          {searchHits.data?.map((hit) => (
-            <button
-              key={hit.id}
-              type="button"
-              class="search-hit"
-              onClick={() => route(`/drinks/${hit.slug}`)}
-            >
-              <span class="search-hit-name">{hit.name}</span>
-              {hit.short_ingredients && hit.short_ingredients.length > 0 && (
-                <span class="search-hit-ingredients">
-                  {hit.short_ingredients.join(' · ')}
-                </span>
-              )}
-            </button>
-          ))}
+
+      {hasQuery ? (
+        <section aria-live="polite">
+          <MatchHeader
+            label="Matches"
+            count={searchHits.data ? searchHits.data.length : undefined}
+          />
+          {hitCocktails.isError && <ErrorLine onRetry={() => void hitCocktails.refetch()} />}
           {searchHits.data?.length === 0 && (
             <p class="recipe-aside">Nothing by that name.</p>
           )}
-        </div>
-      )}
+          <ul class="card-list">{hits.map(card)}</ul>
+        </section>
+      ) : (
+        <>
+          {family && (
+            <header>
+              <div class="recipe-ratio">
+                <RatioDevice parts={family.def.canonicalRatio} size="md" />
+              </div>
+              <p class="recipe-aside">
+                {family.def.blurb}
+                {import.meta.env.DEV &&
+                  family.tagId === undefined &&
+                  ' — dev: family not yet tagged upstream; showing all drinks.'}
+              </p>
+              {summary && <p>{summary}</p>}
+            </header>
+          )}
 
-      {family && (
-        <header>
-          <div class="recipe-ratio">
-            <RatioDevice parts={family.def.canonicalRatio} size="md" />
-          </div>
-          <p class="recipe-aside">
-            {family.def.blurb}
-            {family.tagId === undefined && ' — family not yet tagged upstream; showing all drinks.'}
-          </p>
-          {summary && <p>{summary}</p>}
-        </header>
-      )}
-
-      <p class="favorites-filter-row">
-        <Button
-          variant={showFavorites ? 'secondary' : 'ghost'}
-          size="sm"
-          onClick={() => route(buildUrl(1, !showFavorites))}
-        >
-          {showFavorites ? '♦ Favorites' : '◇ Favorites'}
-        </Button>
-      </p>
-
-      <MatchHeader
-        label={showFavorites ? 'Favorites' : 'The index'}
-        count={cocktails.data?.meta?.total}
-      />
-      {showFavorites && cocktails.data?.meta?.total === 0 && (
-        <EmptyState
-          body="Nothing favorited yet — the ♦ on any recipe starts the collection."
-          action={
-            <Button variant="secondary" size="sm" onClick={() => route('/first-pours')}>
-              Start with the classics
+          <p class="favorites-filter-row">
+            <Button
+              variant={showFavorites ? 'secondary' : 'ghost'}
+              size="sm"
+              aria-pressed={showFavorites}
+              onClick={() => route(buildUrl(1, !showFavorites))}
+            >
+              {showFavorites ? '✓ Favorites' : 'Favorites'}
             </Button>
-          }
-        />
-      )}
-      {cocktails.isError && <ErrorLine onRetry={() => void cocktails.refetch()} />}
-      <ul class="card-list">
-        {cocktails.data?.data.map((c) => (
-          <li key={c.id}>
-            <DrinkCard
-              name={c.is_favorited ? `♦ ${c.name}` : c.name}
-              ingredients={c.ingredients.map((entry) => ({
-                name: entry.ingredient.name,
-                have: isStocked(entry) || entry.optional,
-              }))}
-              match={matchFor(c)}
-              onSelect={() => route(`/drinks/${c.slug}`)}
-            />
-          </li>
-        ))}
-      </ul>
+          </p>
 
-      {lastPage > 1 && (
-        <div class="pager">
-          <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
-            Previous
-          </Button>
-          <span class="pager-info">
-            Page {page} of {lastPage}
-          </span>
-          <Button variant="ghost" size="sm" disabled={page >= lastPage} onClick={() => goToPage(page + 1)}>
-            Next
-          </Button>
-        </div>
+          <MatchHeader
+            label={showFavorites ? 'Favorites' : 'The index'}
+            count={cocktails.data?.meta?.total}
+          />
+          {showFavorites && cocktails.data?.meta?.total === 0 && (
+            <EmptyState
+              body="Nothing favorited yet — Favorite on any recipe starts the collection."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => route('/first-pours')}>
+                  Start with the classics
+                </Button>
+              }
+            />
+          )}
+          {cocktails.isError && <ErrorLine onRetry={() => void cocktails.refetch()} />}
+          <ul class="card-list">{cocktails.data?.data.map(card)}</ul>
+
+          {lastPage > 1 && (
+            <div class="pager">
+              <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
+                Previous
+              </Button>
+              <span class="pager-info">
+                Page {page} of {lastPage}
+              </span>
+              <Button variant="ghost" size="sm" disabled={page >= lastPage} onClick={() => goToPage(page + 1)}>
+                Next
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </main>
   );

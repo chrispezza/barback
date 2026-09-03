@@ -15,7 +15,8 @@ interface ShoppingRowProps {
 /**
  * DS ShoppingListItem fed with the live "unlocks N" count. A zero unlock is
  * honest but discouraging — it means "completes nothing by itself", not
- * "useless" — so those rows say what the bottle builds toward instead.
+ * "useless" — so those rows say what the bottle builds toward instead. Every
+ * secondary fact goes in the row's one detail line, one voice.
  */
 export function ShoppingRow({
   ingredientId,
@@ -27,10 +28,10 @@ export function ShoppingRow({
   const barId = useBarId();
   const { data: unlocks } = useIngredientUnlocks(barId, ingredientId);
   const reach = useIngredientReach(barId, ingredientId, !isStaple && unlocks === 0);
-  const note = isStaple
-    ? 'staple'
+  const detail = isStaple
+    ? 'Staple'
     : unlocks === 0 && reach
-      ? `in ${reach.count} drink${reach.count === 1 ? '' : 's'}${
+      ? `In ${reach.count} drink${reach.count === 1 ? '' : 's'}${
           reach.via ? ` as ${reach.via}` : ''
         }`
       : undefined;
@@ -40,13 +41,13 @@ export function ShoppingRow({
         <ShoppingListItem
           name={name}
           unlocks={unlocks === 0 ? undefined : unlocks}
-          note={note}
+          detail={detail}
           onToggle={onCheckOff}
         />
       </div>
       {onDrop && (
-        <Button variant="ghost" size="sm" onClick={onDrop}>
-          ✕<span class="visually-hidden"> Remove {name} from the list</span>
+        <Button variant="ghost" size="sm" onClick={onDrop} aria-label={`Remove ${name} from the list`}>
+          ✕
         </Button>
       )}
     </div>

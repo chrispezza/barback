@@ -91,7 +91,8 @@ body {
   }
 
   .nav-rail {
-    display: block;
+    display: flex;
+    flex-direction: column;
     position: sticky;
     top: 0;
     height: 100vh;
@@ -187,10 +188,12 @@ body {
 }
 
 .rail-foot {
-  position: absolute;
-  bottom: 28px;
-  left: 20px;
-  right: 20px;
+  margin-top: auto;
+  padding-top: var(--space-5);
+}
+
+.rail-standing {
+  margin: 0 0 var(--space-2);
   font-family: var(--font-serif);
   font-style: italic;
   font-size: var(--caption);
@@ -275,10 +278,31 @@ a {
   }
 }
 
-/* Segmented family bar scrolls rather than wraps on narrow screens */
+/* One column: the pour stack shows four, then "Show all N" — the list must
+   never sit a dozen cards down. Beside the sticky rail it is uncapped. */
+.show-all-row {
+  display: none;
+  margin: 0 0 var(--space-5);
+}
+
+@media (max-width: 899px) {
+  .card-list--capped > li:nth-child(n + 5) {
+    display: none;
+  }
+
+  .show-all-row {
+    display: block;
+  }
+}
+
+/* Segmented family bar pans rather than wraps on narrow screens (DS rev. 2:
+   the bar grows past its container instead of clipping its last segments) */
 .family-scroll {
   overflow-x: auto;
   margin-bottom: var(--space-4);
+  padding-bottom: var(--space-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
 }
 
 .chip-row {
@@ -339,56 +363,17 @@ a {
   margin: var(--space-4) 0 var(--space-3);
 }
 
-/* Cocktail search results (Drinks): name in the display voice, run in italics */
-.search-results {
-  display: grid;
-  gap: var(--space-2);
-  margin: var(--space-4) 0;
-}
-
-.search-hit {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: var(--green-800);
-  border: var(--border-card);
-  border-radius: var(--radius-max);
-  padding: var(--space-3) var(--space-4);
-  min-height: var(--tap-min);
-  cursor: pointer;
-  transition: var(--transition-state);
-}
-
-.search-hit:hover {
-  border-color: var(--brass-500);
-}
-
-.search-hit:focus-visible {
-  outline: var(--focus-width) solid var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
-.search-hit-name {
-  display: block;
-  font-family: var(--font-display);
-  font-size: var(--display-3);
-  line-height: var(--display-3-lh);
-  color: var(--cream-100);
-}
-
-.search-hit-ingredients {
-  display: block;
-  font-family: var(--font-serif);
-  font-style: italic;
-  color: var(--cream-400);
-  font-size: var(--caption);
-}
-
-/* Shelf ledger rows: the remove action is always visible — never hover-gated */
+/* Shelf ledger rows: the remove action is always visible — never hover-gated —
+   but quiet at rest so thirty of them don't outweigh the bottles. */
 .shelf-row-line {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+.shelf-row-line .bb-btn[data-variant='destructive']:not(:hover):not(:focus-visible):not(:active) {
+  border-color: transparent;
+  color: var(--cream-400);
 }
 
 .shelf-row-main {
@@ -461,6 +446,11 @@ a {
   gap: var(--space-2);
 }
 
+.shopping-row-line > .bb-btn {
+  min-width: var(--tap-min);
+  padding: 0;
+}
+
 .shopping-row-main {
   flex: 1;
   min-width: 0;
@@ -495,6 +485,8 @@ a {
   .restock-section,
   .buy-next,
   .print-row,
+  .show-all-row,
+  .logout-row,
   .shopping-row-line > button {
     display: none !important;
   }
@@ -547,6 +539,60 @@ a {
 .bar-status strong {
   font-weight: 400;
   color: var(--brass-500);
+}
+
+.bar-status a {
+  color: var(--brass-500);
+  text-decoration: underline;
+  text-decoration-color: var(--rule-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: var(--transition-state);
+}
+
+.bar-status a:hover {
+  text-decoration-color: var(--brass-500);
+}
+
+.bar-status a:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* Jump targets: focusable for the status links, no ring of their own */
+.tonight-pour:focus,
+.tonight-near:focus,
+.tonight-rail:focus {
+  outline: none;
+}
+
+/* Loading voice reserves its line so the counts don't shift the family bar */
+.bar-status {
+  min-height: calc(var(--display-3) * var(--display-3-lh));
+}
+
+.bar-status .recipe-aside {
+  font-size: var(--body-1);
+}
+
+.shelf-count {
+  min-height: calc(var(--body-2) * var(--body-2-lh));
+}
+
+/* Log out lives in the rail on desktop and at the end of Shelf on a phone */
+.logout-row {
+  margin: var(--space-7) 0 0;
+}
+
+@media (min-width: 900px) {
+  .logout-row {
+    display: none;
+  }
+}
+
+/* Focused screen heading after a route change: no ring, it's an announcement */
+.screen > h1:focus {
+  outline: none;
 }
 
 /* Restock suggestions (Tonight rail, below the list) */

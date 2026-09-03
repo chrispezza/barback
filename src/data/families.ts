@@ -3,6 +3,7 @@ import type { RatioPart } from './ratios';
 export interface FamilyDef {
   tag: string; // must match the API tag exactly (reserved "family:" prefix)
   displayName: string; // rendered in caps utility voice
+  plural: string; // lowercase, for scoped copy: "sours you can pour"
   order: number;
   canonicalRatio: RatioPart[];
   blurb: string;
@@ -13,6 +14,7 @@ export interface FamilyDef {
 export const FAMILIES: FamilyDef[] = [
   {
     tag: 'family:sour',
+    plural: 'sours',
     displayName: 'SOUR',
     order: 1,
     canonicalRatio: [
@@ -24,6 +26,7 @@ export const FAMILIES: FamilyDef[] = [
   },
   {
     tag: 'family:spirit-forward',
+    plural: 'spirit-forward drinks',
     displayName: 'SPIRIT-FORWARD',
     order: 2,
     canonicalRatio: [
@@ -34,6 +37,7 @@ export const FAMILIES: FamilyDef[] = [
   },
   {
     tag: 'family:highball',
+    plural: 'highballs',
     displayName: 'HIGHBALL',
     order: 3,
     canonicalRatio: [
@@ -44,6 +48,7 @@ export const FAMILIES: FamilyDef[] = [
   },
   {
     tag: 'family:tiki',
+    plural: 'tiki drinks',
     displayName: 'TIKI',
     order: 4,
     canonicalRatio: [
@@ -55,6 +60,7 @@ export const FAMILIES: FamilyDef[] = [
   },
   {
     tag: 'family:dessert',
+    plural: 'dessert drinks',
     displayName: 'DESSERT',
     order: 5,
     canonicalRatio: [

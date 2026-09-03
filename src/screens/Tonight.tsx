@@ -31,9 +31,13 @@ import { useDebounced } from '../hooks';
 function toCardIngredients(cocktail: Cocktail) {
   return cocktail.ingredients.map((entry) => ({
     name: entry.ingredient.name,
-    have: isStocked(entry) || entry.optional,
+    have: isStocked(entry),
+    optional: entry.optional,
   }));
 }
+
+/** On one column the pour stack is capped; this many cards show before "Show all". */
+const POUR_PREVIEW = 4;
 
 /** The one bottle to buy next, with its reason in the aside voice. */
 function BuyNextCard({
@@ -101,6 +105,8 @@ export function Tonight() {
   const barId = useBarId();
   const family = useActiveFamily();
   const familyFilter = family?.tagId !== undefined ? { tag_id: family.tagId } : {};
+  // Scoped copy: "sours you can pour" — the whole-bar line above stays whole-bar.
+  const scope = family?.tagId !== undefined ? family.def.plural : undefined;
 
   const canMake = useCocktails(barId, { on_shelf: true, ...familyFilter });
   const nearMiss = useCocktails(barId, { missing_ingredients: 1, ...familyFilter });
@@ -108,8 +114,10 @@ export function Tonight() {
   const shoppingList = useShoppingList(barId, profile?.id);
   const checkOff = useCheckOff(barId, profile?.id);
   const { route } = useLocation();
+  const [showAllPour, setShowAllPour] = useState(false);
 
   const canMakeTotal = canMake.data?.meta?.total;
+  const pourCards = canMake.data?.data ?? [];
   const shelfIsBare = canMakeTotal === 0 && nearMiss.data?.meta?.total === 0;
 
   const listItems = shoppingList.data?.data ?? [];
@@ -139,9 +147,18 @@ export function Tonight() {
   const listResults = useIngredientSearch(useDebounced(listQuery, 200));
   const listedIds = new Set(listItems.map((item) => item.ingredient.id));
 
+  // Listing a bottle from a suggestion moves it out of that group and into the
+  // list — off-screen on a phone — so every "List it" leaves a receipt.
+  function listIt(id: number, name: string) {
+    shoppingMutation.mutate(
+      { ingredientIds: [id], action: 'add' },
+      { onSuccess: () => showToast({ message: `${name} — listed.` }) },
+    );
+  }
+
   // Par-level staples: the curated file IS the standing order, so a staple
   // that leaves the shelf is queued automatically — with attribution (toast +
-  // 'staple' note on the row). Once per session per staple; opt out by
+  // 'Staple' detail on the row). Once per session per staple; opt out by
   // editing data/staples.ts.
   const staples = useStaples(barId, STAPLE_SLUGS);
   const stapleIds = new Set((staples.data ?? []).map((s) => s.id));
@@ -216,15 +233,19 @@ export function Tonight() {
   return (
     <main class="screen">
       <h1>Tonight</h1>
-      <p class="bar-status">
+      {/* The three numbers are also the way to their sections — on one column
+          the list can sit a long way down. Plain hash links: preact-iso leaves
+          them to the browser, which also moves focus to the target. */}
+      <p class="bar-status" aria-busy={!statusReady}>
         {statusReady ? (
           <>
-            You can pour <strong>{barCanMake.data?.meta?.total}</strong> ·{' '}
-            <strong>{barNearMiss.data?.meta?.total}</strong> one bottle away ·{' '}
-            <strong>{listItems.length}</strong> to buy
+            You can pour{' '}
+            <a href="#pour"><strong>{barCanMake.data?.meta?.total}</strong></a> ·{' '}
+            <a href="#near"><strong>{barNearMiss.data?.meta?.total}</strong></a> one bottle away ·{' '}
+            <a href="#buy"><strong>{listItems.length}</strong></a> to buy
           </>
         ) : (
-          '…'
+          <span class="recipe-aside">Counting the bar…</span>
         )}
       </p>
       <FamilyPicker />
@@ -232,24 +253,32 @@ export function Tonight() {
       {/* Grid areas put the list ABOVE the near-miss stack on one column —
           the actionable gap must never hide under 38 drink cards. */}
       <div class="tonight-grid">
-        <section class="tonight-pour">
-          <MatchHeader label="You can pour" count={canMakeTotal} />
+        <section class="tonight-pour" id="pour" tabIndex={-1}>
+          <MatchHeader label={scope ? `${scope} you can pour` : 'You can pour'} count={canMakeTotal} />
           {canMake.isError && <ErrorLine onRetry={() => void canMake.refetch()} />}
           {canMakeTotal === 0 && !shelfIsBare && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
           )}
-          <ul class="card-list">
-            {canMake.data?.data.map((c) => (
+          <ul class={showAllPour ? 'card-list' : 'card-list card-list--capped'}>
+            {pourCards.map((c) => (
               <li key={c.id}>
                 <DrinkCard
-                  name={c.is_favorited ? `♦ ${c.name}` : c.name}
+                  name={c.name}
+                  favorited={c.is_favorited}
+                  href={`/drinks/${c.slug}`}
                   ingredients={toCardIngredients(c)}
                   match="full"
-                  onSelect={() => route(`/drinks/${c.slug}`)}
                 />
               </li>
             ))}
           </ul>
+          {!showAllPour && pourCards.length > POUR_PREVIEW && (
+            <p class="show-all-row">
+              <Button variant="ghost" size="sm" onClick={() => setShowAllPour(true)}>
+                Show all {canMakeTotal ?? pourCards.length}
+              </Button>
+            </p>
+          )}
           {shelfIsBare && (
             <EmptyState
               title="The shelf is bare"
@@ -275,36 +304,36 @@ export function Tonight() {
           )}
         </section>
 
-        <section class="tonight-near">
-          <MatchHeader label="One bottle away" count={nearMiss.data?.meta?.total} tone="gap" />
+        <section class="tonight-near" id="near" tabIndex={-1}>
+          <MatchHeader
+            label={scope ? `${scope} one bottle away` : 'One bottle away'}
+            count={nearMiss.data?.meta?.total}
+            tone="gap"
+          />
           {nearMiss.isError && <ErrorLine onRetry={() => void nearMiss.refetch()} />}
           <ul class="card-list">
             {nearMiss.data?.data.map((c) => (
               <li key={c.id}>
                 <DrinkCard
-                  name={c.is_favorited ? `♦ ${c.name}` : c.name}
+                  name={c.name}
+                  favorited={c.is_favorited}
+                  href={`/drinks/${c.slug}`}
                   ingredients={toCardIngredients(c)}
                   match="near"
-                  onSelect={() => route(`/drinks/${c.slug}`)}
                 />
               </li>
             ))}
           </ul>
         </section>
 
-        <aside class="tonight-rail">
+        <aside class="tonight-rail" id="buy" tabIndex={-1}>
           {buyNext && (
             <BuyNextCard
               id={buyNext.id}
               name={buyNext.name}
               reason={buyNext.reason}
               disabled={shoppingMutation.isPending}
-              onList={() =>
-                shoppingMutation.mutate({
-                  ingredientIds: [buyNext.id],
-                  action: 'add',
-                })
-              }
+              onList={() => listIt(buyNext.id, buyNext.name)}
             />
           )}
           <MatchHeader
@@ -340,7 +369,7 @@ export function Tonight() {
             onChange={setListQuery}
             onClear={() => setListQuery('')}
           />
-          {listQuery.trim().length >= 2 && (
+          {listQuery.trim().length >= 1 && (
             <div class="chip-row">
               {listResults.data?.map((hit) => {
                 const isListed = listedIds.has(hit.id);
@@ -412,12 +441,7 @@ export function Tonight() {
                     size="sm"
                     variant="ghost"
                     disabled={shoppingMutation.isPending}
-                    onClick={() =>
-                      shoppingMutation.mutate({
-                        ingredientIds: [f.id],
-                        action: 'add',
-                      })
-                    }
+                    onClick={() => listIt(f.id, f.name)}
                   >
                     List it
                   </Button>
@@ -434,12 +458,7 @@ export function Tonight() {
                   key={s.id}
                   suggestion={s}
                   disabled={shoppingMutation.isPending}
-                  onList={() =>
-                    shoppingMutation.mutate({
-                      ingredientIds: [s.id],
-                      action: 'add',
-                    })
-                  }
+                  onList={() => listIt(s.id, s.name)}
                 />
               ))}
             </section>

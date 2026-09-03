@@ -14,6 +14,7 @@ import {
 } from '../api/queries';
 import { useIngredientSearch } from '../api/search';
 import type { Ingredient } from '../api/types';
+import { useLogout } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
 import { useDebounced } from '../hooks';
 
@@ -28,6 +29,7 @@ export function Shelf() {
   const { data: profile } = useProfile();
   const shelf = useShelf(barId);
   const mutation = useShelfMutation(barId, profile?.id);
+  const logout = useLogout();
 
   const [q, setQ] = useState('');
   const results = useIngredientSearch(useDebounced(q, 200));
@@ -55,12 +57,19 @@ export function Shelf() {
     }
   }
 
+  // The remove action is always visible (touch-reachable) but quiet at rest;
+  // the destructive treatment appears on hover/focus — see index.css.
   const shelfRowLine = (i: Ingredient) => (
     <div class="shelf-row-line" key={i.id}>
       <div class="shelf-row-main">
         <ShelfRow name={i.name} />
       </div>
-      <Button variant="destructive" size="sm" onClick={() => removeRow(i)}>
+      <Button
+        variant="destructive"
+        size="sm"
+        aria-label={`Remove ${i.name} from the shelf`}
+        onClick={() => removeRow(i)}
+      >
         Remove
       </Button>
     </div>
@@ -77,7 +86,7 @@ export function Shelf() {
         onChange={setQ}
         onClear={() => setQ('')}
       />
-      {q.trim().length >= 2 && (
+      {q.trim().length >= 1 && (
         <div class="chip-row">
           {results.data?.map((hit) => {
             const isOnShelf = shelfIds.has(hit.id);
@@ -101,8 +110,10 @@ export function Shelf() {
           )}
         </div>
       )}
-      <p class="recipe-aside">
-        {shelf.data ? `${shelf.data.meta?.total ?? rows.length} bottles on the shelf.` : '…'}
+      <p class="recipe-aside shelf-count" aria-busy={!shelf.data}>
+        {shelf.data
+          ? `${shelf.data.meta?.total ?? rows.length} bottles on the shelf.`
+          : 'Counting the shelf…'}
       </p>
       {shelf.isError && <ErrorLine onRetry={() => void shelf.refetch()} />}
 
@@ -123,6 +134,13 @@ export function Shelf() {
           body="Add the bottles you own and Tonight starts answering for itself."
         />
       )}
+
+      {/* The rail carries Log out on desktop; on a phone it lives here. */}
+      <p class="logout-row">
+        <Button variant="ghost" size="sm" onClick={logout}>
+          Log out
+        </Button>
+      </p>
     </main>
   );
 }

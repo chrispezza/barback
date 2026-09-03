@@ -1,4 +1,4 @@
-import { clearToken, getToken, setToken } from '../auth';
+import { clearToken, getToken, navigateOutsideTree } from '../auth';
 
 // ADR-005: multi-origin only until the reverse proxy lands — keep the base
 // swappable and never bake absolute URLs deeper than this module.
@@ -24,8 +24,11 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   });
 
   if (res.status === 401) {
+    // Session ended mid-use: keep their place and say so on the login screen,
+    // rather than a hard reload onto a blank form.
     clearToken();
-    window.location.assign('/login');
+    const next = window.location.pathname + window.location.search;
+    navigateOutsideTree(`/login?reason=expired&next=${encodeURIComponent(next)}`);
     throw new Error('unauthenticated');
   }
   if (!res.ok) throw new Error(`API ${res.status} on ${path}`);
@@ -38,5 +41,10 @@ export async function login(email: string, password: string): Promise<void> {
     method: 'POST',
     body: { email, password },
   });
-  setToken(res.data.token);
+  setTokenFromLogin(res.data.token);
+}
+
+function setTokenFromLogin(token: string): void {
+  // Kept as a seam so a future refresh-token flow lands in one place.
+  localStorage.setItem('barback.token', token);
 }

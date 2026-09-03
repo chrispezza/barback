@@ -1,3 +1,4 @@
+import { useEffect } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
@@ -13,14 +14,16 @@ import {
   useSimilarCocktails,
   useToggleFavorite,
 } from '../api/queries';
-import { isStocked, type Cocktail } from '../api/types';
+import { isStocked, type Cocktail, type CocktailIngredientEntry } from '../api/types';
+import { setScreenTitle } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
-import { ratioForSlug } from '../data/ratios';
+import { deriveRatio, fractionGlyph, ratioForSlug } from '../data/ratios';
 
 function toCardIngredients(cocktail: Cocktail) {
   return cocktail.ingredients.map((entry) => ({
     name: entry.ingredient.name,
-    have: isStocked(entry) || entry.optional,
+    have: isStocked(entry),
+    optional: entry.optional,
   }));
 }
 
@@ -32,6 +35,15 @@ function cardMatch(cocktail: Cocktail): 'full' | 'partial' | 'near' {
   return missing === 1 ? 'near' : 'partial';
 }
 
+/** The measure only — the row already prints the name above it. Dashes,
+ *  barspoons etc. must not be unit-converted (2 dash, not 0.02 oz). */
+function measure(entry: CocktailIngredientEntry): string {
+  if (['ml', 'cl', 'oz'].includes(entry.units)) {
+    return `${fractionGlyph(entry.formatted.oz.amount)} oz`;
+  }
+  return `${entry.amount} ${entry.units}`;
+}
+
 export function DrinkDetail({ slug }: { slug: string }) {
   const barId = useBarId();
   const { route } = useLocation();
@@ -41,6 +53,10 @@ export function DrinkDetail({ slug }: { slug: string }) {
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const similar = useSimilarCocktails(barId, cocktail?.id);
   const toggleFavorite = useToggleFavorite(barId);
+
+  useEffect(() => {
+    if (cocktail) setScreenTitle(cocktail.name);
+  }, [cocktail?.name]);
 
   // Standalone PWA has no browser chrome — the screen carries its own way back.
   const goBack = () => {
@@ -57,11 +73,9 @@ export function DrinkDetail({ slug }: { slug: string }) {
 
   if (isLoading) {
     return (
-      <main class="screen screen--narrow">
+      <main class="screen screen--narrow" aria-busy="true">
         {backRow}
-        <p class="recipe-aside" aria-busy="true">
-          …
-        </p>
+        <p class="recipe-aside">Fetching the recipe…</p>
       </main>
     );
   }
@@ -82,7 +96,9 @@ export function DrinkDetail({ slug }: { slug: string }) {
     );
   }
 
-  const ratio = ratioForSlug(cocktail.slug);
+  // Curated template first; otherwise the skeleton read off the recipe, so the
+  // signature element leads every recipe, not just the curated few.
+  const ratio = ratioForSlug(cocktail.slug) ?? deriveRatio(cocktail);
   const missing = cocktail.ingredients.filter((i) => !isStocked(i) && !i.optional);
   const listed = new Set(
     shoppingList.data?.data.map((item) => item.ingredient.id) ?? [],
@@ -98,13 +114,14 @@ export function DrinkDetail({ slug }: { slug: string }) {
         <Button
           variant="ghost"
           size="sm"
+          aria-pressed={cocktail.is_favorited}
           onClick={() => {
             if (!toggleFavorite.isPending) {
               toggleFavorite.mutate({ cocktailId: cocktail.id, slug });
             }
           }}
         >
-          {cocktail.is_favorited ? '♦ Favorited' : '◇ Favorite'}
+          {cocktail.is_favorited ? '✓ Favorited' : 'Favorite'}
         </Button>
       </p>
 
@@ -123,13 +140,9 @@ export function DrinkDetail({ slug }: { slug: string }) {
               <div class="recipe-ing-main">
                 <ShelfRow
                   name={entry.ingredient.name}
-                  brand={
-                    // Dashes, barspoons etc. must not be unit-converted (2 dash, not 0.02 oz)
-                    ['ml', 'cl', 'oz'].includes(entry.units)
-                      ? entry.formatted.oz.full_text
-                      : `${entry.amount} ${entry.units} ${entry.ingredient.name}`
-                  }
+                  brand={measure(entry)}
                   empty={isMissing}
+                  optional={entry.optional}
                 />
               </div>
               {isMissing &&
@@ -140,6 +153,7 @@ export function DrinkDetail({ slug }: { slug: string }) {
                     variant="ghost"
                     size="sm"
                     disabled={shoppingMutation.isPending}
+                    aria-label={`Add ${entry.ingredient.name} to the list`}
                     onClick={() =>
                       shoppingMutation.mutate({
                         ingredientIds: [entry.ingredient.id],
@@ -197,9 +211,10 @@ export function DrinkDetail({ slug }: { slug: string }) {
               <li key={c.id}>
                 <DrinkCard
                   name={c.name}
+                  favorited={c.is_favorited}
+                  href={`/drinks/${c.slug}`}
                   ingredients={toCardIngredients(c)}
                   match={cardMatch(c)}
-                  onSelect={() => route(`/drinks/${c.slug}`)}
                 />
               </li>
             ))}

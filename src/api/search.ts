@@ -47,7 +47,7 @@ export function useCocktailSearch(q: string) {
   const query = q.trim();
   return useQuery({
     queryKey: ['search', 'cocktails', query],
-    enabled: query.length >= 2 && bar !== undefined,
+    enabled: query.length >= 1 && bar !== undefined,
     staleTime: 60_000,
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<CocktailHit[]> => {
@@ -74,7 +74,7 @@ export function useIngredientSearch(q: string) {
   const query = q.trim();
   return useQuery({
     queryKey: ['search', 'ingredients', query],
-    enabled: query.length >= 2 && bar !== undefined,
+    enabled: query.length >= 1 && bar !== undefined,
     staleTime: 60_000,
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<IngredientHit[]> => {
