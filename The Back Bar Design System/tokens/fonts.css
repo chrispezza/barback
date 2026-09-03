@@ -2,8 +2,16 @@
    the ratio device) and Instrument Sans for the interface — the classical face
    stays where it earns its keep, the UI reads contemporary.
    Libre Caslon Text is retained for italic ingredient names and editorial asides.
-   No font binaries were supplied with the brief; these load from the Google
-   Fonts CDN, which serves the real @font-face rules for every weight and style.
-   Drop licensed .woff2 files into assets/fonts/ and replace this import to
-   self-host. */
-@import url("https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Libre+Caslon+Text:ital@0;1&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap");
+
+   Self-hosted (revision 2): the faces ship in assets/fonts/ as latin-subset
+   woff2 (SIL Open Font License, licences alongside). No runtime CDN, so the
+   installed app keeps its faces offline — a visible system-font fallback is
+   the system's first anti-goal. font-display: fallback gives a ~100ms block
+   then swaps; once cached there is no flash at all. */
+@font-face{font-family:"Libre Caslon Display";font-style:normal;font-weight:400;font-display:fallback;src:url("../assets/fonts/libre-caslon-display-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Libre Caslon Text";font-style:normal;font-weight:400;font-display:fallback;src:url("../assets/fonts/libre-caslon-text-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Libre Caslon Text";font-style:italic;font-weight:400;font-display:fallback;src:url("../assets/fonts/libre-caslon-text-latin-400-italic.woff2") format("woff2")}
+@font-face{font-family:"Instrument Sans";font-style:normal;font-weight:400;font-display:fallback;src:url("../assets/fonts/instrument-sans-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Instrument Sans";font-style:normal;font-weight:500;font-display:fallback;src:url("../assets/fonts/instrument-sans-latin-500-normal.woff2") format("woff2")}
+@font-face{font-family:"Instrument Sans";font-style:normal;font-weight:600;font-display:fallback;src:url("../assets/fonts/instrument-sans-latin-600-normal.woff2") format("woff2")}
+@font-face{font-family:"Instrument Sans";font-style:italic;font-weight:400;font-display:fallback;src:url("../assets/fonts/instrument-sans-latin-400-italic.woff2") format("woff2")}
