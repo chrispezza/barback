@@ -11,8 +11,18 @@ const CSS = `
 .bb-step__unit{margin-left:4px;font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;color:var(--cream-400)}
 `;
 
+const STYLE_ID = "bb-css-quantity-stepper";
+function injectOnce() {
+  if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = STYLE_ID;
+  el.textContent = CSS;
+  document.head.appendChild(el);
+}
+
 /** Keyboard-operable quantity stepper. */
 export function QuantityStepper({ value, min = 0, max = 99, step = 1, unit, onChange }) {
+  injectOnce();
   const set = (v) => onChange && onChange(Math.min(max, Math.max(min, v)));
   const onKeyDown = (e) => {
     if (e.key === "ArrowUp" || e.key === "ArrowRight") { e.preventDefault(); set(value + step); }
@@ -20,7 +30,6 @@ export function QuantityStepper({ value, min = 0, max = 99, step = 1, unit, onCh
   };
   return (
     <>
-      <style>{CSS}</style>
       <div className="bb-step" role="group" onKeyDown={onKeyDown}>
         <button type="button" className="bb-step__btn" onClick={() => set(value - step)} disabled={value <= min} aria-label="Decrease">–</button>
         <div className="bb-step__val" role="spinbutton" tabIndex={0} aria-valuenow={value} aria-valuemin={min} aria-valuemax={max}>

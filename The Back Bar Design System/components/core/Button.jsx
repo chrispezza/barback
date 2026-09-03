@@ -11,18 +11,27 @@ const CSS = `
 .bb-btn[data-variant="ghost"]:hover{color:var(--cream-100);background:var(--brass-wash)}
 .bb-btn[data-variant="destructive"]{background:transparent;border-color:var(--ox-700);color:var(--rose-300)}
 .bb-btn[data-variant="destructive"]:hover{background:var(--ox-wash)}
-.bb-btn[data-size="sm"]{min-height:36px;padding:0 14px;font-size:11px}
+.bb-btn[data-size="sm"]{min-height:44px;padding:0 12px;font-size:11px}
 .bb-btn:disabled{background:transparent;border-color:rgba(110,129,119,0.4);color:var(--sage-600);cursor:not-allowed}
 `;
 
-/** The system's button: caps utility voice, 2px corners, never a pill. */
-export function Button({ children, variant = "primary", size = "md", disabled = false, onClick, ...rest }) {
+/* Styles are injected once per document, not once per instance (revision 2). */
+const STYLE_ID = "bb-css-button";
+function injectOnce() {
+  if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = STYLE_ID;
+  el.textContent = CSS;
+  document.head.appendChild(el);
+}
+
+/** The system's button: caps utility voice, 2px corners, never a pill. The
+ *  compact size keeps the 44px floor and gives up horizontal padding instead. */
+export function Button({ children, variant = "primary", size = "md", type = "button", disabled = false, onClick, ...rest }) {
+  injectOnce();
   return (
-    <>
-      <style>{CSS}</style>
-      <button type="button" className="bb-btn" data-variant={variant} data-size={size} disabled={disabled} onClick={onClick} {...rest}>
-        {children}
-      </button>
-    </>
+    <button type={type} className="bb-btn" data-variant={variant} data-size={size} disabled={disabled} onClick={onClick} {...rest}>
+      {children}
+    </button>
   );
 }

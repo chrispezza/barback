@@ -11,11 +11,20 @@ const CSS = `
 .bb-match[data-tone="gap"] .bb-match__count{color:var(--rose-300)}
 `;
 
+const STYLE_ID = "bb-css-match-header";
+function injectOnce() {
+  if (typeof document === "undefined" || document.getElementById(STYLE_ID)) return;
+  const el = document.createElement("style");
+  el.id = STYLE_ID;
+  el.textContent = CSS;
+  document.head.appendChild(el);
+}
+
 /** Section header with fleuron dividers and a count. */
 export function MatchHeader({ label, count, tone = "neutral", align = "center" }) {
+  injectOnce();
   return (
     <>
-      <style>{CSS}</style>
       <div className="bb-match" data-tone={tone}>
         {align === "center" && <span className="bb-match__rule" />}
         <span className="bb-match__fleuron" aria-hidden="true">◆</span>
