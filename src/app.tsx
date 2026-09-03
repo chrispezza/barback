@@ -1,8 +1,9 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { LocationProvider, Router, Route, useLocation } from 'preact-iso';
 import type { ComponentChildren } from 'preact';
-import { useEffect } from 'preact/hooks';
-import { isAuthenticated } from './auth';
+import { useEffect, useRef } from 'preact/hooks';
+import { Button } from '@ds/core/Button';
+import { clearToken, isAuthenticated } from './auth';
 import { useBarId, useCocktails, useShelf } from './api/queries';
 import { ToastHost } from './components/toasts';
 import { Login } from './screens/Login';
@@ -22,6 +23,42 @@ const NAV = [
   { href: '/first-pours', label: 'Classics', hint: 'drinks to aim for' },
   { href: '/drinks', label: 'Drinks', hint: 'the full index' },
 ];
+
+/** Static screen titles; the recipe screen sets its own once the drink loads. */
+const TITLES: Record<string, string> = {
+  '/tonight': 'Tonight',
+  '/shelf': 'Shelf',
+  '/first-pours': 'The classics',
+  '/drinks': 'Drinks',
+  '/login': 'Log in',
+};
+
+export function setScreenTitle(title: string): void {
+  document.title = `${title} · Barback`;
+}
+
+/**
+ * After a client-side navigation the browser announces nothing and focus stays
+ * on whatever was tapped. Name the screen in the tab/history and move focus to
+ * its heading so assistive tech reads where it landed. Skips the initial load.
+ */
+function RouteEffects() {
+  const { path } = useLocation();
+  const previous = useRef<string | null>(null);
+  useEffect(() => {
+    const isChange = previous.current !== null && previous.current !== path;
+    previous.current = path;
+    const title = TITLES[path];
+    if (title) setScreenTitle(title);
+    if (!isChange) return;
+    const heading = document.querySelector<HTMLElement>('main h1');
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+    }
+  }, [path]);
+  return null;
+}
 
 function NavLink({
   href,
@@ -52,12 +89,24 @@ function NavLink({
   );
 }
 
+/** Log out: drop the token and the cached bar, return to the door. */
+export function useLogout(): () => void {
+  const { route } = useLocation();
+  const client = useQueryClient();
+  return () => {
+    clearToken();
+    client.clear();
+    route('/login');
+  };
+}
+
 /** Desktop 212px rail: brand, fleuron, nav, shelf standing in the footer. */
 function RailNav() {
   const barId = useBarId();
   const shelf = useShelf(barId);
   const canMake = useCocktails(barId, { on_shelf: true }, 1);
   const { route } = useLocation();
+  const logout = useLogout();
   const bottles = shelf.data?.meta?.total ?? shelf.data?.data.length;
   const pourable = canMake.data?.meta?.total;
   return (
@@ -80,11 +129,16 @@ function RailNav() {
           <NavLink key={n.href} href={n.href} label={n.label} hint={n.hint} className="rail-item" />
         ))}
       </div>
-      {bottles !== undefined && pourable !== undefined && (
-        <div class="rail-foot">
-          {bottles} bottles · {pourable} pourable
-        </div>
-      )}
+      <div class="rail-foot">
+        {bottles !== undefined && pourable !== undefined && (
+          <p class="rail-standing">
+            {bottles} bottles · {pourable} pourable
+          </p>
+        )}
+        <Button variant="ghost" size="sm" onClick={logout}>
+          Log out
+        </Button>
+      </div>
     </nav>
   );
 }
@@ -112,9 +166,9 @@ function DevReports() {
 }
 
 function Authed({ children }: { children: ComponentChildren }) {
-  const { route } = useLocation();
+  const { route, url } = useLocation();
   if (!isAuthenticated()) {
-    route('/login', true);
+    route(`/login?next=${encodeURIComponent(url)}`, true);
     return null;
   }
   return (
@@ -147,6 +201,7 @@ export function App() {
           <Route path="/drinks/:slug" component={DrinkDetailRoute} />
           <Route default component={() => <Authed><Tonight /></Authed>} />
         </Router>
+        <RouteEffects />
         <ToastHost />
       </LocationProvider>
     </QueryClientProvider>

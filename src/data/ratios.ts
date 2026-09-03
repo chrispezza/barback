@@ -1,3 +1,5 @@
+import type { Cocktail } from '../api/types';
+
 export interface RatioPart {
   value: string; // display form: "2", "¾" — never a float
   label: string; // "SPIRIT", "CITRUS", "SWEET"
@@ -106,4 +108,45 @@ export const RATIOS: RatioTemplate[] = [
 
 export function ratioForSlug(slug: string): RatioTemplate | undefined {
   return RATIOS.find((r) => r.cocktailSlug === normalizeSlug(slug));
+}
+
+const FRACTIONS: Record<string, string> = {
+  '0.13': '⅛',
+  '0.25': '¼',
+  '0.33': '⅓',
+  '0.5': '½',
+  '0.67': '⅔',
+  '0.75': '¾',
+};
+
+/** 0.75 → "¾", 1.5 → "1½", 2 → "2" — fraction glyphs, never decimals. */
+export function fractionGlyph(n: number): string {
+  const whole = Math.floor(n);
+  const frac = Number((n - whole).toFixed(2));
+  if (frac === 0) return String(whole);
+  const glyph = FRACTIONS[String(frac)];
+  if (!glyph) return String(Number(n.toFixed(2)));
+  return whole > 0 ? `${whole}${glyph}` : glyph;
+}
+
+const VOLUMETRIC = new Set(['oz', 'ml', 'cl']);
+
+/**
+ * The signature element should lead every recipe, not just curated ones: when
+ * no template exists, read the skeleton off the recipe itself — the first
+ * three measured, non-optional parts in ounces, labelled by ingredient.
+ * Dashes, rinses and barspoons are seasoning, not structure, and are skipped.
+ */
+export function deriveRatio(cocktail: Cocktail): RatioTemplate | undefined {
+  const parts = cocktail.ingredients
+    .filter((e) => !e.optional && VOLUMETRIC.has(e.units) && e.formatted.oz.amount > 0)
+    .slice(0, 3);
+  if (parts.length < 2) return undefined;
+  return {
+    cocktailSlug: normalizeSlug(cocktail.slug),
+    parts: parts.map((e) => ({
+      value: fractionGlyph(e.formatted.oz.amount),
+      label: e.ingredient.name,
+    })),
+  };
 }

@@ -1,4 +1,3 @@
-import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
@@ -18,7 +17,8 @@ import { FIRST_POUR_SLUGS } from '../data/first-pours';
 function toCardIngredients(cocktail: Cocktail) {
   return cocktail.ingredients.map((entry) => ({
     name: entry.ingredient.name,
-    have: isStocked(entry) || entry.optional,
+    have: isStocked(entry),
+    optional: entry.optional,
   }));
 }
 
@@ -33,10 +33,11 @@ function cardMatch(cocktail: Cocktail): 'full' | 'partial' | 'near' {
 /**
  * Onboarding step 2 (aspiration): pick the drinks the bar should pour and
  * each choice queues its missing bottles — explicit per tap, never bulk.
+ * Un-choosing leaves the queued bottles alone (the toast says so): a list
+ * entry is only ever removed by hand (ADR-008).
  */
 export function FirstPours() {
   const barId = useBarId();
-  const { route } = useLocation();
   const { data: profile } = useProfile();
   const pours = useFirstPours(barId, FIRST_POUR_SLUGS);
   const shoppingList = useShoppingList(barId, profile?.id);
@@ -50,23 +51,30 @@ export function FirstPours() {
   function choose(cocktail: Cocktail) {
     if (toggleFavorite.isPending) return;
     toggleFavorite.mutate({ cocktailId: cocktail.id, slug: cocktail.slug });
-    if (cocktail.is_favorited) return; // un-favoriting queues nothing
+    if (cocktail.is_favorited) {
+      showToast({
+        message: `${cocktail.name} — removed from favorites. Its bottles stay on the list.`,
+      });
+      return;
+    }
     const unqueued = cocktail.ingredients
       .filter((i) => !isStocked(i) && !i.optional && !listedIds.has(i.ingredient.id))
       .map((i) => i.ingredient.id);
-    if (unqueued.length > 0) {
-      shoppingMutation.mutate(
-        { ingredientIds: unqueued, action: 'add' },
-        {
-          onSuccess: () =>
-            showToast({
-              message: `${cocktail.name} — ${unqueued.length} bottle${
-                unqueued.length === 1 ? '' : 's'
-              } queued.`,
-            }),
-        },
-      );
+    if (unqueued.length === 0) {
+      showToast({ message: `${cocktail.name} — favorited.` });
+      return;
     }
+    shoppingMutation.mutate(
+      { ingredientIds: unqueued, action: 'add' },
+      {
+        onSuccess: () =>
+          showToast({
+            message: `${cocktail.name} — favorited, ${unqueued.length} bottle${
+              unqueued.length === 1 ? '' : 's'
+            } queued.`,
+          }),
+      },
+    );
   }
 
   return (
@@ -80,33 +88,26 @@ export function FirstPours() {
       {pours.isError && <ErrorLine onRetry={() => void pours.refetch()} />}
       <MatchHeader label="The roster" count={pours.data?.length} />
       <ul class="card-list">
-        {pours.data?.map((c) => {
-          const unqueued = c.ingredients.filter(
-            (i) => !isStocked(i) && !i.optional && !listedIds.has(i.ingredient.id),
-          ).length;
-          return (
-            <li key={c.id} class="first-pour-item">
-              <DrinkCard
-                name={c.is_favorited ? `♦ ${c.name}` : c.name}
-                ingredients={toCardIngredients(c)}
-                match={cardMatch(c)}
-                onSelect={() => route(`/drinks/${c.slug}`)}
-              />
-              <Button
-                variant={c.is_favorited ? 'ghost' : 'secondary'}
-                size="sm"
-                disabled={toggleFavorite.isPending || shoppingMutation.isPending}
-                onClick={() => choose(c)}
-              >
-                {c.is_favorited
-                  ? '♦ Favorited'
-                  : unqueued > 0
-                    ? `◇ Favorite · queue ${unqueued} bottle${unqueued === 1 ? '' : 's'}`
-                    : '◇ Favorite'}
-              </Button>
-            </li>
-          );
-        })}
+        {pours.data?.map((c) => (
+          <li key={c.id} class="first-pour-item">
+            <DrinkCard
+              name={c.name}
+              favorited={c.is_favorited}
+              href={`/drinks/${c.slug}`}
+              ingredients={toCardIngredients(c)}
+              match={cardMatch(c)}
+            />
+            <Button
+              variant={c.is_favorited ? 'ghost' : 'secondary'}
+              size="sm"
+              aria-pressed={c.is_favorited}
+              disabled={toggleFavorite.isPending || shoppingMutation.isPending}
+              onClick={() => choose(c)}
+            >
+              {c.is_favorited ? '✓ Chosen' : 'Choose'}
+            </Button>
+          </li>
+        ))}
       </ul>
     </main>
   );
