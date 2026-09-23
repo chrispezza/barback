@@ -29,13 +29,18 @@ Decisions live in [docs/adr/](docs/adr/):
 ## Running the stack
 
 ```bash
-cp deploy/.env.example deploy/.env   # then set MEILI_MASTER_KEY (openssl rand -base64 32)
+cp deploy/.env.example deploy/.env   # non-secret overrides only; MEILI_MASTER_KEY comes from 1Password
 pnpm install && pnpm build:deploy    # the web container serves dist/ (ADR-005)
-ALLOW_REGISTRATION=true docker compose -f deploy/docker-compose.yml up -d
+ALLOW_REGISTRATION=true op run --env-file=deploy/.env.tpl -- docker compose -f deploy/docker-compose.yml up -d
 ./scripts/seed.sh                    # creates your user while registration is open
-docker compose -f deploy/docker-compose.yml up -d   # re-up: registration closes
+op run --env-file=deploy/.env.tpl -- docker compose -f deploy/docker-compose.yml up -d   # re-up: registration closes
 python3 scripts/tag_families.py      # family:* tags + assignments (idempotent)
 ```
+
+`MEILI_MASTER_KEY` lives in 1Password (vault Personal, item **Barback Meilisearch**,
+field **master-key**) and reaches compose through `op run`, so it is never written to
+disk. A value still set in `deploy/.env` keeps working as a fallback; when both are
+present, the `op run` value wins.
 
 Family curation lives in [scripts/family-assignments.json](scripts/family-assignments.json)
 (normalized slugs → family tag); edit it and re-run the script. Par-level
