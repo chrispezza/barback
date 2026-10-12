@@ -21,10 +21,11 @@ Decisions live in [docs/adr/](docs/adr/):
 | [003](docs/adr/003-client-stack-vite-preact-spa.md) | Vite + Preact + TypeScript strict SPA, TanStack Query |
 | [004](docs/adr/004-search-direct-meilisearch-scoped-key.md) | Search direct to Meilisearch with scoped keys |
 | [005](docs/adr/005-deployment-single-compose-single-origin.md) | One compose stack; single-origin reverse proxy as end state |
-| [006](docs/adr/006-design-system-consumed-as-vendored-delivery.md) | Design system consumed as an unmodified vendored delivery via `@ds` alias |
+| [006](docs/adr/006-design-system-consumed-as-vendored-delivery.md) | Design system vendored in-repo and imported via `@ds`; changes land as numbered revisions |
 | [007](docs/adr/007-installable-client-offline-posture.md) | Installable PWA; shell-cache worker + list snapshot; API never cached; sync deferred |
 | [008](docs/adr/008-purchasing-intelligence-standing-orders.md) | Staples are standing orders (auto-queue); app suggestions require a tap; aspiration outranks server rank |
 | [009](docs/adr/009-remote-access-cloudflare-tunnel-access.md) | Public at barback.pezza.dev via Cloudflare Tunnel + Access; gated on migration to an always-on host |
+| [010](docs/adr/010-agent-governance-index-and-records.md) | `CLAUDE.md` indexes the ADRs; records and the build check change only through a maintainer-merged PR |
 
 ## Running the stack
 

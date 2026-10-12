@@ -5,33 +5,58 @@ shopping-list gap analysis, recipe index. This repo is the **client only**: Vite
 preact-iso + TanStack Query, TypeScript strict, pnpm. The backend is stock Bar Assistant
 Docker images pinned in `deploy/docker-compose.yml`.
 
-Decisions live in `docs/adr/` (001–009); the spec is `docs/spec/frontend-spec.md`. Read the
-relevant ADR before changing architecture. There is no handoff doc.
+The spec is `docs/spec/frontend-spec.md`. There is no handoff doc.
 
 ## Gate
 
-`pnpm build` (`tsc -b && vite build`) is the only gate (ADR-006 calls it the type gate).
-There is no test runner, no lint script and no CI. Say so rather than claiming tests passed.
+`pnpm build` is the only gate. It runs `scripts/check.mjs` (three text checks whose failure
+messages name the ADR they guard), then `tsc -b && vite build` (ADR-006 calls this the type
+gate). There is no test runner, no lint script and no CI. Say so rather than claiming tests
+passed. `The Back Bar Design System/_adherence.oxlintrc.json` is a leftover of the tool that
+generated the design system: it is not wired in, it is out of date, and it is not a gate.
 
-## Invariants (each cites the ADR that owns it)
+## Decisions
 
-- **Pinned appliance (ADR-001).** The runtime is `barassistant/server:5.15.3` plus the other
-  pinned images in the compose file. Never fork or patch the backend. Missing domain concepts
-  go client-side (ADR-002: family tags, typed ratio data). An upgrade is a deliberate tag
-  bump, a changelog read and a re-test, and it is Chris's call.
+Decisions live in `docs/adr/`. This table is an index, not the rules: **the ADR is the
+rule.** Before changing anything in a row's "Read before touching" column, read that ADR in
+full. If this file and an ADR disagree, the ADR wins; say so in the PR.
+
+| ADR | Decides | Read before touching |
+|---|---|---|
+| [001](docs/adr/001-bar-assistant-as-upstream-appliance.md) | The backend is a pinned, unmodified upstream image | `deploy/docker-compose.yml` image tags, anything that would change the backend, `../bar-assistant-reference` |
+| [002](docs/adr/002-families-and-ratio-data-ownership.md) | Where family and ratio data live | `src/data/`, `scripts/tag_families.py`, `scripts/family-*.json`, any new domain concept |
+| [003](docs/adr/003-client-stack-vite-preact-spa.md) | The client stack | `package.json` dependencies, `vite.config.ts`, `tsconfig*.json` |
+| [004](docs/adr/004-search-direct-meilisearch-scoped-key.md) | How search reaches Meilisearch and which key the client holds | `src/api/search.ts`, anything that handles a Meilisearch key |
+| [005](docs/adr/005-deployment-single-compose-single-origin.md) | One compose stack, one origin | `deploy/`, `src/api/client.ts`, `src/api/search.ts`, any URL in `src/` |
+| [006](docs/adr/006-design-system-consumed-as-vendored-delivery.md) | How the design system is consumed and how it may change | `The Back Bar Design System/`, any `@ds/` import, `src/index.css`, any new component in `src/` |
+| [007](docs/adr/007-installable-client-offline-posture.md) | What the service worker caches and what works offline | `public/sw.js`, `public/manifest.webmanifest`, the list snapshot in `src/api/queries.ts` |
+| [008](docs/adr/008-purchasing-intelligence-standing-orders.md) | When the app may write to the shopping list, and buy-next ranking | `src/data/staples.ts`, `src/data/first-pours.ts`, `src/screens/Tonight.tsx` |
+| [009](docs/adr/009-remote-access-cloudflare-tunnel-access.md) | Remote access, and when the public domain may go live | `cloudflared`, `BARBACK_ORIGIN`, anything about `barback.pezza.dev` |
+| [010](docs/adr/010-agent-governance-index-and-records.md) | How this file and the ADRs govern agents | this file, `docs/adr/`, `scripts/check.mjs` |
+
+## Rules no ADR holds
+
 - **Reference clone.** `../bar-assistant-reference` is read-only reference at tag `v5.15.3`.
   Never commit to it, patch it or push it.
-- **Design system (ADR-006).** `The Back Bar Design System/` is never patched from `src/`.
-  Changes land there as a numbered revision with a changelog row in its `readme.md`; new
-  props are additive and optional. No re-implementing DS components in `src/`, no CSS that
-  overrides DS internals, import from `index.js` only (`@ds/*`).
-- **Voice (DS readme).** No emoji, no exclamation marks, no "we" or "let's", sentence case,
-  fraction glyphs not decimals, rose/oxblood never decorative, no new hues, 44px touch
-  floor, no invented logo.
-- **Search key (ADR-004).** The Meilisearch master key stays server-side; the client gets scoped keys.
-- **URLs (ADR-005).** The client never bakes absolute URLs.
-- **Service worker (ADR-007).** `/bar/` and `/search/` are never cached.
-- **Exposure (ADR-009).** `barback.pezza.dev` does not go live until the stack is on an always-on host.
+- **Voice and visual rules.** Any user-facing copy or styling follows "Content fundamentals"
+  and "Visual foundations" in `The Back Bar Design System/readme.md`. Read them before
+  writing copy or CSS.
+- **Secrets.** `MEILI_MASTER_KEY` comes from 1Password through
+  `op run --env-file=deploy/.env.tpl` (the template holds `op://` references only; see the
+  README). Never print the local, gitignored deploy env file. A new secret goes into the
+  template as a reference, never a value.
+
+## Chris only
+
+Propose these in the PR body or an issue; do not do or merge them yourself.
+
+- Bumping a pinned image tag; the first-boot registration window
+  (`ALLOW_REGISTRATION=true`); changing the seeded admin credentials before any exposure;
+  TLS or an auth proxy; taking `barback.pezza.dev` live.
+- Changing an ADR's Status or Decision, adding an ADR, or changing this file or
+  `scripts/check.mjs`. If a decision blocks the task, or looks wrong, stop and say which
+  ADR and why; if the fix is clear, open a PR that changes the record and leave it
+  unmerged (ADR-010). Never change a record or a check to make a code change pass.
 
 ## Run
 
@@ -39,17 +64,6 @@ There is no test runner, no lint script and no CI. Say so rather than claiming t
 - Full stack: follow the README (`pnpm build:deploy`, compose up via `op run`,
   `scripts/seed.sh`, `scripts/tag_families.py`). The app is on 8080; the API, Salt Rim and
   Meilisearch bind to 127.0.0.1.
-
-## Chris only
-
-Bumping a pinned image tag; the first-boot registration window (`ALLOW_REGISTRATION=true`);
-changing the seeded admin credentials before any exposure; TLS or an auth proxy.
-
-## Secrets
-
-`MEILI_MASTER_KEY` comes from 1Password through `op run --env-file=deploy/.env.tpl` (the
-template holds `op://` references only; see the README). Never print the local, gitignored
-deploy env file. A new secret goes into the template as a reference, never a value.
 
 ## Shipping
 
