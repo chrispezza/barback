@@ -5,7 +5,7 @@ description: >-
   Cloudflare Access in front, matching the rest of pezza.dev. Go-live is
   deferred until the stack moves off the MacBook to an always-on host (the
   Fedora PC); the compose and env changes land ahead of that.
-lastUpdated: 2026-08-23T00:00:00.000Z
+lastUpdated: 2026-10-12T00:00:00.000Z
 tableOfContents: true
 pagefind: true
 ---
@@ -116,7 +116,10 @@ Migration itself is the ADR-005 restore drill run for real:
   domain must not go live.
 - Expired Access sessions surface as failed fetches until a reload
   re-authenticates — roughly monthly for a single user.
-- One more secret (`CLOUDFLARE_TUNNEL_TOKEN`) in `deploy/.env`.
+- One more secret (`CLOUDFLARE_TUNNEL_TOKEN`), held in 1Password and referenced
+  from `deploy/.env.tpl` as an `op://` reference, never written to
+  `deploy/.env`. *Corrected 2026-10-12: this line predated the `op run` flow
+  (PR #10) and named `deploy/.env`.*
 
 ## Validation
 
