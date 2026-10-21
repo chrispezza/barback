@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { shelfIndex } from '../api/types'
 import { BarModel, cocktailResource, ingredientResource } from '../../test/fixtures/upstream'
 import { C, I, bareWorld, defaultWorld, type WorldSeed } from '../../test/fixtures/world'
@@ -247,5 +247,41 @@ describe('standing orders', () => {
       'Lemon juice',
       'Angostura aromatic bitters',
     ])
+  })
+})
+
+describe('the standing-order memory', () => {
+  // ADR-008 Validation: a staple "queues itself once per session". The session
+  // is the page session, so the memory lives in this module: a re-imported
+  // module (vi.resetModules) is a reload, a new session; the same module is
+  // the same session however often Tonight mounts.
+  const tonicOut = () => world((w) => (w.shelf = without(w.shelf, I.tonic)))
+  async function newSession() {
+    vi.resetModules()
+    return import('./buy-next')
+  }
+
+  it('starts each page session empty, so an out-of-stock staple is queued', async () => {
+    const s = await newSession()
+    const t = inputs(tonicOut())
+    expect(s.queuedThisSession.size).toBe(0)
+    expect(names(s.staplesToQueue(t.staples, t.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
+  })
+
+  it('holds a queued staple for the session: dropped from the list, it is not queued again', async () => {
+    const s = await newSession()
+    const t = inputs(tonicOut())
+    s.rememberQueued(s.staplesToQueue(t.staples, t.listedIds, s.queuedThisSession).map((x) => x.id))
+    // Queued and then dropped: off the shelf and off the list, as before the write.
+    expect(s.staplesToQueue(t.staples, t.listedIds, s.queuedThisSession)).toEqual([])
+  })
+
+  it('is the same memory for every importer this session, and empty in the next', async () => {
+    const s = await newSession()
+    s.rememberQueued([I.tonic])
+    const sameSession = await import('./buy-next')
+    expect(sameSession.queuedThisSession.has(I.tonic)).toBe(true)
+    const next = await newSession()
+    expect(next.queuedThisSession.has(I.tonic)).toBe(false)
   })
 })

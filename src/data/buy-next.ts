@@ -122,8 +122,9 @@ export function buyNextGroups(
 
 /**
  * The standing order: staples to queue now. A staple is queued when it is off
- * the shelf, not already on the list, and not queued before by the caller
- * (`queued`), so it is written once rather than on every render.
+ * the shelf, not already on the list, and not queued before (`queued`, which
+ * Tonight passes as queuedThisSession), so it is written once rather than on
+ * every render or every visit.
  */
 export function staplesToQueue<T extends Pick<Ingredient, 'id' | 'in_shelf'>>(
   staples: readonly T[],
@@ -131,4 +132,22 @@ export function staplesToQueue<T extends Pick<Ingredient, 'id' | 'in_shelf'>>(
   queued: ReadonlySet<number>,
 ): T[] {
   return staples.filter((s) => !s.in_shelf && !listedIds.has(s.id) && !queued.has(s.id));
+}
+
+// ADR-008 Validation: an out-of-stock staple "queues itself once per session".
+// The session is the page session: this module's lifetime, so the memory
+// outlives Tonight unmounting on every navigation, and a staple the user drops
+// from the list stays dropped until a reload, which starts a new session.
+const queuedSession = new Set<number>();
+
+/** Staples queued this page session, for staplesToQueue. */
+export const queuedThisSession: ReadonlySet<number> = queuedSession;
+
+/**
+ * Record staples as queued for the rest of the page session. Called as the
+ * write is sent, not on success, so a re-render while it is in flight cannot
+ * send it twice; a write that fails is not retried until a reload.
+ */
+export function rememberQueued(ids: Iterable<number>): void {
+  for (const id of ids) queuedSession.add(id);
 }

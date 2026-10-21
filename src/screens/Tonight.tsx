@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
@@ -28,7 +28,9 @@ import { ShoppingRow } from '../components/ShoppingRow';
 import {
   buyNextGroups,
   favoriteGaps,
+  queuedThisSession,
   rankFavoriteNeeds,
+  rememberQueued,
   restockSuggestions,
   staplesToQueue,
 } from '../data/buy-next';
@@ -161,16 +163,16 @@ export function Tonight() {
 
   // Par-level staples: the curated file IS the standing order, so a staple
   // that leaves the shelf is queued automatically — with attribution (toast +
-  // 'Staple' detail on the row). Once per session per staple; opt out by
+  // 'Staple' detail on the row). Once per page session per staple, remembered
+  // in data/buy-next.ts so leaving Tonight does not forget it; opt out by
   // editing data/staples.ts.
   const staples = useStaples(barId, STAPLE_SLUGS);
   const stapleIds = new Set((staples.data ?? []).map((s) => s.id));
-  const autoQueued = useRef(new Set<number>());
-  const staplesOut = staplesToQueue(staples.data ?? [], listedIds, autoQueued.current);
+  const staplesOut = staplesToQueue(staples.data ?? [], listedIds, queuedThisSession);
   useEffect(() => {
     if (profile?.id === undefined || staplesOut.length === 0) return;
     if (shoppingList.data === undefined) return; // don't queue against a stale view
-    for (const s of staplesOut) autoQueued.current.add(s.id);
+    rememberQueued(staplesOut.map((s) => s.id));
     shoppingMutation.mutate(
       { ingredientIds: staplesOut.map((s) => s.id), action: 'add' },
       {

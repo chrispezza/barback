@@ -101,4 +101,18 @@ test.describe('a staple queued and then dropped from the list', () => {
     expect([...bar.model.list.keys()]).toEqual([])
     await expect(listItem(page, 'Tonic')).toHaveCount(0)
   })
+
+  test('is queued again after a reload, which starts a new session', async ({ page, bar }) => {
+    await page.goto('/tonight')
+    await expect(listItem(page, 'Tonic')).toContainText('Staple')
+    await page.getByRole('button', { name: 'Remove Tonic from the list' }).click()
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+
+    await page.reload()
+    await expect(listItem(page, 'Tonic')).toContainText('Staple')
+    expect(listStores(bar)).toEqual([
+      { ingredients: [{ id: I.tonic }] },
+      { ingredients: [{ id: I.tonic }] },
+    ])
+  })
 })
