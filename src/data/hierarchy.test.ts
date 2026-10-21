@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import type { Ingredient } from '../api/types'
 import { BarModel, ingredientResource } from '../../test/fixtures/upstream'
 import { C, I, defaultWorld, type CocktailSeed } from '../../test/fixtures/world'
 import {
+  isPlaced,
   ledgerGroups,
   reachDetail,
   reachFallbackParent,
@@ -41,6 +43,22 @@ function islayRecipe(id: number): CocktailSeed {
     ],
   }
 }
+
+describe('isPlaced', () => {
+  it('holds for every index and show resource upstream sends, roots included', () => {
+    const m = model()
+    for (const seed of m.world.ingredients) {
+      expect(isPlaced(ingredientResource(m, seed.id, 'index')), seed.name).toBe(true)
+      expect(isPlaced(ingredientResource(m, seed.id, 'show')), seed.name).toBe(true)
+    }
+  })
+
+  it('fails for the client’s pending entry, which carries no materialized_path', () => {
+    // What useShelfMutation puts on the cached shelf for a chip just tapped on.
+    const pending: Ingredient = { id: I.cointreau, slug: 'cointreau-1', name: 'Cointreau', strength: 0, in_shelf: true }
+    expect(isPlaced(pending)).toBe(false)
+  })
+})
 
 describe('rootIdOf', () => {
   it('groups a root under itself (materialized_path is null)', () => {

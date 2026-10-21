@@ -9,6 +9,17 @@
 
 import type { Ingredient, IngredientDetail } from '../api/types';
 
+/**
+ * Whether upstream has placed the row in the hierarchy. IngredientResource
+ * always sends `materialized_path` (null for a root), so a row without one is
+ * the client's own pending entry: a bottle toggled onto the shelf whose
+ * read-back has not landed (useShelfMutation). It has no root to group under
+ * yet, so the ledger leaves it out until it has.
+ */
+export function isPlaced(row: Pick<Ingredient, 'id' | 'materialized_path'>): boolean {
+  return row.materialized_path !== undefined;
+}
+
 /** Root ancestor id from the materialized path; a root groups under itself. */
 export function rootIdOf(ingredient: Pick<Ingredient, 'id' | 'materialized_path'>): number {
   const first = ingredient.materialized_path?.split('/')[0];
