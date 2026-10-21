@@ -86,6 +86,9 @@ test.describe('journey 1: stock-first (§6)', () => {
       await expect(pour(page).getByRole('link', { name: new RegExp(`^${drink}`) })).toBeVisible()
     }
     await expect(pour(page).getByRole('link', { name: /^Gin Tonic/ })).toHaveCount(0)
+    // The near section has answered for the family too (it held the whole-bar
+    // 6 until then), so both tag-filtered queries are on record below.
+    await expect(heading(page, 'sours one bottle away · 0')).toBeVisible()
 
     // §2: missing_ingredients composes with tag_id; ADR-002 filter parity —
     // the family narrows both sections natively, one tag-filtered query each.
@@ -171,6 +174,8 @@ test.describe('journey 3: shopping (§6, §5)', () => {
   }) => {
     await page.goto('/tonight')
     await expect(status(page)).toHaveText('You can pour 5 · 6 one bottle away · 2 to buy')
+    // The standing line lives in the desktop nav rail, which the phone layout
+    // does not render (src/index.css: .nav-rail shows from 900px).
     if (!isMobile) await expect(page.locator('.rail-standing')).toHaveText('12 bottles · 5 pourable')
 
     await listItem(page, 'Campari').click()
@@ -191,6 +196,8 @@ test.describe('journey 3: shopping (§6, §5)', () => {
     await expect(heading(page, 'To buy · 1')).toBeVisible()
     await expect(listItem(page, 'Campari')).toHaveCount(0)
     await expect(near(page).getByRole('link', { name: /^Negroni/ })).toHaveCount(0)
+    // A count, not visibility: the phone pour stack is capped.
+    await expect(pour(page).getByRole('link', { name: /^Negroni/ })).toHaveCount(1)
     if (!isMobile) await expect(page.locator('.rail-standing')).toHaveText('13 bottles · 6 pourable')
   })
 
@@ -278,8 +285,12 @@ test.describe('free-form add (§9, ADR-008)', () => {
     await rail(page).getByRole('searchbox', { name: 'Add to the list' }).fill('camp')
     const chip = rail(page).getByRole('button', { name: 'Campari', exact: true })
     await expect(chip).toHaveAttribute('aria-pressed', 'false')
-    // ADR-004: type-ahead goes to Meilisearch with the scoped key.
+    // ADR-004: type-ahead goes to Meilisearch with the scoped key. The fake
+    // answers 403 to any other key, and the client then falls back to REST
+    // filter[name] (src/api/search.ts) — so the chip came from Meilisearch
+    // only if no fallback ran.
     expect(bar.requests.some((r) => r.service === 'search' && r.path === '/indexes/ingredients/search')).toBe(true)
+    expect(bar.calls('GET', /^\/ingredients$/).filter((c) => c.query.has('filter[name]'))).toEqual([])
 
     await chip.click()
     await expect(listItem(page, 'Campari')).toBeVisible()
@@ -325,6 +336,25 @@ test.describe('Buy next (§9, ADR-008)', () => {
     await expect(buyNext).not.toContainText('Scotch whisky')
   })
 
+  test('Restock next lists a bottle only on a tap, with a receipt', async ({ page, bar }) => {
+    await page.goto('/tonight')
+    // Dark rum is in Restock next under either recommend endpoint (chrispezza/barback#22).
+    const restock = groupWith(page, 'Restock next')
+    const darkRum = restock.locator('.restock-row').filter({ hasText: 'Dark rum' })
+    await expect(darkRum).toBeVisible()
+    expect(bar.calls('POST')).toEqual([])
+
+    await darkRum.getByRole('button', { name: 'List it' }).click()
+    await expect(page.getByText('Dark rum — listed.')).toBeVisible()
+    expect(bar.calls('POST').map((c) => [c.path, c.body])).toEqual([
+      ['/users/1/shopping-list/batch-store', { ingredients: [{ id: I.darkRum }] }],
+    ])
+    await expect(listItem(page, 'Dark rum')).toBeVisible()
+    // Listed, it leaves the group (here its only row, so the group goes too).
+    await expect(darkRum).toHaveCount(0)
+    expect(bar.model.shelf.has(I.darkRum)).toBe(false)
+  })
+
   test.describe('with a favorited drink one bottle away', () => {
     test.use({
       world: tonightWorld((w) => {
@@ -360,6 +390,22 @@ test.describe('Buy next (§9, ADR-008)', () => {
       await expect(restock).toBeVisible()
       await expect(restock).not.toContainText('Scotch whisky')
       await expect(restock).not.toContainText('Campari')
+    })
+
+    test('For your favorites lists a bottle only on a tap, with a receipt', async ({ page, bar }) => {
+      await page.goto('/tonight')
+      const forFavorites = groupWith(page, 'For your favorites')
+      const campari = forFavorites.locator('.restock-row').filter({ hasText: 'Campari' })
+      await expect(campari).toBeVisible()
+      expect(bar.calls('POST')).toEqual([])
+
+      await campari.getByRole('button', { name: 'List it' }).click()
+      await expect(page.getByText('Campari — listed.')).toBeVisible()
+      expect(bar.calls('POST').map((c) => [c.path, c.body])).toEqual([
+        ['/users/1/shopping-list/batch-store', { ingredients: [{ id: I.campari }] }],
+      ])
+      await expect(listItem(page, 'Campari')).toBeVisible()
+      expect(bar.model.shelf.has(I.campari)).toBe(false)
     })
   })
 })
@@ -399,7 +445,7 @@ test.describe('printable list (§9)', () => {
     }),
   })
 
-  test('the print button prints, and print media keeps only the list', async ({ page }) => {
+  test('the print button prints, and print media keeps only the list', async ({ page, isMobile }) => {
     await page.addInitScript(() => {
       const w = window as unknown as { __prints: number }
       w.__prints = 0
@@ -411,18 +457,27 @@ test.describe('printable list (§9)', () => {
     await rail(page).getByRole('button', { name: 'Print the list' }).click()
     expect(await page.evaluate(() => (window as unknown as { __prints: number }).__prints)).toBe(1)
 
-    await page.emulateMedia({ media: 'print' })
-    await expect(listItem(page, 'Campari')).toBeVisible()
-    for (const hidden of [
+    // Everything around the list. Both navs are named "Main", so each is
+    // located by its class: the rail renders from 900px, the tab bar below it.
+    const screenOnly = [
+      page.locator(isMobile ? '.tab-bar' : '.nav-rail'),
       status(page),
+      page.getByRole('group', { name: 'Drink family' }),
       pour(page),
       near(page),
-      page.getByRole('group', { name: 'Drink family' }),
       page.locator('.buy-next'),
+      // In the printed rail; Restock next renders under either recommend endpoint (#22).
+      groupWith(page, 'Restock next'),
       rail(page).getByRole('searchbox', { name: 'Add to the list' }),
       rail(page).getByRole('button', { name: 'Remove Campari from the list' }),
       rail(page).getByRole('button', { name: 'Print the list' }),
-    ]) {
+    ]
+    // On screen first, so no locator below passes for matching nothing.
+    for (const shown of screenOnly) await expect(shown).toBeVisible()
+
+    await page.emulateMedia({ media: 'print' })
+    await expect(listItem(page, 'Campari')).toBeVisible()
+    for (const hidden of [...screenOnly, page.locator('.nav-rail'), page.locator('.tab-bar')]) {
       await expect(hidden).toBeHidden()
     }
   })
