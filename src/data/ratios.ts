@@ -110,16 +110,38 @@ export function ratioForSlug(slug: string): RatioTemplate | undefined {
   return RATIOS.find((r) => r.cocktailSlug === normalizeSlug(slug));
 }
 
+// Every vulgar fraction Unicode encodes (Latin-1 ¼ ½ ¾, U+2150–215E), keyed
+// by its value to two places. Upstream sends ounces as ml / 30 to four places
+// (recipe-utils Unit::toOz, AmountValueObject::convertTo), so metric pours
+// land on sixths, eighths and fifths: 25 ml is 0.8333, 5 ml 0.1667, 24 ml 0.8.
+// A value with no glyph (12.5 ml is 0.4167) has no key and keeps its decimal.
+// Matching is on two places, so anything that rounds to a key takes its
+// glyph; an eighth's key is itself rounded up (⅛ is 0.13), so its window runs
+// 0.01 oz above the true value: 4 ml (0.1333) reads ⅛.
 const FRACTIONS: Record<string, string> = {
+  '0.1': '⅒',
+  '0.11': '⅑',
   '0.13': '⅛',
+  '0.14': '⅐',
+  '0.17': '⅙',
+  '0.2': '⅕',
   '0.25': '¼',
   '0.33': '⅓',
+  '0.38': '⅜',
+  '0.4': '⅖',
   '0.5': '½',
+  '0.6': '⅗',
+  '0.63': '⅝',
   '0.67': '⅔',
   '0.75': '¾',
+  '0.8': '⅘',
+  '0.83': '⅚',
+  '0.88': '⅞',
 };
 
-/** 0.75 → "¾", 1.5 → "1½", 2 → "2" — fraction glyphs, never decimals. */
+/** 0.75 → "¾", 0.8333 → "⅚", 1.5 → "1½", 2 → "2" — fraction glyphs, never
+ *  decimals. The one exception is a fraction Unicode has no glyph for
+ *  (0.4167 → "0.42"), which still falls back to two decimal places. */
 export function fractionGlyph(n: number): string {
   const whole = Math.floor(n);
   const frac = Number((n - whole).toFixed(2));
