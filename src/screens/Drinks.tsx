@@ -11,7 +11,7 @@ import { useCocktailSearch } from '../api/search';
 import type { Cocktail } from '../api/types';
 import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
-import { cardIngredients, indexMatchState } from '../data/match';
+import { cardIngredients, matchState } from '../data/match';
 import { useDebounced } from '../hooks';
 
 export function Drinks() {
@@ -95,7 +95,7 @@ export function Drinks() {
         favorited={c.is_favorited}
         href={`/drinks/${c.slug}`}
         ingredients={cardIngredients(c)}
-        match={indexMatchState(c)}
+        match={matchState(c)}
       />
     </li>
   );

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Cocktail } from '../api/types'
 import { BarModel, cocktailResource, type Endpoint } from '../../test/fixtures/upstream'
 import { C, I, defaultWorld } from '../../test/fixtures/world'
-import { cardIngredients, indexMatchState, rosterMatchState, type MatchState } from './match'
+import { cardIngredients, matchState, type MatchState } from './match'
 
 // Card match state (frontend-spec §2 "Per-ingredient stock color", §7
 // DrinkCard). Cocktails are built by the fixture builders in the shape Bar
@@ -10,15 +10,11 @@ import { cardIngredients, indexMatchState, rosterMatchState, type MatchState } f
 // (Tonight, Index, "In the same vein"), 'show' is GET /cocktails/{id} (the
 // Recipe, and the Classics roster, which reads each drink by slug).
 //
-// Deliberately not pinned here, because each is a known bug with its own
-// failing-first PR:
-// - Past three missing lines, and wherever the server's `in_shelf` and the
-//   counted lines disagree, indexMatchState and rosterMatchState answer
-//   differently for the same drink (chrispezza/barback#39).
-// - The index shape carries no in_shelf_as_* flags, so a line a child brand or
-//   a substitute covers reads as missing on list cards (chrispezza/barback#20).
-// Every case below is one where the shelf answer is unambiguous on the shape
-// it uses, and both functions are held to it.
+// Deliberately not pinned here, because it is a known bug with its own
+// failing-first PR: the index shape carries no in_shelf_as_* flags, so a line a
+// child brand or a substitute covers reads as missing on list cards
+// (chrispezza/barback#20). The card state below never depends on that: where
+// in_shelf and the line flags disagree, the server's in_shelf decides.
 
 const ENDPOINTS: Endpoint[] = ['index', 'show']
 
@@ -138,10 +134,9 @@ describe('card match state', () => {
     it.each(plainCases)('$name', (c) => {
       const cocktail = drink(modelFor(c), c.cocktail, endpoint)
       // Guard: the case sits where the server's can-pour answer and the
-      // counted lines agree, so both functions owe the same state.
+      // counted lines agree.
       expect(cocktail.in_shelf).toBe(c.expected === 'full')
-      expect(indexMatchState(cocktail)).toBe(c.expected)
-      expect(rosterMatchState(cocktail)).toBe(c.expected)
+      expect(matchState(cocktail)).toBe(c.expected)
     })
   })
 
@@ -149,8 +144,7 @@ describe('card match state', () => {
     it.each(showCases)('$name', (c) => {
       const cocktail = drink(modelFor(c), c.cocktail, 'show')
       expect(cocktail.in_shelf).toBe(c.expected === 'full')
-      expect(indexMatchState(cocktail)).toBe(c.expected)
-      expect(rosterMatchState(cocktail)).toBe(c.expected)
+      expect(matchState(cocktail)).toBe(c.expected)
     })
   })
 })
@@ -158,7 +152,7 @@ describe('card match state', () => {
 // One state per drink, whichever screen paints it (frontend-spec §7: DrinkCard
 // takes one matchState vocabulary; chrispezza/barback#39). The Index, Classics
 // and the Recipe's "In the same vein" can each be handed the same cocktail
-// resource, and each owes it the same state:
+// resource, and each paints it with matchState, which owes it one state:
 // - full exactly when the server's matcher says it pours (`in_shelf`,
 //   CocktailResource.php:133 at v5.15.3), the answer Tonight's count and the
 //   family header already use (§2, §6);
@@ -246,19 +240,13 @@ describe('one match state per drink, on every screen', () => {
     it.each(sameDrinkPlain)('$name', (c) => {
       const cocktail = drink(sameDrinkModel(c), c.cocktail, endpoint)
       expect(cocktail.in_shelf).toBe(c.inShelf)
-      expect({
-        Index: indexMatchState(cocktail),
-        'Classics and In the same vein': rosterMatchState(cocktail),
-      }).toEqual({ Index: c.expected, 'Classics and In the same vein': c.expected })
+      expect(matchState(cocktail)).toBe(c.expected)
     })
   })
 
   it.each(sameDrinkDisagreeing)('$name', (c) => {
     const cocktail = drink(sameDrinkModel(c), c.cocktail, c.endpoint)
     expect(cocktail.in_shelf).toBe(c.inShelf)
-    expect({
-      Index: indexMatchState(cocktail),
-      'Classics and In the same vein': rosterMatchState(cocktail),
-    }).toEqual({ Index: c.expected, 'Classics and In the same vein': c.expected })
+    expect(matchState(cocktail)).toBe(c.expected)
   })
 })

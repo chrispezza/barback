@@ -13,7 +13,7 @@ import { isStocked, type Cocktail } from '../api/types';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
 import { FIRST_POUR_SLUGS } from '../data/first-pours';
-import { cardIngredients, rosterMatchState } from '../data/match';
+import { cardIngredients, matchState } from '../data/match';
 
 /**
  * Onboarding step 2 (aspiration): pick the drinks the bar should pour and
@@ -80,7 +80,7 @@ export function FirstPours() {
               favorited={c.is_favorited}
               href={`/drinks/${c.slug}`}
               ingredients={cardIngredients(c)}
-              match={rosterMatchState(c)}
+              match={matchState(c)}
             />
             <Button
               variant={c.is_favorited ? 'ghost' : 'secondary'}
