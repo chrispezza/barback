@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { Button } from '@ds/core/Button';
 import { clearToken, isAuthenticated } from './auth';
 import { useBarId, useCocktails, useShelf } from './api/queries';
-import { familyByTag } from './data/families';
+import { useActiveFamily } from './components/FamilyPicker';
 import { ToastHost } from './components/toasts';
 import { Login } from './screens/Login';
 import { FirstPours } from './screens/FirstPours';
@@ -68,13 +68,13 @@ const FAMILY_SCREENS = new Set(['/tonight', '/drinks']);
  * Where a nav link goes from here. Tonight and Drinks carry the current
  * `?family=` so "a sour tonight" survives the hop (frontend-spec §6); every
  * other screen, and every other parameter (Drinks paging, favorites), stays
- * behind. A value that names no family is not carried.
+ * behind. A value that names no family the bar offers — none at all, or one
+ * with no upstream tag — is not carried.
  */
 function useNavHref(href: string): string {
-  const { query } = useLocation();
-  const family = query['family'];
-  if (!family || !FAMILY_SCREENS.has(href) || !familyByTag(`family:${family}`)) return href;
-  return `${href}?family=${encodeURIComponent(family)}`;
+  const family = useActiveFamily();
+  if (!family || !FAMILY_SCREENS.has(href)) return href;
+  return `${href}?family=${encodeURIComponent(family.def.tag.replace('family:', ''))}`;
 }
 
 function NavLink({
