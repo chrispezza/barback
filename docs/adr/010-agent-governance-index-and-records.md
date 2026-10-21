@@ -5,14 +5,14 @@ description: >-
   their rules. Changes to an ADR, to CLAUDE.md or to the build check are
   proposed in a PR and merged by the maintainer, never by the agent that wrote
   them. One small local check guards three facts and names the ADR when it fails.
-lastUpdated: 2026-10-12T00:00:00.000Z
+lastUpdated: 2026-10-21T00:00:00.000Z
 tableOfContents: true
 pagefind: true
 ---
 
 ## Status
 
-Accepted
+Accepted — amended 2026-10-21 by ADR-011 (a fourth check, on the test gate).
 
 ## Context
 
@@ -92,6 +92,8 @@ We will go with **Option 3**.
   an index row, that the compose image tag matches ADR-001, and that the
   service worker still skips `/bar/` and `/search/` (ADR-007). Each failure
   names the ADR and the legal ways forward. It runs locally; there is no CI.
+  *Amended 2026-10-21: ADR-011 adds a fourth check, that test tooling stays in
+  devDependencies and that the build still runs the unit tests.*
 
 ## Consequences
 

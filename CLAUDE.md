@@ -5,15 +5,23 @@ shopping-list gap analysis, recipe index. This repo is the **client only**: Vite
 preact-iso + TanStack Query, TypeScript strict, pnpm. The backend is stock Bar Assistant
 Docker images pinned in `deploy/docker-compose.yml`.
 
-The spec is `docs/spec/frontend-spec.md`. There is no handoff doc.
+The spec is `docs/spec/frontend-spec.md`. Session handoffs are `docs/handoff/<date>.md`;
+read the newest one before starting work.
 
 ## Gate
 
-`pnpm build` is the only gate. It runs `scripts/check.mjs` (three text checks whose failure
-messages name the ADR they guard), then `tsc -b && vite build` (ADR-006 calls this the type
-gate). There is no test runner, no lint script and no CI. Say so rather than claiming tests
-passed. `The Back Bar Design System/_adherence.oxlintrc.json` is a leftover of the tool that
-generated the design system: it is not wired in, it is out of date, and it is not a gate.
+Two commands, both local; there is no CI (ADR-011).
+
+- `pnpm build` runs `scripts/check.mjs` (text checks whose failure messages name the ADR
+  they guard), then `tsc -b` (ADR-006 calls this the type gate; it also checks tests and
+  fixtures), then `vitest run`, then `vite build`.
+- `pnpm verify` runs the Playwright journeys against fixtures. It needs a browser installed
+  once (`pnpm exec playwright install chromium`) and never the live stack.
+
+Run both before every PR and say in the PR body which ran and what they reported. There is
+no lint script. `The Back Bar Design System/_adherence.oxlintrc.json` is a leftover of the
+tool that generated the design system: it is not wired in, it is out of date, and it is not
+a gate.
 
 ## Decisions
 
@@ -33,6 +41,7 @@ full. If this file and an ADR disagree, the ADR wins; say so in the PR.
 | [008](docs/adr/008-purchasing-intelligence-standing-orders.md) | When the app may write to the shopping list, and buy-next ranking | `src/data/staples.ts`, `src/data/first-pours.ts`, `src/screens/Tonight.tsx` |
 | [009](docs/adr/009-remote-access-cloudflare-tunnel-access.md) | Remote access, and when the public domain may go live | `cloudflared`, `BARBACK_ORIGIN`, anything about `barback.pezza.dev` |
 | [010](docs/adr/010-agent-governance-index-and-records.md) | How this file and the ADRs govern agents | this file, `docs/adr/`, `scripts/check.mjs` |
+| [011](docs/adr/011-test-gate-vitest-playwright.md) | What `pnpm build` and `pnpm verify` run, and where tests and fixtures live | `package.json` scripts and devDependencies, `vitest.config.ts`, `playwright.config.ts`, any `*.test.ts(x)`, `e2e/`, `test/fixtures/` |
 
 ## Rules no ADR holds
 
