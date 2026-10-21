@@ -154,3 +154,111 @@ describe('card match state', () => {
     })
   })
 })
+
+// One state per drink, whichever screen paints it (frontend-spec §7: DrinkCard
+// takes one matchState vocabulary; chrispezza/barback#39). The Index, Classics
+// and the Recipe's "In the same vein" can each be handed the same cocktail
+// resource, and each owes it the same state:
+// - full exactly when the server's matcher says it pours (`in_shelf`,
+//   CocktailResource.php:133 at v5.15.3), the answer Tonight's count and the
+//   family header already use (§2, §6);
+// - otherwise from the required lines isStocked leaves uncovered: one is near,
+//   two or three partial, four or more none, and none uncovered (only possible
+//   where in_shelf and the line flags disagree, chrispezza/barback#20) partial.
+
+interface SameDrinkCase {
+  name: string
+  cocktail: number
+  /** The whole shelf, replacing the default world's. */
+  shelf?: number[]
+  /** Shelf additions on top of the default world. */
+  add?: number[]
+  /** What the fixture server answers for in_shelf, as a guard on the case. */
+  inShelf: boolean
+  expected: MatchState
+}
+
+function sameDrinkModel(c: SameDrinkCase): BarModel {
+  const world = defaultWorld()
+  if (c.shelf) world.shelf = [...c.shelf]
+  const m = new BarModel(world)
+  for (const id of c.add ?? []) m.shelf.add(id)
+  return m
+}
+
+/** Same answer on either shape: no line depends on hierarchy or substitutes. */
+const sameDrinkPlain: SameDrinkCase[] = [
+  {
+    name: 'four required lines missing is none',
+    cocktail: C.mojito, // only the club soda held
+    shelf: [I.clubSoda],
+    inShelf: false,
+    expected: 'none',
+  },
+  {
+    name: 'five required lines missing is none',
+    cocktail: C.mojito,
+    shelf: [],
+    inShelf: false,
+    expected: 'none',
+  },
+  {
+    name: 'three required lines missing is partial; the optional fourth never tips it to none',
+    cocktail: C.whiskeySour, // egg white is optional
+    shelf: [],
+    inShelf: false,
+    expected: 'partial',
+  },
+]
+
+/** Where the server's in_shelf and the per-line flags disagree on one shape. */
+const sameDrinkDisagreeing: (SameDrinkCase & { endpoint: Endpoint })[] = [
+  {
+    // The index shape carries no in_shelf_as_variant, so the Islay Scotch line
+    // reads uncovered although the server credits Laphroaig 10 to it.
+    name: 'the server says it pours, so it is full, on the index shape',
+    cocktail: C.penicillin,
+    add: [I.honeySyrup],
+    endpoint: 'index',
+    inShelf: true,
+    expected: 'full',
+  },
+  {
+    // The show shape flags a variant at any depth; the server's matcher does
+    // not credit a grandchild to a mid-level ingredient (Scotch whisky).
+    name: 'the server says it does not pour, so it is not full, on the show shape',
+    cocktail: C.robRoy,
+    endpoint: 'show',
+    inShelf: false,
+    expected: 'partial',
+  },
+  {
+    name: 'nor is a two-line drink that every line reads as held, on the show shape',
+    cocktail: C.bobbyBurns, // Scotch whisky and sweet vermouth
+    endpoint: 'show',
+    inShelf: false,
+    expected: 'partial',
+  },
+]
+
+describe('one match state per drink, on every screen', () => {
+  describe.each(ENDPOINTS)('on the %s shape', (endpoint) => {
+    it.each(sameDrinkPlain)('$name', (c) => {
+      const cocktail = drink(sameDrinkModel(c), c.cocktail, endpoint)
+      expect(cocktail.in_shelf).toBe(c.inShelf)
+      expect({
+        Index: indexMatchState(cocktail),
+        'Classics and In the same vein': rosterMatchState(cocktail),
+      }).toEqual({ Index: c.expected, 'Classics and In the same vein': c.expected })
+    })
+  })
+
+  it.each(sameDrinkDisagreeing)('$name', (c) => {
+    const cocktail = drink(sameDrinkModel(c), c.cocktail, c.endpoint)
+    expect(cocktail.in_shelf).toBe(c.inShelf)
+    expect({
+      Index: indexMatchState(cocktail),
+      'Classics and In the same vein': rosterMatchState(cocktail),
+    }).toEqual({ Index: c.expected, 'Classics and In the same vein': c.expected })
+  })
+})
