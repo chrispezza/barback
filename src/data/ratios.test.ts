@@ -427,9 +427,10 @@ describe('fractionGlyph', () => {
     expect(fractionGlyph(round4(2 + p / q))).toBe(`2${glyph}`)
   })
 
-  it('gives no glyph to 5⁄12, 1⁄12, 3⁄10 or 7⁄30 oz rather than rounding onto a neighbour', () => {
-    // 12.5, 2.5, 9 and 7 ml; Unicode has a glyph for none of them. (Values
-    // within two places of a key do take its glyph: see FRACTIONS.)
+  it('gives no glyph to 5⁄12, 1⁄12, 1 5⁄12, 3⁄10 or 7⁄30 oz', () => {
+    // 12.5, 2.5, 42.5, 9 and 7 ml; Unicode has a glyph for none of them.
+    // This is not a general guarantee against rounding onto a neighbour:
+    // values within two places of a key do take its glyph (see FRACTIONS).
     expect(ozFor(12.5)).toBe(0.4167)
     expect(ozFor(2.5)).toBe(0.0833)
     expect(ozFor(9)).toBe(0.3)
