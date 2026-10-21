@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/preact'
 import { DrinkCard } from '@ds/drinks/DrinkCard'
-import type { Cocktail } from '../api/types'
-import { BarModel, cocktailResource } from '../../test/fixtures/upstream'
-import { C, defaultWorld } from '../../test/fixtures/world'
+import { shelfIndex, type Cocktail } from '../api/types'
+import { BarModel, cocktailResource, ingredientResource } from '../../test/fixtures/upstream'
+import { C, I, defaultWorld } from '../../test/fixtures/world'
 import { cardIngredients, matchState } from './match'
 
 // The DS DrinkCard as the screens feed it (frontend-spec §7): the ingredient
@@ -60,5 +60,31 @@ describe('DrinkCard fed by the match helpers', () => {
     expect(link.querySelector('.bb-drink__missing-line')?.textContent).toBe(
       'Missing 2: Tequila, Cointreau',
     )
+  })
+})
+
+// chrispezza/barback#20: a list card is fed the shelf, so a line calling the
+// direct parent of a held brand is not printed as a missing bottle beside
+// "Can pour". The shelf is what useShelf reads (GET
+// /ingredients?filter[on_shelf]=true, the index shape).
+describe('DrinkCard fed by the match helpers and the shelf', () => {
+  it('says the Penicillin pours, with no missing line, when Laphroaig 10 stands for its Islay Scotch', () => {
+    const m = new BarModel(defaultWorld())
+    m.shelf.add(I.honeySyrup)
+    const c: Cocktail = cocktailResource(m, m.cocktail(C.penicillin)!, 'index')
+    const shelf = shelfIndex([...m.shelf].map((id) => ingredientResource(m, id, 'index')))
+    render(
+      <DrinkCard
+        name={c.name}
+        href={`/drinks/${c.slug}`}
+        ingredients={cardIngredients(c, shelf)}
+        match={matchState(c, shelf)}
+      />,
+    )
+    const link = screen.getByRole('link')
+    expect(link.getAttribute('data-match')).toBe('full')
+    expect(within(link).getByText('Can pour').className).toBe('bb-drink__pour')
+    expect(within(link).getByText('Islay Scotch').className).toBe('bb-drink__have')
+    expect(link.querySelector('.bb-drink__missing-line')).toBeNull()
   })
 })

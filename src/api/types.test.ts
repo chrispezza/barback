@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { BarModel, cocktailIngredientResource, type Endpoint } from '../../test/fixtures/upstream'
+import {
+  BarModel,
+  cocktailIngredientResource,
+  ingredientResource,
+  type Endpoint,
+} from '../../test/fixtures/upstream'
 import { C, I, defaultWorld } from '../../test/fixtures/world'
-import { isStocked, type CocktailIngredientEntry } from './types'
+import { isStocked, shelfIndex, type CocktailIngredientEntry, type ShelfIndex } from './types'
 
 // isStocked is the per-line half of stock colouring (frontend-spec §2, "Per-
 // ingredient stock color"). Every entry here comes from the fixture builders in
@@ -101,5 +106,90 @@ describe('isStocked', () => {
     const cointreau = line(model(), C.margarita, I.cointreau, 'show')
     expect(isStocked(cointreau)).toBe(false)
     expect(isStocked({ ...cointreau, in_shelf_as_complex_ingredient: true })).toBe(true)
+  })
+})
+
+// List cards (chrispezza/barback#20). GET /cocktails and /cocktails/{id}/similar
+// load no descendants, substitutes or parts upstream, so their entries carry
+// the exact `in_shelf` only. Given the shelf as useShelf reads it, isStocked
+// applies the upstream matcher's own hierarchy rule (CocktailService.php
+// 281-288 at v5.15.3): a line that is not `is_specified` is stocked when a held
+// ingredient's direct parent, or its root, is the line's ingredient. An
+// intermediate ancestor is not credited, because the matcher does not credit it.
+
+/** The shelf as useShelf receives it: GET /ingredients?filter[on_shelf]=true. */
+function shelfOf(m: BarModel): ShelfIndex {
+  return shelfIndex([...m.shelf].map((id) => ingredientResource(m, id, 'index')))
+}
+
+describe('isStocked with the shelf, on the index shape', () => {
+  it('counts a line calling the direct parent of a held brand', () => {
+    const m = model()
+    // Penicillin calls Islay Scotch; the shelf holds Laphroaig 10, its child.
+    const scotch = line(m, C.penicillin, I.islayScotch, 'index')
+    expect(scotch).toMatchObject({ in_shelf: false, is_specified: false })
+    expect('in_shelf_as_variant' in scotch).toBe(false)
+    expect(isStocked(scotch, shelfOf(m))).toBe(true)
+  })
+
+  it('counts a line calling the root of a held brand', () => {
+    const m = model()
+    // Laphroaig 10's path is Spirits/Whisky/Scotch whisky/Islay Scotch.
+    const spirits = cocktailIngredientResource(m, { ingredientId: I.spirits, amount: 60, units: 'ml' }, 1, 'index')
+    expect(spirits.in_shelf).toBe(false)
+    expect(isStocked(spirits, shelfOf(m))).toBe(true)
+  })
+
+  it('does not count a line calling an intermediate ancestor of a held brand', () => {
+    const m = model()
+    // Rob Roy calls Scotch whisky: Laphroaig 10's grandparent, not its parent
+    // or its root. The matcher leaves the line unmatched, and so does this.
+    const scotch = line(m, C.robRoy, I.scotch, 'index')
+    expect(m.lineMatches(m.cocktail(C.robRoy)!.lines[0]!, m.shelf)).toBe(false)
+    expect(isStocked(scotch, shelfOf(m))).toBe(false)
+  })
+
+  it('does not count a held child toward an is_specified line', () => {
+    const m = model()
+    const specified = cocktailIngredientResource(
+      m,
+      { ingredientId: I.islayScotch, amount: 60, units: 'ml', isSpecified: true },
+      1,
+      'index',
+    )
+    expect(specified.is_specified).toBe(true)
+    expect(isStocked(specified, shelfOf(m))).toBe(false)
+  })
+
+  it('reads the line flags alone while the shelf is not known', () => {
+    expect(isStocked(line(model(), C.penicillin, I.islayScotch, 'index'))).toBe(false)
+  })
+
+  // The same answer the fixture's model of the matcher gives (pinned to the
+  // upstream lines it cites in test/fixtures/upstream.test.ts), line by line,
+  // on shelves that reach a line through a parent, a root, an intermediate
+  // ancestor and nothing at all. Lines with substitutes are left out: the index
+  // shape carries no substitutes, so a held substitute stays invisible there.
+  const shelves: [string, number[]][] = [
+    ['the default shelf', defaultWorld().shelf],
+    ['a bare shelf', []],
+    ['London dry gin in place of Gin', [...defaultWorld().shelf.filter((id) => id !== I.gin), I.londonDryGin]],
+    ['brands and children only', [I.laphroaig10, I.londonDryGin, I.darkRum, I.cointreau, I.honeySyrup]],
+  ]
+
+  it.each(shelves)('agrees with the upstream matcher on every line, on %s', (_name, held) => {
+    const m = model()
+    m.shelf.clear()
+    for (const id of held) m.shelf.add(id)
+    const shelf = shelfOf(m)
+    for (const cocktail of m.world.cocktails) {
+      cocktail.lines.forEach((seed, i) => {
+        if (seed.substituteIds?.length) return
+        const entry = cocktailIngredientResource(m, seed, i + 1, 'index')
+        expect(isStocked(entry, shelf), `${cocktail.name}: ${entry.ingredient.name}`).toBe(
+          m.lineMatches(seed, m.shelf),
+        )
+      })
+    }
   })
 })
