@@ -43,7 +43,7 @@ test.describe('a list read while the API answered', () => {
   // Listed out of name order: upstream serves the list sorted by name.
   test.use({ world: listing([I.dryVermouth, I.cointreau, I.campari]) })
 
-  test('is shown read-only, stamped, once the API is out of reach', async ({ page, bar }) => {
+  test('the snapshot is shown read-only, stamped, once the API is out of reach', async ({ page, bar }) => {
     await page.goto('/tonight')
     await expect(listItem(page, 'Campari')).toBeVisible()
     await expect(listItem(page, 'Dry vermouth')).toBeVisible()
@@ -84,5 +84,27 @@ test.describe('a list changed before the API went away', () => {
 
     await expect(offlineLine(page)).toBeVisible()
     await expect(snapshotNames(page)).toHaveText(['Campari'])
+  })
+})
+
+test.describe('a list emptied before the API went away', () => {
+  test.use({ world: listing([I.campari, I.cointreau]) })
+
+  test('the snapshot is stamped empty, not with the bottles already bought', async ({ page, bar }) => {
+    await page.goto('/tonight')
+    await expect(listItem(page, 'Campari')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Remove Campari from the list' }).click()
+    await expect(listItem(page, 'Campari')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Remove Cointreau from the list' }).click()
+    await expect(listItem(page, 'Cointreau')).toHaveCount(0)
+    expect(bar.model.list.size).toBe(0)
+
+    await goTo(page, 'Shelf', 'Shelf')
+    bar.takeApiDown()
+    await goTo(page, 'Tonight', 'Tonight')
+
+    await expect(offlineLine(page)).toBeVisible()
+    await expect(snapshotNames(page)).toHaveCount(0)
   })
 })

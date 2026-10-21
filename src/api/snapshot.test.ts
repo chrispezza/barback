@@ -158,6 +158,33 @@ describe('the list query', () => {
     expect(at).toBeLessThanOrEqual(settledAt)
   })
 
+  it('stamps an emptied list over the fuller one before it', async () => {
+    m.list.set(I.tonic, 1).set(I.campari, 1)
+    serveList(() => listResponse(m, [...m.list.keys()]))
+    const { client } = await runListQuery()
+    const first = readListSnapshot()
+    expect(first?.names).toEqual(['Campari', 'Tonic'])
+
+    // Both bottles bought and checked off at home: the API now serves an empty
+    // list, and the aisle must not show them again. The pause keeps the two
+    // stamps out of the same millisecond.
+    m.list.clear()
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await client.invalidateQueries({ queryKey: ['shopping-list'] })
+    const { result } = await runListQuery(client)
+    const settledAt = Date.now()
+
+    expect(result.isError).toBe(false)
+    expect(result.data?.data).toEqual([])
+    const snapshot = readListSnapshot()
+    expect(snapshot).toEqual({ at: expect.any(String), names: [] })
+    const at = Date.parse(snapshot?.at ?? '')
+    expect(snapshot?.at).toBe(new Date(at).toISOString())
+    expect(at).toBeGreaterThan(Date.parse(first?.at ?? ''))
+    expect(at).toBeGreaterThanOrEqual(servedAt)
+    expect(at).toBeLessThanOrEqual(settledAt)
+  })
+
   it('serves the live list when storage refuses the snapshot', async () => {
     m.list.set(I.tonic, 1).set(I.campari, 1)
     serveList(() => listResponse(m, [...m.list.keys()]))
