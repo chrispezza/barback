@@ -46,6 +46,14 @@ async function openRoster(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 2, name: `The roster · ${ROSTER.length}` })).toBeVisible()
 }
 
+/** Resolves once the shopping list GET has answered the page, not merely been
+ *  recorded by the fake. Register before navigating. */
+function listLoaded(page: Page): Promise<unknown> {
+  return page.waitForResponse(
+    (r) => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith('/shopping-list'),
+  )
+}
+
 function listedIds(body: unknown): number[] {
   return ((body as { ingredients: { id: number }[] }).ingredients ?? []).map((i) => i.id).sort((a, b) => a - b)
 }
@@ -105,10 +113,11 @@ test.describe('the roster (§1, §9)', () => {
   test('opening the roster writes nothing, even with favourites that have gaps (ADR-008)', async ({ page, bar }) => {
     bar.model.favorites.add(C.margarita)
     bar.model.favorites.add(C.espressoMartini)
+    const listed = listLoaded(page)
     await openRoster(page)
+    await listed
     await expect(chooseButton(page, 'Margarita')).toHaveAttribute('aria-pressed', 'true')
     await expect(chooseButton(page, 'Espresso Martini')).toHaveAttribute('aria-pressed', 'true')
-    await expect.poll(() => bar.calls('GET', /\/shopping-list$/).length).toBeGreaterThan(0)
     expect(bar.calls('POST')).toEqual([])
     expect([...bar.model.list.keys()]).toEqual([])
   })
@@ -164,8 +173,11 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     // Upstream batch-store resets an existing row's quantity to the one sent,
     // or 1 (ShoppingListController::batchStore, ShoppingListController.php 76-79).
     bar.model.list.set(I.tequila, 2)
+    // Choose is not held while the list loads (divergence 4 in the PR), so the
+    // list must have reached the page before the tap for this to mean anything.
+    const listed = listLoaded(page)
     await openRoster(page)
-    await expect.poll(() => bar.calls('GET', /\/shopping-list$/).length).toBeGreaterThan(0)
+    await listed
     await chooseButton(page, 'Margarita').click()
     await expect(toast(page)).toHaveText('Margarita — favorited, 1 bottle queued.')
     const stores = bar.calls('POST', /\/shopping-list\/batch-store$/)
@@ -194,8 +206,9 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     // must neither remove the listed bottle nor queue the unlisted one.
     bar.model.favorites.add(C.margarita)
     bar.model.list.set(I.tequila, 1)
+    const listed = listLoaded(page)
     await openRoster(page)
-    await expect.poll(() => bar.calls('GET', /\/shopping-list$/).length).toBeGreaterThan(0)
+    await listed
     const button = chooseButton(page, 'Margarita')
     await expect(button).toHaveText('✓ Chosen')
     await expect(button).toHaveAttribute('aria-pressed', 'true')
@@ -211,7 +224,10 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     expect([...bar.model.list.entries()]).toEqual([[I.tequila, 1]])
   })
 
-  test('a second tap while the first is in flight writes nothing more', async ({ page, bar }) => {
+  // The hold covers the pending favourite and list writes only. The window
+  // after they settle, before the roster refetch lands, is divergence 7 in the
+  // PR and is deliberately not asserted here.
+  test('a second tap while the favourite and list writes are pending writes nothing more', async ({ page, bar }) => {
     await openRoster(page)
     bar.slowDown(600)
     const button = chooseButton(page, 'Negroni')
@@ -236,9 +252,16 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     await expect(button).toBeFocused()
     const ring = await button.evaluate((el) => {
       const s = getComputedStyle(el)
-      return { visible: el.matches(':focus-visible'), style: s.outlineStyle, width: s.outlineWidth, colour: s.outlineColor }
+      return {
+        visible: el.matches(':focus-visible'),
+        style: s.outlineStyle,
+        width: s.outlineWidth,
+        offset: s.outlineOffset,
+        colour: s.outlineColor,
+      }
     })
-    expect(ring).toEqual({ visible: true, style: 'solid', width: '2px', colour: 'rgb(198, 161, 91)' })
+    // DS readme, Focus: "2px solid brass, 2px offset".
+    expect(ring).toEqual({ visible: true, style: 'solid', width: '2px', offset: '2px', colour: 'rgb(198, 161, 91)' })
 
     await page.keyboard.press('Enter')
     await expect(toast(page)).toHaveText('Negroni — favorited, 1 bottle queued.')
@@ -254,7 +277,12 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Tonight/ }).click()
     await expect(page).toHaveURL(/\/tonight$/)
     await expect(page.getByRole('heading', { level: 2, name: 'To buy · 2' })).toBeVisible()
-    await expect(page.locator('#buy .bb-shop__name')).toHaveText(['Cointreau', 'Tequila'])
+    // Both bottles are there; their order is Tonight's ranking, not this screen's.
+    const names = page.locator('#buy .bb-shop__name')
+    await expect(names).toHaveCount(2)
+    for (const name of ['Tequila', 'Cointreau']) {
+      await expect(names.filter({ hasText: new RegExp(`^${escape(name)}$`) })).toHaveCount(1)
+    }
   })
 })
 
