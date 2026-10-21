@@ -19,12 +19,19 @@ import {
   useShoppingMutation,
   useStaples,
 } from '../api/queries';
-import { isStocked, shelfIndex, type RecommendedIngredient } from '../api/types';
+import { shelfIndex, type RecommendedIngredient } from '../api/types';
 import { useIngredientSearch } from '../api/search';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
 import { ShoppingRow } from '../components/ShoppingRow';
+import {
+  buyNextGroups,
+  favoriteGaps,
+  rankFavoriteNeeds,
+  restockSuggestions,
+  staplesToQueue,
+} from '../data/buy-next';
 import { cardIngredients } from '../data/match';
 import { STAPLE_SLUGS } from '../data/staples';
 import { useDebounced } from '../hooks';
@@ -159,9 +166,7 @@ export function Tonight() {
   const staples = useStaples(barId, STAPLE_SLUGS);
   const stapleIds = new Set((staples.data ?? []).map((s) => s.id));
   const autoQueued = useRef(new Set<number>());
-  const staplesOut = (staples.data ?? []).filter(
-    (s) => !s.in_shelf && !listedIds.has(s.id) && !autoQueued.current.has(s.id),
-  );
+  const staplesOut = staplesToQueue(staples.data ?? [], listedIds, autoQueued.current);
   useEffect(() => {
     if (profile?.id === undefined || staplesOut.length === 0) return;
     if (shoppingList.data === undefined) return; // don't queue against a stale view
@@ -178,53 +183,25 @@ export function Tonight() {
   }, [staplesOut.map((s) => s.id).join(','), profile?.id, shoppingList.data === undefined]);
 
   // What the favorited drinks still need — aspiration outranks the generic
-  // server ranking, so these pin above Restock next.
+  // server ranking, so these pin above Restock next (data/buy-next.ts).
   const favorites = useCocktails(barId, { favorites: true }, 100);
-  const favoriteGaps = new Map<number, { name: string; count: number }>();
-  for (const c of favorites.data?.data ?? []) {
-    for (const e of c.ingredients) {
-      if (!isStocked(e, shelfIdx) && !e.optional && !ownedOrListed.has(e.ingredient.id)) {
-        const gap = favoriteGaps.get(e.ingredient.id) ?? {
-          name: e.ingredient.name,
-          count: 0,
-        };
-        gap.count += 1;
-        favoriteGaps.set(e.ingredient.id, gap);
-      }
-    }
-  }
-  const favoriteNeeds = [...favoriteGaps.entries()]
-    .map(([id, gap]) => ({ id, ...gap }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
-  const favoriteNeedIds = new Set(favoriteNeeds.map((f) => f.id));
-
-  // Staples and favorite gaps own their groups; keep both out of the
+  const favoriteNeeds = rankFavoriteNeeds(
+    favoriteGaps(favorites.data?.data ?? [], ownedOrListed, shelfIdx),
+  );
+  // Staples and favorite gaps own their groups; both stay out of the
   // general suggestions.
-  const suggestions = (recommendations.data ?? [])
-    .filter(
-      (r) =>
-        !ownedOrListed.has(r.id) &&
-        !stapleIds.has(r.id) &&
-        !favoriteNeedIds.has(r.id),
-    )
-    .slice(0, 5);
-
-  // Buy next: one decision-ready bottle. Favorites outrank the server rank.
-  const buyNext =
-    favoriteNeeds.length > 0
-      ? {
-          id: favoriteNeeds[0].id,
-          name: favoriteNeeds[0].name,
-          reason: `completes ${favoriteNeeds[0].count} favorite${
-            favoriteNeeds[0].count === 1 ? '' : 's'
-          }`,
-        }
-      : suggestions.length > 0
-        ? { id: suggestions[0].id, name: suggestions[0].name, reason: undefined }
-        : undefined;
-  const favoriteNeedsShown = favoriteNeeds.filter((f) => f.id !== buyNext?.id);
-  const suggestionsShown = suggestions.filter((r) => r.id !== buyNext?.id);
+  const suggestions = restockSuggestions(
+    recommendations.data ?? [],
+    ownedOrListed,
+    stapleIds,
+    favoriteNeeds,
+  );
+  // Buy next: one decision-ready bottle, which leaves the group it came from.
+  const {
+    pick: buyNext,
+    favoriteNeeds: favoriteNeedsShown,
+    suggestions: suggestionsShown,
+  } = buyNextGroups(favoriteNeeds, suggestions);
 
   return (
     <main class="screen">
