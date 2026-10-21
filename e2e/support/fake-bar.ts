@@ -153,7 +153,9 @@ export class FakeBar {
   private answer(r: RecordedRequest, headers: Record<string, string>) {
     const m = this.model
     const w = m.world
-    const q = r.query
+    // TrimStrings + ConvertEmptyStringsToNull: a blank filter value is null,
+    // and Spatie skips a null filter (AllowedFilter.php 44-46).
+    const q = new URLSearchParams([...r.query].filter(([, v]) => v.trim() !== ''))
     const p = r.path
     const body = (r.body ?? {}) as Record<string, unknown>
     let match: RegExpMatchArray | null

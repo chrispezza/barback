@@ -9,6 +9,19 @@ import type { CocktailLineSeed, CocktailSeed, IngredientSeed, WorldSeed } from '
 
 const STAMP = '2026-08-02T12:00:00+00:00'
 
+/** Laravel's e() (htmlspecialchars, ENT_QUOTES, double-encode on): upstream
+ *  escapes cocktail instructions, garnish and description on output
+ *  (app/Http/Resources/CocktailResource.php 96-98), so the client receives
+ *  entities, not the stored text. */
+export function laravelEscape(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 /** Laravel Str::slug for the names in the world: lowercase, apostrophes dropped,
  *  every other run of non-alphanumerics a single dash. */
 export function slugify(name: string): string {
@@ -270,9 +283,9 @@ export function cocktailResource(
     id: c.id,
     name: c.name,
     slug: m.slugOfCocktail(c),
-    instructions: c.instructions,
+    instructions: laravelEscape(c.instructions),
     // e(null) is '' upstream, not null.
-    garnish: c.garnish ?? '',
+    garnish: laravelEscape(c.garnish ?? ''),
     description: '',
     source: null,
     public_id: null,

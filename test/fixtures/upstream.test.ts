@@ -121,6 +121,14 @@ describe('resource shapes', () => {
     })
   })
 
+  it('HTML-escapes instructions and garnish the way e() does', () => {
+    const m = model()
+    const c = { ...m.cocktail(C.gimlet)!, instructions: `Shake & strain; don't "bruise" it <gently>`, garnish: "Lime's wheel" }
+    const r = cocktailResource(m, c, 'show')
+    expect(r.instructions).toBe('Shake &amp; strain; don&#039;t &quot;bruise&quot; it &lt;gently&gt;')
+    expect(r.garnish).toBe('Lime&#039;s wheel')
+  })
+
   it('converts ml to oz at ÷30, rounded to four places', () => {
     const m = model()
     const lime = m.cocktail(C.margarita)!.lines[1]!
