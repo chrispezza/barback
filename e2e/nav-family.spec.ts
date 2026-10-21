@@ -88,6 +88,13 @@ test('only the family travels: Shelf and Classics stay bare, Drinks paging and f
   await expect(navLink(page, 'Shelf')).toHaveAttribute('aria-current', 'page')
 })
 
+test('a family parameter that names no family is not carried', async ({ page }) => {
+  await page.goto('/tonight?family=not-a-family')
+  await expect(familyButton(page, 'ALL')).toHaveAttribute('aria-pressed', 'true')
+  await expect(navLink(page, 'Drinks')).toHaveAttribute('href', '/drinks')
+  await expect(navLink(page, 'Tonight')).toHaveAttribute('href', '/tonight')
+})
+
 test('choosing All drops the family from the nav', async ({ page }) => {
   await page.goto('/tonight?family=sour')
   await expect(familyButton(page, 'SOUR')).toHaveAttribute('aria-pressed', 'true')

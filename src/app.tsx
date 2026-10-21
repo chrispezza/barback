@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import { Button } from '@ds/core/Button';
 import { clearToken, isAuthenticated } from './auth';
 import { useBarId, useCocktails, useShelf } from './api/queries';
+import { familyByTag } from './data/families';
 import { ToastHost } from './components/toasts';
 import { Login } from './screens/Login';
 import { FirstPours } from './screens/FirstPours';
@@ -60,6 +61,22 @@ function RouteEffects() {
   return null;
 }
 
+/** The screens a family lens spans (frontend-spec §6: Tonight ↔ Index). */
+const FAMILY_SCREENS = new Set(['/tonight', '/drinks']);
+
+/**
+ * Where a nav link goes from here. Tonight and Drinks carry the current
+ * `?family=` so "a sour tonight" survives the hop (frontend-spec §6); every
+ * other screen, and every other parameter (Drinks paging, favorites), stays
+ * behind. A value that names no family is not carried.
+ */
+function useNavHref(href: string): string {
+  const { query } = useLocation();
+  const family = query['family'];
+  if (!family || !FAMILY_SCREENS.has(href) || !familyByTag(`family:${family}`)) return href;
+  return `${href}?family=${encodeURIComponent(family)}`;
+}
+
 function NavLink({
   href,
   label,
@@ -73,14 +90,15 @@ function NavLink({
   className: string;
 }) {
   const { route, path } = useLocation();
+  const to = useNavHref(href);
   return (
     <a
-      href={href}
+      href={to}
       class={className}
       aria-current={path === href ? 'page' : undefined}
       onClick={(e) => {
         e.preventDefault();
-        route(href);
+        route(to);
       }}
     >
       {label}
@@ -106,17 +124,18 @@ function RailNav() {
   const shelf = useShelf(barId);
   const canMake = useCocktails(barId, { on_shelf: true }, 1);
   const { route } = useLocation();
+  const home = useNavHref('/tonight');
   const logout = useLogout();
   const bottles = shelf.data?.meta?.total ?? shelf.data?.data.length;
   const pourable = canMake.data?.meta?.total;
   return (
     <nav class="nav-rail" aria-label="Main">
       <a
-        href="/tonight"
+        href={home}
         class="rail-brand"
         onClick={(e) => {
           e.preventDefault();
-          route('/tonight');
+          route(home);
         }}
       >
         Barback
