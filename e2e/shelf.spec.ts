@@ -37,13 +37,29 @@ function groupHeaders(page: Page): Locator {
   return page.getByRole('main').getByRole('heading', { level: 2 })
 }
 
-/** The bottle names under one root's header, in ledger order. */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * The bottle names under one root's header, in ledger order. The rows are
+ * found by their class because the ledger has no list semantics yet; a
+ * role-based locator replaces it if Track 5 adds them.
+ */
 function bottlesUnder(page: Page, root: string): Locator {
   return page
     .getByRole('main')
     .locator('section')
-    .filter({ has: page.getByRole('heading', { level: 2, name: new RegExp(`^${root} · \\d+$`) }) })
+    .filter({ has: page.getByRole('heading', { level: 2, name: new RegExp(`^${escapeRegExp(root)} · \\d+$`) }) })
     .locator('.shelf-row-main')
+}
+
+/**
+ * The empty state's title, at whatever heading level it renders: the level
+ * is not in the spec, and the current h3 under the h1 is a Track 5 finding.
+ */
+function emptyShelfHeading(page: Page): Locator {
+  return page.getByRole('main').getByRole('heading', { name: 'Nothing on the shelf' })
 }
 
 function countLine(page: Page): Locator {
@@ -99,7 +115,8 @@ test.describe('the ledger', () => {
     await expect(bottlesUnder(page, 'Spirits')).toHaveText(['Bourbon whiskey', 'Gin', 'Laphroaig 10', 'White rum'])
     await expect(bottlesUnder(page, 'Juices')).toHaveText(['Lemon juice', 'Lime juice'])
     await expect(countLine(page)).toHaveText('11 bottles on the shelf.')
-    // §7 ShelfRow: fraction text, never a progress bar.
+    // A guard, not coverage of §7 ShelfRow's "fraction as text": the Shelf
+    // renders no remaining fraction at all (§8 defers volume remaining).
     await expect(page.getByRole('progressbar')).toHaveCount(0)
 
     // §2: the ledger reads the user's shelf through the on_shelf filter.
@@ -176,7 +193,9 @@ test.describe('adding a bottle', () => {
     await picker(page).fill('tequila')
     const tequila = chip(page, 'Tequila')
     await expect(tequila).toHaveAttribute('aria-pressed', 'false')
-    // ADR-004 consequence: the API answers by name when search does not.
+    // ADR-011 and src/api/search.ts: the REST filter[name] fallback answers
+    // when Meilisearch does not. ADR-004's consequence and spec §5 read
+    // otherwise for type-ahead; the PR body records the conflict.
     expect(bar.calls('GET', /^\/ingredients$/).map((c) => c.query.get('filter[name]'))).toContain('tequila')
 
     await press(tequila, hasTouch)
@@ -206,11 +225,11 @@ test.describe('adding a bottle', () => {
     await expect(page.getByRole('alert')).toHaveText(/Bottle removed from the shelf\./)
   })
 
-  test('a search with no match says so, and Clear empties the picker', async ({ page }) => {
+  test('a search with no match says so, and Clear empties the picker', async ({ page, hasTouch }) => {
     await openShelf(page)
     await picker(page).fill('zzz')
     await expect(page.getByText('Nothing by that name.')).toBeVisible()
-    await page.getByRole('button', { name: 'Clear search' }).click()
+    await press(page.getByRole('button', { name: 'Clear search' }), hasTouch)
     await expect(picker(page)).toHaveValue('')
     await expect(page.getByText('Nothing by that name.')).toHaveCount(0)
   })
@@ -320,7 +339,7 @@ test.describe('a bare shelf', () => {
   test('says what to do, and the first bottle starts the ledger', async ({ page, bar, hasTouch }) => {
     await page.goto('/shelf')
     // §5 / design system: empty states are directive, never apologetic.
-    await expect(page.getByRole('heading', { level: 3, name: 'Nothing on the shelf' })).toBeVisible()
+    await expect(emptyShelfHeading(page)).toBeVisible()
     await expect(
       page.getByText('Add the bottles you own and Tonight starts answering for itself.'),
     ).toBeVisible()
@@ -334,20 +353,20 @@ test.describe('a bare shelf', () => {
     await expect.poll(() => shelfWrites(bar)).toEqual([{ path: STORE, body: { ingredients: [I.whiteRum] } }])
     await expect(groupHeaders(page)).toHaveText(['Spirits · 1'])
     await expect(bottlesUnder(page, 'Spirits')).toHaveText(['White rum'])
-    await expect(page.getByRole('heading', { level: 3, name: 'Nothing on the shelf' })).toHaveCount(0)
+    await expect(emptyShelfHeading(page)).toHaveCount(0)
   })
 })
 
-test('when the shelf read fails, the error line offers a retry that recovers', async ({ page, bar }) => {
+test('when the shelf read fails, the error line offers a retry that recovers', async ({ page, bar, hasTouch }) => {
   // The query client retries once, so the first two reads fail.
   bar.fail(/^\/ingredients$/, { method: 'GET', status: 500, times: 2 })
   await page.goto('/shelf')
   const error = page.getByRole('alert')
   await expect(error).toContainText('The bar didn’t answer — try again.')
   await expect(groupHeaders(page)).toHaveCount(0)
-  await expect(page.getByRole('heading', { level: 3, name: 'Nothing on the shelf' })).toHaveCount(0)
+  await expect(emptyShelfHeading(page)).toHaveCount(0)
 
-  await error.getByRole('button', { name: 'Retry' }).click()
+  await press(error.getByRole('button', { name: 'Retry' }), hasTouch)
 
   await expect(groupHeaders(page)).toHaveText(DEFAULT_GROUPS)
   await expect(countLine(page)).toHaveText('11 bottles on the shelf.')
