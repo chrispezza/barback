@@ -115,6 +115,67 @@ describe('Buy next', () => {
   })
 })
 
+describe('what a favourite bottle completes', () => {
+  // ADR-008 Decision: "within favorites, bottles completing more favorited
+  // drinks rank first". A bottle completes a favourite when it is the only
+  // bottle that favourite still misses once owned and listed bottles are set
+  // aside. A favourite two bottles away is completed by neither, however many
+  // favourites need each one.
+  const vermouthOut = (w: WorldSeed) => (w.shelf = without(w.shelf, I.sweetVermouth))
+
+  it('says no bottle completes a favourite two bottles away', () => {
+    // With Sweet vermouth gone, Rob Roy and Bobby Burns each miss it and
+    // Scotch whisky (Laphroaig 10 sits two levels below Scotch whisky).
+    const d = decide(
+      world((w) => {
+        vermouthOut(w)
+        w.favorites = [C.robRoy, C.bobbyBurns]
+      }),
+    )
+    expect(names(d.gaps)).toEqual(['Scotch whisky', 'Sweet vermouth'])
+    expect(d.pick).toEqual({ id: I.scotch, name: 'Scotch whisky', reason: 'in 2 favorites' })
+    expect(names(d.forFavorites)).toEqual(['Sweet vermouth'])
+    // Neither bottle, leading Buy next, would be said to complete anything.
+    for (const need of d.favoriteNeeds) {
+      expect(buyNextGroups([need], []).pick?.reason, need.name).toBe('in 2 favorites')
+    }
+  })
+
+  it('goes to a bottle that completes one favourite, ahead of one three favourites need that completes none', () => {
+    // With Sweet vermouth gone, Manhattan, Rob Roy and Negroni each miss it and
+    // one bottle more (Rye whiskey, Scotch whisky, Campari). Martini, met last,
+    // misses only Dry vermouth.
+    const d = decide(
+      world((w) => {
+        vermouthOut(w)
+        w.favorites = [C.manhattan, C.robRoy, C.negroni, C.martini]
+      }),
+    )
+    expect(d.pick).toEqual({ id: I.dryVermouth, name: 'Dry vermouth', reason: 'completes 1 favorite' })
+    // Then by favourites that need the bottle, then by name.
+    expect(d.forFavorites.map((f) => [f.name, f.count])).toEqual([
+      ['Sweet vermouth', 3],
+      ['Campari', 1],
+      ['Rye whiskey', 1],
+      ['Scotch whisky', 1],
+    ])
+  })
+
+  it('sets a listed bottle aside: the other bottle then completes that favourite, and only that one', () => {
+    // Negroni misses Campari, which is listed, and Sweet vermouth. Rob Roy
+    // misses Sweet vermouth and Scotch whisky, neither listed.
+    const d = decide(
+      world((w) => {
+        vermouthOut(w)
+        w.list = [I.campari]
+        w.favorites = [C.negroni, C.robRoy]
+      }),
+    )
+    expect(d.pick).toEqual({ id: I.sweetVermouth, name: 'Sweet vermouth', reason: 'completes 1 favorite' })
+    expect(d.forFavorites.map((f) => [f.name, f.count])).toEqual([['Scotch whisky', 1]])
+  })
+})
+
 describe('the groups beneath Buy next', () => {
   // Every favourite one bottle away in the default world: six distinct bottles,
   // each completing the drinks that need it.
