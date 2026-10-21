@@ -1,14 +1,35 @@
 import { useState } from 'preact/hooks';
 import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
-import { login } from '../api/client';
+import { isApiError, login } from '../api/client';
 import { safeNext } from '../auth';
+import { ErrorLine } from '../components/ErrorLine';
+
+type LoginFailure = 'credentials' | 'throttled' | 'no-answer';
+
+const FAILURE_LINES: Record<Exclude<LoginFailure, 'no-answer'>, string> = {
+  credentials: 'That login did not take — check the email and password.',
+  throttled: 'Too many tries — wait a minute, then log in again.',
+};
+
+/**
+ * Why the login did not take. Upstream answers bad credentials with 400 (422
+ * when a field fails validation) and throttles the sixth attempt a minute with
+ * 429 (routes/api.php:60, RouteServiceProvider.php:64). No answer at all, or a
+ * 5xx from the server or the proxy in front of it (deploy/nginx.conf), is the
+ * bar not answering — never a reason to doubt the password.
+ */
+function loginFailure(e: unknown): LoginFailure {
+  if (!isApiError(e) || e.status >= 500) return 'no-answer';
+  if (e.status === 429) return 'throttled';
+  return 'credentials';
+}
 
 export function Login() {
   const { route, query } = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<LoginFailure | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const next = safeNext(query['next']);
   const sessionEnded = query['reason'] === 'expired';
@@ -16,12 +37,12 @@ export function Login() {
   async function onSubmit(e: SubmitEvent) {
     e.preventDefault();
     setIsSubmitting(true);
-    setError(null);
+    setFailure(null);
     try {
       await login(email, password);
       route(next);
-    } catch {
-      setError('That login did not take — check the email and password.');
+    } catch (err) {
+      setFailure(loginFailure(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -61,10 +82,14 @@ export function Login() {
         <Button type="submit" disabled={isSubmitting}>
           Log in
         </Button>
-        {error && (
-          <p class="login-error" role="alert">
-            {error}
-          </p>
+        {failure === 'no-answer' ? (
+          <ErrorLine />
+        ) : (
+          failure !== null && (
+            <p class="login-error" role="alert">
+              {FAILURE_LINES[failure]}
+            </p>
+          )
         )}
       </form>
     </main>
