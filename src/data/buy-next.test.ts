@@ -24,9 +24,14 @@ import {
 //   ranking test is not passed by the order bottles are met alone;
 // - staples: GET /ingredients/{slug}-{bar} for each slug in src/data/staples.ts,
 //   show shape;
-// - recommendations: GET /bars/{id}/ingredients/recommend, which ranks against
-//   the bar shelf Barback never writes, so owned bottles come back too
-//   (chrispezza/barback#22).
+// - recommendations: the server's ranking, the ten bottles named by the most
+//   recipes among those not held (IngredientService.php:227-281). Tonight reads
+//   it against the user's shelf, GET /users/{id}/ingredients/recommend
+//   (`userRecommendations`; chrispezza/barback#22). Most tests here feed the
+//   bar-wide ranking instead, GET /bars/{id}/ingredients/recommend against the
+//   empty bar shelf, which Tonight read before #22: it returns owned bottles
+//   too, so it is the harshest input for the client filter that remains as a
+//   safety net.
 
 /** What Tonight holds for a world, read from upstream-shaped resources. */
 function inputs(w: WorldSeed) {
@@ -45,15 +50,26 @@ function inputs(w: WorldSeed) {
     staples,
     stapleIds: new Set(staples.map((s) => s.id)),
     recommendations: m.recommendFor(new Set()),
+    userRecommendations: m.recommendFor(m.shelf),
   }
 }
 
-/** Tonight's decisions for a world, wired as the screen wires them. */
-function decide(w: WorldSeed) {
+/**
+ * Tonight's decisions for a world, wired as the screen wires them. `ranking`
+ * picks the recommend input: 'user' is what Tonight reads; 'bar' (the default
+ * here) is the bar-wide ranking, the harsher input for the filter.
+ */
+function decide(w: WorldSeed, ranking: 'bar' | 'user' = 'bar') {
   const t = inputs(w)
   const gaps = favoriteGaps(t.favorites, t.ownedOrListed, t.shelf)
   const favoriteNeeds = rankFavoriteNeeds(gaps)
-  const suggestions = restockSuggestions(t.recommendations, t.ownedOrListed, t.stapleIds, favoriteNeeds)
+  const suggestions = restockSuggestions(
+    ranking === 'user' ? t.userRecommendations : t.recommendations,
+    t.ownedOrListed,
+    t.stapleIds,
+    favoriteNeeds,
+    t.shelf,
+  )
   const groups = buyNextGroups(favoriteNeeds, suggestions)
   return {
     ownedOrListed: t.ownedOrListed,
@@ -274,6 +290,74 @@ describe('Restock next', () => {
     const d = decide(world((w) => (w.shelf = without(w.shelf, I.limeJuice))))
     expect(names(d.suggestions)).toEqual(['Scotch whisky', 'Dark rum'])
     expect(names(d.queue)).toEqual(['Lime juice'])
+  })
+})
+
+describe('Restock next, ranked against the user’s shelf (chrispezza/barback#22)', () => {
+  // A shelf holding every bottle the bar-wide top ten names, and Islay Scotch
+  // beside the Laphroaig 10.
+  const stocked = () => world((w) => (w.shelf = [...w.shelf, I.scotch, I.darkRum, I.islayScotch]))
+
+  it('still has bottles to offer a well-stocked shelf, and moves on as one is shelved', () => {
+    const d = decide(stocked(), 'user')
+    expect(d.pick).toEqual({ id: I.rye, name: 'Rye whiskey', reason: undefined })
+    expect(names(d.restockNext)).toEqual(['Tequila', 'Vodka', 'Cointreau', 'Campari'])
+
+    const shelved = decide(world((w) => (w.shelf = [...w.shelf, I.rye]), stocked), 'user')
+    expect(shelved.pick).toEqual({ id: I.tequila, name: 'Tequila', reason: undefined })
+    expect(names(shelved.restockNext)).toEqual(['Vodka', 'Cointreau', 'Campari', 'Coffee liqueur'])
+  })
+
+  it('never offers the direct parent of a held brand, though the ranking names it', () => {
+    // The ranking compares ids: Laphroaig 10 does not hold Islay Scotch, its
+    // direct parent, by id, but the matcher credits it to every Islay Scotch
+    // line. Scotch whisky, two levels up, is not credited and stays: it opens
+    // the Rob Roy and the Bobby Burns, the two drinks Islay Scotch would.
+    const t = inputs(defaultWorld())
+    expect(names(t.userRecommendations)).toContain('Islay Scotch')
+    const d = decide(defaultWorld(), 'user')
+    expect(d.pick).toEqual({ id: I.scotch, name: 'Scotch whisky', reason: undefined })
+    expect(names(d.restockNext)).toEqual(['Dark rum', 'Rye whiskey', 'Tequila', 'Vodka'])
+  })
+
+  it('never offers Gin beside London dry gin, a held child of it', () => {
+    const w = world((x) => (x.shelf = [...without(x.shelf, I.gin), I.londonDryGin]))
+    expect(names(inputs(w).userRecommendations)[0]).toBe('Gin')
+    const d = decide(w, 'user')
+    expect(d.pick).toEqual({ id: I.scotch, name: 'Scotch whisky', reason: undefined })
+    expect(names(d.restockNext)).toEqual(['Dark rum', 'Rye whiskey', 'Tequila', 'Vodka'])
+  })
+
+  it('with the groups beneath it, never shows a bottle twice, nor one owned, listed or covered', () => {
+    const worlds: [string, WorldSeed][] = [
+      ['default', defaultWorld()],
+      ['stocked', stocked()],
+      ['stocked, every drink', world((w) => (w.favorites = w.cocktails.map((c) => c.id)), stocked)],
+      ['bare', bareWorld()],
+      ['London dry gin', world((w) => (w.shelf = [...without(w.shelf, I.gin), I.londonDryGin]))],
+    ]
+    for (const [label, w] of worlds) {
+      const t = inputs(w)
+      const d = decide(w, 'user')
+      const shown = [
+        ...(d.pick ? [d.pick.id] : []),
+        ...d.forFavorites.map((f) => f.id),
+        ...d.restockNext.map((r) => r.id),
+      ]
+      expect(shown.length, label).toBeGreaterThan(0)
+      expect(new Set(shown).size, label).toBe(shown.length)
+      expect(shown.filter((id) => d.ownedOrListed.has(id)), label).toEqual([])
+      expect(d.restockNext.filter((r) => t.shelf.parentsAndRoots.has(r.id)), label).toEqual([])
+    }
+  })
+
+  it('never offers the root a held bottle sits under', () => {
+    // No recipe names a root here, so the ranking never does; fed one, the
+    // filter drops it as the matcher would credit any held spirit to it.
+    const t = inputs(defaultWorld())
+    const spirits = { id: I.spirits, slug: 'spirits-1', name: 'Spirits', potential_cocktails: 99 }
+    const offered = restockSuggestions([spirits, ...t.userRecommendations], t.ownedOrListed, t.stapleIds, [], t.shelf)
+    expect(names(offered)).toEqual(['Scotch whisky', 'Dark rum', 'Rye whiskey', 'Tequila', 'Vodka'])
   })
 })
 
