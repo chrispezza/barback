@@ -151,14 +151,55 @@ export function writeListSnapshot(items: ShoppingListItem[], now: Date): void {
   }
 }
 
-/** Last list the API served — the store-aisle fallback when it's unreachable. */
+/**
+ * Last list the API served — the store-aisle fallback when it's unreachable.
+ * A stored value that cannot say when it was served, or what it listed, is no
+ * snapshot at all.
+ */
 export function readListSnapshot(): ListSnapshot | null {
   try {
     const raw = localStorage.getItem(LIST_SNAPSHOT_KEY);
-    return raw ? (JSON.parse(raw) as ListSnapshot) : null;
+    if (!raw) return null;
+    const stored: unknown = JSON.parse(raw);
+    if (typeof stored !== 'object' || stored === null) return null;
+    const { at, names } = stored as Partial<Record<keyof ListSnapshot, unknown>>;
+    if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) return null;
+    if (!Array.isArray(names) || !names.every((n) => typeof n === 'string')) return null;
+    return { at, names };
   } catch {
     return null;
   }
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Calendar days from `at` back to `now`, on the reader's local calendar. */
+function calendarDaysBack(at: Date, now: Date): number {
+  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((day(now) - day(at)) / DAY_MS);
+}
+
+/**
+ * When the snapshot was served, as Tonight's offline line states it ("the list
+ * as it stood …"). ADR-007 asks for a list clearly stamped: up to six calendar
+ * days back the weekday cannot be mistaken ("Monday 9:05 AM"); from seven, or
+ * for a stamp ahead of the clock, the weekday could be this week's, so the
+ * date is named ("Wednesday 7 October, 5:40 PM"), with the year when it is not
+ * this one. `locale` defaults to the reader's; `at` must be a valid date.
+ */
+export function snapshotStamp(at: Date, now: Date, locale?: string): string {
+  const weekday = at.toLocaleDateString(locale, { weekday: 'long' });
+  const time = at.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+  const daysBack = calendarDaysBack(at, now);
+  if (daysBack >= 0 && daysBack <= 6) return `${weekday} ${time}`;
+
+  const dateOptions: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
+  if (at.getFullYear() !== now.getFullYear()) dateOptions.year = 'numeric';
+  const parts = new Intl.DateTimeFormat(locale, dateOptions).formatToParts(at);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value;
+  const date = [part('day'), part('month'), part('year')].filter(Boolean).join(' ');
+  return `${weekday} ${date}, ${time}`;
 }
 
 /** The list query: every response the API serves is stamped as the snapshot. */

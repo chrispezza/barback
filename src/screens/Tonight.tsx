@@ -8,6 +8,7 @@ import { SearchField } from '@ds/forms/SearchField';
 import { IngredientChip } from '@ds/inventory/IngredientChip';
 import {
   readListSnapshot,
+  snapshotStamp,
   useBarId,
   useCheckOff,
   useCocktails,
@@ -340,12 +341,7 @@ export function Tonight() {
             <div>
               <p class="recipe-aside">
                 Offline — the list as it stood{' '}
-                {new Date(snapshot.at).toLocaleString(undefined, {
-                  weekday: 'long',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })}
-                .
+                {snapshotStamp(new Date(snapshot.at), new Date())}.
               </p>
               <ul class="snapshot-list">
                 {snapshot.names.map((n) => (
