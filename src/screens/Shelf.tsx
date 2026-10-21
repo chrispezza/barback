@@ -16,13 +16,8 @@ import { useIngredientSearch } from '../api/search';
 import type { Ingredient } from '../api/types';
 import { useLogout } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
+import { ledgerGroups, rootIdsOf } from '../data/hierarchy';
 import { useDebounced } from '../hooks';
-
-/** Root ancestor id from the materialized path; a root groups under itself. */
-function rootIdOf(ingredient: Ingredient): number {
-  const first = ingredient.materialized_path?.split('/')[0];
-  return first ? Number(first) : ingredient.id;
-}
 
 export function Shelf() {
   const barId = useBarId();
@@ -38,18 +33,8 @@ export function Shelf() {
   const rows = shelf.data?.data ?? [];
 
   // Ledger grouping: bottles under their root ancestor (Spirits, Liqueurs…).
-  const rootIds = [...new Set(rows.map(rootIdOf))];
-  const rootNames = useIngredientsByIds(barId, rootIds);
-  const groups = new Map<string, Ingredient[]>();
-  for (const row of rows) {
-    const label = rootNames.data?.get(rootIdOf(row)) ?? '';
-    groups.set(label, [...(groups.get(label) ?? []), row]);
-  }
-  // Spirits lead the ledger; the rest read alphabetically.
-  const groupNames = [...groups.keys()].sort((a, b) =>
-    a === 'Spirits' ? -1 : b === 'Spirits' ? 1 : a.localeCompare(b),
-  );
-  const isGrouped = rootNames.data !== undefined && !groups.has('');
+  const rootNames = useIngredientsByIds(barId, rootIdsOf(rows));
+  const groups = ledgerGroups(rows, rootNames.data);
 
   function removeRow(ingredient: Ingredient) {
     if (!mutation.isPending) {
@@ -117,11 +102,11 @@ export function Shelf() {
       </p>
       {shelf.isError && <ErrorLine onRetry={() => void shelf.refetch()} />}
 
-      {isGrouped ? (
-        groupNames.map((label) => (
+      {groups ? (
+        groups.map(({ label, rows: groupRows }) => (
           <section key={label}>
-            <MatchHeader label={label} count={groups.get(label)?.length} align="left" />
-            {groups.get(label)?.map(shelfRowLine)}
+            <MatchHeader label={label} count={groupRows.length} align="left" />
+            {groupRows.map(shelfRowLine)}
           </section>
         ))
       ) : (

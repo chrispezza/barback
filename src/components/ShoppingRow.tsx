@@ -1,6 +1,7 @@
 import { Button } from '@ds/core/Button';
 import { ShoppingListItem } from '@ds/shopping/ShoppingListItem';
 import { useBarId, useIngredientReach, useIngredientUnlocks } from '../api/queries';
+import { reachDetail } from '../data/hierarchy';
 
 interface ShoppingRowProps {
   ingredientId: number;
@@ -31,9 +32,7 @@ export function ShoppingRow({
   const detail = isStaple
     ? 'Staple'
     : unlocks === 0 && reach
-      ? `In ${reach.count} drink${reach.count === 1 ? '' : 's'}${
-          reach.via ? ` as ${reach.via}` : ''
-        }`
+      ? reachDetail(reach)
       : undefined;
   return (
     <div class="shopping-row-line">
