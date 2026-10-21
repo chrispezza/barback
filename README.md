@@ -84,6 +84,19 @@ pnpm install
 pnpm dev
 ```
 
+Tests (ADR-011) run locally; there is no CI. Run both before opening a PR:
+
+```bash
+pnpm build                              # check.mjs, tsc, vitest, vite build
+pnpm exec playwright install chromium   # once per machine
+pnpm verify                             # Playwright journeys against fixtures
+```
+
+`pnpm test` runs Vitest in watch mode. `pnpm verify` builds the client in the
+single-origin deploy shape and answers every `/bar/` and `/search/` request from
+the fake in `e2e/support/fake-bar.ts`, which models Bar Assistant v5.15.3 from
+`test/fixtures/`. It needs no Docker, no `op run` and no secrets.
+
 ## A note before exposing this to the internet
 
 The compose stack is tuned for a home LAN: the `:8080` front door is the only
