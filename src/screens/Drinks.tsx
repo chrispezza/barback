@@ -8,26 +8,11 @@ import { EmptyState } from '@ds/feedback/EmptyState';
 import { SearchField } from '@ds/forms/SearchField';
 import { useBarId, useCocktails } from '../api/queries';
 import { useCocktailSearch } from '../api/search';
-import { isStocked, type Cocktail } from '../api/types';
+import type { Cocktail } from '../api/types';
 import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
+import { cardIngredients, indexMatchState } from '../data/match';
 import { useDebounced } from '../hooks';
-
-function matchFor(c: Cocktail): 'full' | 'partial' | 'near' | 'none' {
-  const missing = c.ingredients.filter((i) => !isStocked(i) && !i.optional).length;
-  if (missing === 0) return 'full';
-  if (missing === 1) return 'near';
-  if (missing <= 3) return 'partial';
-  return 'none';
-}
-
-function toCardIngredients(c: Cocktail) {
-  return c.ingredients.map((entry) => ({
-    name: entry.ingredient.name,
-    have: isStocked(entry),
-    optional: entry.optional,
-  }));
-}
 
 export function Drinks() {
   const barId = useBarId();
@@ -109,8 +94,8 @@ export function Drinks() {
         name={c.name}
         favorited={c.is_favorited}
         href={`/drinks/${c.slug}`}
-        ingredients={toCardIngredients(c)}
-        match={matchFor(c)}
+        ingredients={cardIngredients(c)}
+        match={indexMatchState(c)}
       />
     </li>
   );

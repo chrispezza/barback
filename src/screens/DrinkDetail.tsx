@@ -14,26 +14,11 @@ import {
   useSimilarCocktails,
   useToggleFavorite,
 } from '../api/queries';
-import { isStocked, type Cocktail, type CocktailIngredientEntry } from '../api/types';
+import { isStocked, type CocktailIngredientEntry } from '../api/types';
 import { setScreenTitle } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
+import { cardIngredients, rosterMatchState } from '../data/match';
 import { deriveRatio, fractionGlyph, ratioForSlug } from '../data/ratios';
-
-function toCardIngredients(cocktail: Cocktail) {
-  return cocktail.ingredients.map((entry) => ({
-    name: entry.ingredient.name,
-    have: isStocked(entry),
-    optional: entry.optional,
-  }));
-}
-
-function cardMatch(cocktail: Cocktail): 'full' | 'partial' | 'near' {
-  if (cocktail.in_shelf) return 'full';
-  const missing = cocktail.ingredients.filter(
-    (i) => !isStocked(i) && !i.optional,
-  ).length;
-  return missing === 1 ? 'near' : 'partial';
-}
 
 /** The measure only — the row already prints the name above it. Dashes,
  *  barspoons etc. must not be unit-converted (2 dash, not 0.02 oz). */
@@ -213,8 +198,8 @@ export function DrinkDetail({ slug }: { slug: string }) {
                   name={c.name}
                   favorited={c.is_favorited}
                   href={`/drinks/${c.slug}`}
-                  ingredients={toCardIngredients(c)}
-                  match={cardMatch(c)}
+                  ingredients={cardIngredients(c)}
+                  match={rosterMatchState(c)}
                 />
               </li>
             ))}
