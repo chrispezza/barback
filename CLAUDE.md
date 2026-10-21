@@ -41,7 +41,7 @@ full. If this file and an ADR disagree, the ADR wins; say so in the PR.
 | [008](docs/adr/008-purchasing-intelligence-standing-orders.md) | When the app may write to the shopping list, and buy-next ranking | `src/data/staples.ts`, `src/data/first-pours.ts`, `src/screens/Tonight.tsx` |
 | [009](docs/adr/009-remote-access-cloudflare-tunnel-access.md) | Remote access, and when the public domain may go live | `cloudflared`, `BARBACK_ORIGIN`, anything about `barback.pezza.dev` |
 | [010](docs/adr/010-agent-governance-index-and-records.md) | How this file and the ADRs govern agents | this file, `docs/adr/`, `scripts/check.mjs` |
-| [011](docs/adr/011-test-gate-vitest-playwright.md) | What `pnpm build` and `pnpm verify` run, and where tests and fixtures live | `package.json` scripts and devDependencies, `vitest.config.ts`, `playwright.config.ts`, any `*.test.ts(x)`, `e2e/`, `test/fixtures/` |
+| [011](docs/adr/011-test-gate-vitest-playwright.md) | What `pnpm build` and `pnpm verify` run, and where tests and fixtures live | `package.json` scripts and devDependencies, `vitest.config.ts`, `playwright.config.ts`, any `*.test.ts(x)`, `e2e/`, `test/` |
 
 ## Rules no ADR holds
 

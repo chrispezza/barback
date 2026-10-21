@@ -138,7 +138,10 @@ can be followed end to end.
 **Fixtures.** Shared fixture data lives in `test/fixtures/`. Its shapes are
 derived from `../bar-assistant-reference` at the pinned tag (ADR-001) and from
 `src/api/types.ts`, with the upstream source cited where a field's presence is
-conditional. Fixture records are typed as the upstream resource and checked by
+conditional. Because the fixtures are a model of upstream behaviour, the model
+has tests of its own beside it (`test/**/*.test.ts`, run by the same Vitest
+pass), pinning it to the upstream lines it cites. Fixture records are typed as
+the upstream resource and checked by
 `tsc` for assignability to the client's types, so a client type that drifts
 from the upstream shape fails the typecheck. Search fixtures cover both paths
 ADR-004 describes: Meilisearch answering, and Meilisearch down with the REST
