@@ -20,6 +20,10 @@ const addToList = (page: Page, name: string) =>
   page.getByRole('button', { name: `Add ${name} to the list`, exact: true })
 const addMissing = (page: Page) => page.getByRole('button', { name: 'Add missing to the list' })
 const favorite = (page: Page) => main(page).getByRole('button', { name: /favorite/i })
+/** The ratio device by its whole accessible name. A bare `name` string is a
+ *  case-insensitive substring match, which would let a third part (a dash)
+ *  ride along unseen, so the name is matched exactly. */
+const ratioDevice = (page: Page, name: string) => main(page).getByRole('group', { name, exact: true })
 const back = (page: Page) => page.getByRole('button', { name: '← Back' })
 const similarHeading = (page: Page) => page.getByRole('heading', { level: 2, name: 'In the same vein' })
 const similarSection = (page: Page) => main(page).locator('section', { has: similarHeading(page) })
@@ -31,19 +35,48 @@ async function openRecipe(page: Page, slug: string, name: string): Promise<void>
   await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
 }
 
+type ShowEntry = { ingredient: { id: number } } & Record<string, unknown>
+type ShowBody = { data: { ingredients: ShowEntry[] } }
+
+/** The show response's line for one ingredient, found by id rather than position. */
+function entryFor(body: ShowBody, ingredientId: number): ShowEntry {
+  const entry = body.data.ingredients.find((e) => e.ingredient.id === ingredientId)
+  if (!entry) throw new Error(`the show response has no line for ingredient ${ingredientId}`)
+  return entry
+}
+
 async function top(locator: Locator): Promise<number> {
   const box = await locator.boundingBox()
   if (!box) throw new Error('element has no layout box')
   return box.y
 }
 
-/** Absence is struck through in sage; presence is not (design system: state is never colour alone). */
+// tokens/colors.css: --cream-100 (neutral content), --sage-600 ("you don't have
+// it"), --cream-400 (an optional line).
+const CREAM_100 = 'rgb(241, 232, 214)'
+const SAGE_600 = 'rgb(156, 175, 164)'
+const CREAM_400 = 'rgb(185, 174, 151)'
+
+/** Absence is sage and struck through; presence is cream and is not (Visual
+ *  foundations: "absence pairs sage with a strikethrough"; state is never
+ *  colour alone, so both are checked). */
 async function expectStocked(row: Locator): Promise<void> {
+  await expect(lineName(row)).toHaveCSS('color', CREAM_100)
   await expect(lineName(row)).toHaveCSS('text-decoration-line', 'none')
 }
 
 async function expectGap(row: Locator): Promise<void> {
+  await expect(lineName(row)).toHaveCSS('color', SAGE_600)
   await expect(lineName(row)).toHaveCSS('text-decoration-line', 'line-through')
+}
+
+/** Focused, with the whole ring: Visual foundations "2px solid brass, 2px offset" (--focus-ring). */
+async function expectRing(control: Locator): Promise<void> {
+  await expect(control).toBeFocused()
+  await expect(control).toHaveCSS('outline-style', 'solid')
+  await expect(control).toHaveCSS('outline-width', '2px')
+  await expect(control).toHaveCSS('outline-color', 'rgb(198, 161, 91)')
+  await expect(control).toHaveCSS('outline-offset', '2px')
 }
 
 test.describe('the ratio device leads the recipe (§1, §3, §7)', () => {
@@ -51,7 +84,7 @@ test.describe('the ratio device leads the recipe (§1, §3, §7)', () => {
     await openRecipe(page, 'daiquiri-1', 'Daiquiri')
     await expect(page).toHaveTitle('Daiquiri · Barback')
 
-    const device = main(page).getByRole('group', { name: '2 RUM, ¾ LIME, ¾ SYRUP' })
+    const device = ratioDevice(page, '2 RUM, ¾ LIME, ¾ SYRUP')
     await expect(device).toBeVisible()
     await expect(device.locator('.bb-ratio__num')).toHaveText(['2', '¾', '¾'])
     await expect(device.locator('.bb-ratio__label')).toHaveText(['RUM', 'LIME', 'SYRUP'])
@@ -74,7 +107,7 @@ test.describe('the ratio device leads the recipe (§1, §3, §7)', () => {
 
   test('a curated template keeps dashes as authored: Old Fashioned', async ({ page }) => {
     await openRecipe(page, 'old-fashioned-1', 'Old Fashioned')
-    await expect(main(page).getByRole('group', { name: '2 WHISKEY, ¼ SYRUP, 2 d BITTERS' })).toBeVisible()
+    await expect(ratioDevice(page, '2 WHISKEY, ¼ SYRUP, 2 d BITTERS')).toBeVisible()
     await expect(line(page, 'Bourbon whiskey')).toContainText('2 oz')
     await expect(line(page, 'Simple syrup')).toContainText('¼ oz')
     // A dash is not unit-converted (2 dash, not 0.02 oz).
@@ -83,7 +116,7 @@ test.describe('the ratio device leads the recipe (§1, §3, §7)', () => {
 
   test('an uncurated drink leads with the skeleton read off its recipe', async ({ page }) => {
     await openRecipe(page, 'penicillin-1', 'Penicillin')
-    const device = main(page).getByRole('group', { name: '2 Islay Scotch, ¾ Lemon juice, ¾ Honey syrup' })
+    const device = ratioDevice(page, '2 Islay Scotch, ¾ Lemon juice, ¾ Honey syrup')
     await expect(device).toBeVisible()
     await expect(device.locator('.bb-ratio__num')).toHaveText(['2', '¾', '¾'])
     // Ingredient-named labels still speak in the caps utility voice.
@@ -92,7 +125,10 @@ test.describe('the ratio device leads the recipe (§1, §3, §7)', () => {
 
     // Dashes are seasoning, not structure: Rob Roy's skeleton is its two measured parts.
     await openRecipe(page, 'rob-roy-1', 'Rob Roy')
-    await expect(main(page).getByRole('group', { name: '2 Scotch whisky, 1 Sweet vermouth' })).toBeVisible()
+    const robRoy = ratioDevice(page, '2 Scotch whisky, 1 Sweet vermouth')
+    await expect(robRoy).toBeVisible()
+    await expect(robRoy.locator('.bb-ratio__num')).toHaveText(['2', '1'])
+    await expect(robRoy.locator('.bb-ratio__label')).toHaveText(['Scotch whisky', 'Sweet vermouth'])
   })
 
   test('a drink with fewer than two measured parts renders whole, without a device', async ({ page, bar }) => {
@@ -131,8 +167,8 @@ test.describe('stock colouring from the show endpoint (§2, §9)', () => {
     const shown = page.waitForResponse((r) => r.url().endsWith('/bar/api/cocktails/penicillin-1'))
     await openRecipe(page, 'penicillin-1', 'Penicillin')
     // The exact flag is false; the variant flag carries it (isStocked ORs the four).
-    const body = (await (await shown).json()) as { data: { ingredients: Record<string, unknown>[] } }
-    expect(body.data.ingredients[0]).toMatchObject({ in_shelf: false, in_shelf_as_variant: true })
+    const body = (await (await shown).json()) as ShowBody
+    expect(entryFor(body, I.islayScotch)).toMatchObject({ in_shelf: false, in_shelf_as_variant: true })
 
     await expectStocked(line(page, 'Islay Scotch'))
     await expectStocked(line(page, 'Lemon juice'))
@@ -151,8 +187,8 @@ test.describe('stock colouring from the show endpoint (§2, §9)', () => {
     bar.model.shelf.delete(I.clubSoda)
     const shown = page.waitForResponse((r) => r.url().endsWith('/bar/api/cocktails/mojito-1'))
     await openRecipe(page, 'mojito-1', 'Mojito')
-    const body = (await (await shown).json()) as { data: { ingredients: Record<string, unknown>[] } }
-    expect(body.data.ingredients[4]).toMatchObject({ in_shelf: false, in_shelf_as_substitute: true })
+    const body = (await (await shown).json()) as ShowBody
+    expect(entryFor(body, I.clubSoda)).toMatchObject({ in_shelf: false, in_shelf_as_substitute: true })
 
     await expectStocked(line(page, 'Club soda'))
     await expect(addToList(page, 'Club soda')).toHaveCount(0)
@@ -166,6 +202,8 @@ test.describe('stock colouring from the show endpoint (§2, §9)', () => {
     await openRecipe(page, 'whiskey-sour-1', 'Whiskey Sour')
     const egg = line(page, 'Egg white')
     await expect(egg).toContainText('optional')
+    // An optional line reads cream-400 with the word, never sage or struck through.
+    await expect(lineName(egg)).toHaveCSS('color', CREAM_400)
     await expect(lineName(egg)).toHaveCSS('text-decoration-line', 'none')
     await expect(addToList(page, 'Egg white')).toHaveCount(0)
     await expect(missingLine(page)).toHaveCount(0)
@@ -195,7 +233,9 @@ test.describe('the gap goes to the list (§6 journey 3, §9)', () => {
 
   test('Missing N names every gap; Add missing lists only what is not listed yet', async ({ page, bar }) => {
     await openRecipe(page, 'espresso-martini-1', 'Espresso Martini')
-    await expect(main(page).getByRole('group', { name: '1⅔ Vodka, ⅔ Coffee liqueur, 1 Espresso' })).toBeVisible()
+    const device = ratioDevice(page, '1⅔ Vodka, ⅔ Coffee liqueur, 1 Espresso')
+    await expect(device).toBeVisible()
+    await expect(device.locator('.bb-ratio__num')).toHaveText(['1⅔', '⅔', '1'])
     await expect(missingLine(page)).toHaveText('Missing 3: Vodka, Coffee liqueur, Espresso')
 
     await addToList(page, 'Vodka').click()
@@ -259,7 +299,16 @@ test.describe('favourite (§2, §5, §9)', () => {
     expect(bar.model.favorites.has(C.daiquiri)).toBe(true)
     await expect(favorite(page)).toHaveAttribute('aria-pressed', 'true')
 
-    // And back again.
+    // And back again. The screen ignores a click while the first write is still
+    // pending (DrinkDetail's isPending guard), so wait until the page itself has
+    // the whole answer, not just until Playwright saw it leave the fake.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => performance.getEntriesByType('resource').filter((e) => e.name.endsWith('/toggle-favorite')).length,
+        ),
+      )
+      .toBe(1)
     await favorite(page).click()
     await expect(favorite(page)).toHaveAttribute('aria-pressed', 'false')
     await expect.poll(() => bar.model.favorites.has(C.daiquiri)).toBe(false)
@@ -318,7 +367,7 @@ test.describe('in the same vein (§2, §9)', () => {
     await expect(page).toHaveURL(/\/drinks\/negroni-1$/)
     await expect(page.getByRole('heading', { level: 1, name: 'Negroni' })).toBeVisible()
     await expect(page).toHaveTitle('Negroni · Barback')
-    await expect(main(page).getByRole('group', { name: '1 GIN, 1 CAMPARI, 1 VERMOUTH' })).toBeVisible()
+    await expect(ratioDevice(page, '1 GIN, 1 CAMPARI, 1 VERMOUTH')).toBeVisible()
 
     await back(page).click()
     await expect(page).toHaveURL(/\/drinks\/gimlet-1$/)
@@ -361,7 +410,10 @@ test.describe('the way back (§9)', () => {
     await expect(page.getByRole('button', { name: 'SOUR' })).toHaveAttribute('aria-pressed', 'true')
     await page.getByRole('link', { name: /^Penicillin/ }).click()
     await expect(page).toHaveURL(/\/drinks\/penicillin-1$/)
-    await expect(main(page).getByRole('group', { name: '2 Islay Scotch, ¾ Lemon juice, ¾ Honey syrup' })).toBeVisible()
+    await expect(ratioDevice(page, '2 Islay Scotch, ¾ Lemon juice, ¾ Honey syrup')).toBeVisible()
+    // "drinks with stock coloring": the parent-called line reads stocked, the gap does not.
+    await expectStocked(line(page, 'Islay Scotch'))
+    await expectGap(line(page, 'Honey syrup'))
 
     await back(page).click()
     await expect(page).toHaveURL(/\/drinks\?family=sour$/)
@@ -418,7 +470,7 @@ test.describe('quiet loading and error voices (§9, ADR-007)', () => {
 
       await alert.getByRole('button', { name: 'Retry' }).click()
       await expect(page.getByRole('heading', { level: 1, name: 'Daiquiri' })).toBeVisible()
-      await expect(main(page).getByRole('group', { name: '2 RUM, ¾ LIME, ¾ SYRUP' })).toBeVisible()
+      await expect(ratioDevice(page, '2 RUM, ¾ LIME, ¾ SYRUP')).toBeVisible()
       await expect(main(page).getByRole('alert')).toHaveCount(0)
       expect(bar.calls('GET', /^\/cocktails\/daiquiri-1$/)).toHaveLength(3)
     })
@@ -431,7 +483,7 @@ test.describe('journeys through the recipe (§6)', () => {
     await page.getByRole('link', { name: /^Daiquiri/ }).click()
     await expect(page).toHaveURL(/\/drinks\/daiquiri-1$/)
     await expect(page.getByRole('heading', { level: 1, name: 'Daiquiri' })).toBeVisible()
-    const device = main(page).getByRole('group', { name: '2 RUM, ¾ LIME, ¾ SYRUP' })
+    const device = ratioDevice(page, '2 RUM, ¾ LIME, ¾ SYRUP')
     await expect(device).toBeVisible()
     expect(await top(device)).toBeLessThan(await top(ingredientList(page)))
     await expect(missingLine(page)).toHaveCount(0)
@@ -459,27 +511,90 @@ test.describe('journeys through the recipe (§6)', () => {
 })
 
 test.describe('keyboard (§7)', () => {
-  test('the recipe controls are reachable and operable from the keyboard, with the brass focus ring', async ({
-    page,
-    bar,
-  }) => {
+  // §7: "all interactive elements keyboard-operable, focus-visible 2px brass
+  // outline". Each control is reached by Tab or Shift+Tab, shows the whole ring,
+  // and is operated by a key, never a click. Where focus lands after a route
+  // change or after the activated button is replaced is Track 5 (ADR-003), so
+  // each walk starts from a control focused by the test, not from wherever
+  // focus was left.
+
+  test('Favorite and + List are reached by Tab and operated by Space and Enter', async ({ page, bar }) => {
     await openRecipe(page, 'penicillin-1', 'Penicillin')
     await back(page).focus()
 
     await page.keyboard.press('Tab')
-    await expect(favorite(page)).toBeFocused()
-    await expect(favorite(page)).toHaveCSS('outline-style', 'solid')
-    await expect(favorite(page)).toHaveCSS('outline-width', '2px')
-    await expect(favorite(page)).toHaveCSS('outline-color', 'rgb(198, 161, 91)')
-    await expect(favorite(page)).toHaveCSS('outline-offset', '2px')
+    await expectRing(favorite(page))
     await page.keyboard.press('Space')
     await expect(favorite(page)).toHaveAttribute('aria-pressed', 'true')
 
     await page.keyboard.press('Tab')
-    await expect(addToList(page, 'Honey syrup')).toBeFocused()
-    await expect(addToList(page, 'Honey syrup')).toHaveCSS('outline-color', 'rgb(198, 161, 91)')
+    await expectRing(addToList(page, 'Honey syrup'))
     await page.keyboard.press('Enter')
     await expect(line(page, 'Honey syrup').getByText('Listed', { exact: true })).toBeVisible()
     expect(bar.model.list.has(I.honeySyrup)).toBe(true)
+  })
+
+  test('Add missing is reached past every + List and operated by Space', async ({ page, bar }) => {
+    await openRecipe(page, 'espresso-martini-1', 'Espresso Martini')
+    await back(page).focus()
+
+    await page.keyboard.press('Tab')
+    await expect(favorite(page)).toBeFocused()
+    for (const name of ['Vodka', 'Coffee liqueur', 'Espresso']) {
+      await page.keyboard.press('Tab')
+      await expectRing(addToList(page, name))
+    }
+    await page.keyboard.press('Tab')
+    await expectRing(addMissing(page))
+    await page.keyboard.press('Space')
+
+    for (const name of ['Vodka', 'Coffee liqueur', 'Espresso']) {
+      await expect(line(page, name).getByText('Listed', { exact: true })).toBeVisible()
+    }
+    expect(bar.calls('POST', /^\/users\/1\/shopping-list\/batch-store$/).map((w) => w.body)).toEqual([
+      { ingredients: [{ id: I.vodka }, { id: I.coffeeLiqueur }, { id: I.espresso }] },
+    ])
+  })
+
+  test('a similar drink is opened by Enter, and Back by Shift+Tab and Enter returns', async ({ page }) => {
+    await openRecipe(page, 'gimlet-1', 'Gimlet')
+    const first = similarSection(page).getByRole('link').first()
+    await expect(first).toBeVisible()
+    const href = await first.getAttribute('href')
+    expect(href).toMatch(/^\/drinks\/[a-z0-9-]+$/)
+    // The card's heading, less the ◆ a favourited card carries.
+    const name = (await first.locator('h3').innerText()).replace('◆', '').trim()
+    expect(name).not.toBe('Gimlet')
+
+    // Gimlet pours, so nothing stands between Favorite and the first card.
+    await favorite(page).focus()
+    await page.keyboard.press('Tab')
+    await expectRing(first)
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(new RegExp(`${href}$`))
+    await expect(page.getByRole('heading', { level: 1, name, exact: true })).toBeVisible()
+
+    // Back sits before Favorite: one Shift+Tab reaches it.
+    await favorite(page).focus()
+    await page.keyboard.press('Shift+Tab')
+    await expectRing(back(page))
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/drinks\/gimlet-1$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Gimlet' })).toBeVisible()
+  })
+
+  test('Retry on the error line is reached by Tab and operated by Enter', async ({ page, bar }) => {
+    // Both attempts fail (src/app.tsx, retry: 1); the third, from Retry, is answered.
+    bar.fail(/^\/cocktails\/daiquiri-1$/, { method: 'GET', times: 2, status: 500 })
+    await page.goto('/drinks/daiquiri-1')
+    const retry = main(page).getByRole('alert').getByRole('button', { name: 'Retry' })
+    await expect(retry).toBeVisible()
+
+    await back(page).focus()
+    await page.keyboard.press('Tab')
+    await expectRing(retry)
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('heading', { level: 1, name: 'Daiquiri' })).toBeVisible()
+    await expect(main(page).getByRole('alert')).toHaveCount(0)
   })
 })
