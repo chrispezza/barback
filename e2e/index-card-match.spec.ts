@@ -7,6 +7,10 @@ import { expect, test } from './support/test'
 // Drinks with a line only a child brand or a substitute covers are left out:
 // the index shape carries no in_shelf_as_* flags, a known bug
 // (chrispezza/barback#20) with its own failing-first PR.
+//
+// Text is matched on what a reader sees or hears, never on a card's whole
+// textContent: the decorative ✓ is aria-hidden, and how the run separates a
+// name from its "optional" mark is the DS's presentation, not match state.
 
 function card(page: Page, name: string) {
   return page.locator('a.bb-drink', {
@@ -20,12 +24,15 @@ test('the Index paints each card with its match state and missing line', async (
 
   const daiquiri = card(page, 'Daiquiri')
   await expect(daiquiri).toHaveAttribute('data-match', 'full')
-  await expect(daiquiri.locator('.bb-drink__pour')).toHaveText('✓Can pour')
+  await expect(daiquiri.locator('.bb-drink__pour')).toMatchAriaSnapshot('- paragraph: Can pour')
 
   // The egg white is optional: marked as such, never a missing bottle.
   const sour = card(page, 'Whiskey Sour')
   await expect(sour).toHaveAttribute('data-match', 'full')
-  await expect(sour.locator('.bb-drink__optional')).toHaveText('Egg whiteoptional')
+  const optional = sour.locator('.bb-drink__optional')
+  await expect(optional).toHaveCount(1)
+  await expect(optional).toContainText('Egg white')
+  await expect(optional.locator('.bb-drink__opt')).toHaveText('optional')
   await expect(sour.locator('.bb-drink__missing-line')).toHaveCount(0)
 
   const negroni = card(page, 'Negroni')

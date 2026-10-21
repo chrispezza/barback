@@ -14,7 +14,7 @@ import { cardIngredients, indexMatchState, rosterMatchState, type MatchState } f
 // failing-first PR:
 // - Past three missing lines, and wherever the server's `in_shelf` and the
 //   counted lines disagree, indexMatchState and rosterMatchState answer
-//   differently for the same drink.
+//   differently for the same drink (chrispezza/barback#39).
 // - The index shape carries no in_shelf_as_* flags, so a line a child brand or
 //   a substitute covers reads as missing on list cards (chrispezza/barback#20).
 // Every case below is one where the shelf answer is unambiguous on the shape
@@ -60,7 +60,9 @@ const plainCases: Case[] = [
   { name: 'two required lines missing is partial', cocktail: C.margarita, expected: 'partial' },
   { name: 'three required lines missing is partial', cocktail: C.espressoMartini, expected: 'partial' },
   {
-    name: 'an optional line in a specified recipe never counts',
+    // The specified line is held exactly and the world has no descendant of
+    // dark rum, so is_specified itself is not exercised here.
+    name: 'an optional line off the shelf never counts, alongside a specified line',
     cocktail: C.darkNStormy, // dark rum is is_specified; lime is optional
     add: [I.darkRum, I.gingerBeer],
     remove: [I.limeJuice],

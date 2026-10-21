@@ -7,17 +7,18 @@
 // (Tonight, Drinks, FirstPours, DrinkDetail). The two match functions are kept
 // separate because their callers differ today; they are not yet reconciled.
 
+import type { DrinkCardProps } from '@ds/drinks/DrinkCard';
 import { isStocked, type Cocktail } from '../api/types';
 
-/** One entry of the DS DrinkCard ingredient run. */
-export interface CardIngredient {
-  name: string;
-  have: boolean;
-  optional: boolean;
-}
+// Both types are read off the vendored DS contract (ADR-006,
+// DrinkCard.d.ts) rather than restated, so the component stays their one
+// source. `optional` is always set here, hence Required.
 
-/** DrinkCard `match` values (The Back Bar Design System, DrinkCard.d.ts). */
-export type MatchState = 'full' | 'partial' | 'near' | 'none';
+/** One entry of the DS DrinkCard ingredient run. */
+export type CardIngredient = Required<DrinkCardProps['ingredients'][number]>;
+
+/** DrinkCard `match` values. */
+export type MatchState = NonNullable<DrinkCardProps['match']>;
 
 /** The ingredient run for a DrinkCard: recipe order, stock per isStocked. */
 export function cardIngredients(cocktail: Cocktail): CardIngredient[] {
