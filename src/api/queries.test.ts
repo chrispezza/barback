@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MutationObserver as ShelfToggleObserver, QueryClient } from '@tanstack/react-query'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MutationObserver as ShelfToggleObserver, QueryClient, onlineManager } from '@tanstack/react-query'
 import { BarModel, ingredientResource } from '../../test/fixtures/upstream'
 import { BAR_ID, I, USER_ID, defaultWorld } from '../../test/fixtures/world'
 import type { ToastMessage } from '../components/toasts'
@@ -28,6 +28,8 @@ interface Write {
   path: string
   body: unknown
   answer: (status: number) => void
+  /** Drop the connection: fetch rejects, as it does with no network. */
+  drop: () => void
 }
 
 let writes: Write[] = []
@@ -40,11 +42,12 @@ beforeEach(() => {
     'fetch',
     vi.fn(
       (url: string, init?: RequestInit) =>
-        new Promise<Response>((resolve) => {
+        new Promise<Response>((resolve, reject) => {
           writes.push({
             path: new URL(url).pathname,
             body: init?.body ? JSON.parse(String(init.body)) : undefined,
             answer: (status) => resolve(new Response(null, { status })),
+            drop: () => reject(new TypeError('Failed to fetch')),
           })
         }),
     ),
@@ -220,6 +223,121 @@ describe('a shelf toggle', () => {
     w.answer(204)
     expect(await done).toBe('taken')
     expect(shelf()).toBeUndefined()
+  })
+})
+
+// ADR-007 Consequences: "Offline check-off is not supported; mutations require
+// connectivity." TanStack pauses a mutation while it thinks the device is
+// offline and replays it on reconnect; for a toggle that has already flipped
+// the chip, that is a silent queued write nobody can take back.
+describe('a shelf toggle made offline', () => {
+  afterEach(() => {
+    onlineManager.setOnline(true)
+  })
+
+  it('is attempted rather than queued, and rolls back and says so when it cannot go out', async () => {
+    onlineManager.setOnline(false)
+    const { client, before, toggle, shelf } = setup()
+    const done = toggle(I.cointreau, 'add')
+    const w = await written(1)
+    expect(w.path).toBe(`/api/users/${USER_ID}/ingredients/batch-store`)
+    expect(shelf()?.meta?.total).toBe(12)
+
+    w.drop()
+    expect(await done).toBe('refused')
+    expect(shelf()).toEqual(before)
+    expect(toasts.shown.map((t) => t.message)).toEqual(['The shelf didn’t take that change.'])
+    // Nothing left pending, so the next tap is a new decision, not a double-tap.
+    expect(isShelfTogglePending(client, BAR_ID, I.cointreau)).toBe(false)
+  })
+})
+
+// The Undo a removal offers is the same toggle (frontend-spec §5): optimistic,
+// rolled back with the same toast if refused, read back with everything that
+// derives from the shelf, and never over another toggle still in flight.
+describe('the Undo a removal offers', () => {
+  /** Remove Gin, let the shelf take it, and return the toast's Undo. */
+  async function removeGin(s: ReturnType<typeof setup>) {
+    const removed = s.toggle(I.gin, 'remove')
+    ;(await written(1)).answer(204)
+    expect(await removed).toBe('taken')
+    const toast = toasts.shown[0]
+    expect(toast?.actionLabel).toBe('Undo')
+    return () => toast?.onAction?.()
+  }
+
+  it('puts the bottle back where it stood before the store answers, then reads the shelf back', async () => {
+    const s = setup()
+    const undo = await removeGin(s)
+    const invalidate = vi.spyOn(s.client, 'invalidateQueries')
+
+    undo()
+    const w = await written(2)
+    expect(w.path).toBe(`/api/users/${USER_ID}/ingredients/batch-store`)
+    expect(w.body).toEqual({ ingredients: [I.gin] })
+    // The entry the removal took, in the place it held, and the count with it.
+    expect(s.shelf()).toEqual(s.before)
+    expect(isShelfTogglePending(s.client, BAR_ID, I.gin)).toBe(true)
+
+    w.answer(204)
+    await vi.waitFor(() => expect(isShelfTogglePending(s.client, BAR_ID, I.gin)).toBe(false))
+    expect(s.shelf()).toEqual(s.before)
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ['shelf'],
+      ['shopping-list'],
+      ['cocktails'],
+      ['recommend'],
+      ['staples'],
+    ])
+    // An addition is not a decision to take back: no second Undo.
+    expect(toasts.shown).toHaveLength(1)
+  })
+
+  it('takes the bottle off again, and says so, when the shelf refuses the Undo', async () => {
+    const s = setup()
+    const undo = await removeGin(s)
+    const afterRemoval = s.shelf()
+
+    undo()
+    const w = await written(2)
+    expect(s.ids()).toContain(I.gin)
+
+    w.answer(500)
+    await vi.waitFor(() =>
+      expect(toasts.shown.map((t) => t.message)).toEqual([
+        'Bottle removed from the shelf.',
+        'The shelf didn’t take that change.',
+      ]),
+    )
+    expect(s.shelf()).toEqual(afterRemoval)
+  })
+
+  it('does not read the shelf back over a toggle still in flight', async () => {
+    const s = setup()
+    const undo = await removeGin(s)
+    const invalidate = vi.spyOn(s.client, 'invalidateQueries')
+    const cointreau = s.toggle(I.cointreau, 'add')
+    const wCointreau = await written(2)
+
+    undo()
+    const wUndo = await written(3)
+    expect(wUndo.body).toEqual({ ingredients: [I.gin] })
+    wUndo.answer(204)
+    await vi.waitFor(() => expect(isShelfTogglePending(s.client, BAR_ID, I.gin)).toBe(false))
+    // Cointreau's store is still out: a read-back now would land on its flip.
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(s.ids()).toContain(I.cointreau)
+    expect(s.ids()).toContain(I.gin)
+
+    wCointreau.answer(204)
+    expect(await cointreau).toBe('taken')
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ['shelf'],
+      ['shopping-list'],
+      ['cocktails'],
+      ['recommend'],
+      ['staples'],
+    ])
   })
 })
 

@@ -1,5 +1,6 @@
-import type { Page, Request } from '@playwright/test'
+import type { Locator, Page, Request } from '@playwright/test'
 import { I } from '../test/fixtures/world'
+import type { FakeBar } from './support/fake-bar'
 import { expect, test } from './support/test'
 
 // frontend-spec §5: "Chip toggle is optimistic: flip UI state immediately, fire
@@ -55,6 +56,27 @@ const groupRows = (page: Page, header: string) =>
 
 const removeButton = (page: Page, name: string) =>
   page.getByRole('button', { name: `Remove ${name} from the shelf`, exact: true })
+
+/** GET /ingredients?filter[on_shelf]=true reads made so far: the shelf query. */
+const shelfReadCount = (bar: FakeBar): number =>
+  bar.calls('GET', /^\/ingredients$/).filter((c) => c.query.get('filter[on_shelf]') === 'true').length
+
+/**
+ * Record every value the chip's aria-pressed takes from now on, so a journey
+ * can show it never flipped back, not only where it ended up.
+ */
+async function recordPressed(locator: Locator): Promise<() => Promise<string[]>> {
+  type Recorded = HTMLElement & { pressedSeen?: string[] }
+  await locator.evaluate((el: Recorded) => {
+    const seen: string[] = []
+    el.pressedSeen = seen
+    new MutationObserver(() => {
+      const value = el.getAttribute('aria-pressed') ?? ''
+      if (seen[seen.length - 1] !== value) seen.push(value)
+    }).observe(el, { attributes: true, attributeFilter: ['aria-pressed'] })
+  })
+  return () => locator.evaluate((el: Recorded) => [...(el.pressedSeen ?? [])])
+}
 
 async function openShelf(page: Page): Promise<void> {
   await page.goto('/shelf')
@@ -187,6 +209,66 @@ test.describe('a chip toggle', () => {
     await expect(count(page)).toHaveText('12 bottles on the shelf.')
     expect(bar.model.shelf.has(I.darkRum)).toBe(false)
   })
+
+  // ADR-007 Consequences: "Offline check-off is not supported; mutations require
+  // connectivity" — no outbox. A tap made offline is tried, refused and rolled
+  // back; it is never held and sent on reconnect behind the user's back.
+  test('rolls back and says so when the tap is made offline', async ({ page, context, bar }) => {
+    await openShelf(page)
+    await search(page).fill('Cointreau')
+    const cointreau = chip(page, 'Cointreau')
+    await expect(cointreau).toHaveAttribute('aria-pressed', 'false')
+    const pressed = await recordPressed(cointreau)
+
+    await context.setOffline(true)
+    // Route interception still answers while the context is offline, so the
+    // fake drops the connection as the network would.
+    bar.takeApiDown()
+    await cointreau.click()
+
+    await expect(page.getByRole('status')).toHaveText('The shelf didn’t take that change.')
+    // The chip flipped, as every toggle does, and came back when the write failed.
+    expect(await pressed()).toEqual(['true', 'false'])
+    await expect(cointreau).toHaveAttribute('aria-pressed', 'false')
+    await expect(count(page)).toHaveText('11 bottles on the shelf.')
+    expect(bar.calls('POST', BATCH_STORE).map((c) => c.body)).toEqual([{ ingredients: [I.cointreau] }])
+    expect(bar.model.shelf.has(I.cointreau)).toBe(false)
+
+    // Nothing is left pending, so the next tap is a fresh attempt, not a dropped double-tap.
+    await cointreau.click()
+    await expect.poll(pressed).toEqual(['true', 'false', 'true', 'false'])
+    expect(bar.calls('POST', BATCH_STORE)).toHaveLength(2)
+    await expect(count(page)).toHaveText('11 bottles on the shelf.')
+    expect(bar.model.shelf.has(I.cointreau)).toBe(false)
+  })
+
+  test('holds the flip through a refetch when the tab comes back into view', async ({ page, bar }) => {
+    await openShelf(page)
+    const release = await hold(page, shelfWrite('store', I.cointreau))
+
+    await search(page).fill('Cointreau')
+    const cointreau = chip(page, 'Cointreau')
+    await expect(cointreau).toHaveAttribute('aria-pressed', 'false')
+    const pressed = await recordPressed(cointreau)
+    await cointreau.click()
+    await expect(cointreau).toHaveAttribute('aria-pressed', 'true', { timeout: 300 })
+    const shelfReads = shelfReadCount(bar)
+    const railReads = bar.calls('GET', /^\/cocktails$/).length
+
+    // TanStack's focusManager refetches stale queries on visibilitychange. The
+    // rail's pourable count goes; the shelf, with its store still out, waits.
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+    await expect.poll(() => bar.calls('GET', /^\/cocktails$/).length).toBeGreaterThan(railReads)
+    expect(shelfReadCount(bar)).toBe(shelfReads)
+    await expect(cointreau).toHaveAttribute('aria-pressed', 'true')
+
+    release()
+    await expect.poll(() => shelfReadCount(bar)).toBeGreaterThan(shelfReads)
+    await expect(groupRows(page, 'Liqueurs · 1')).toHaveText(['Cointreau'])
+    await expect(count(page)).toHaveText('12 bottles on the shelf.')
+    expect(await pressed()).toEqual(['true'])
+    expect(bar.model.shelf.has(I.cointreau)).toBe(true)
+  })
 })
 
 test.describe('the ledger’s Remove', () => {
@@ -274,5 +356,82 @@ test.describe('the ledger’s Remove', () => {
       'Juices · 2',
       'Sweeteners · 1',
     ])
+  })
+})
+
+// The Undo the ledger's Remove offers is the same toggle: the row comes back at
+// once, a refusal takes it off again with the same toast, and its answer is
+// never read back over another toggle still in flight.
+test.describe('the Undo toast', () => {
+  /** Remove Gin, let the shelf take it, and return the toast's Undo. */
+  async function removeGin(page: Page, bar: FakeBar): Promise<Locator> {
+    const readsAtOpen = shelfReadCount(bar)
+    await removeButton(page, 'Gin').click()
+    const undo = page.getByRole('alert').getByRole('button', { name: 'Undo' })
+    await expect(undo).toBeVisible()
+    expect(bar.model.shelf.has(I.gin)).toBe(false)
+    // The removal's own read-back has gone out.
+    await expect.poll(() => shelfReadCount(bar)).toBe(readsAtOpen + 1)
+    await expect(groupRows(page, 'Spirits · 3')).toHaveText(['Bourbon whiskey', 'Laphroaig 10', 'White rum'])
+    return undo
+  }
+
+  test('puts the row back at once, and keeps a chip in flight pressed', async ({ page, bar }) => {
+    await openShelf(page)
+    const undo = await removeGin(page, bar)
+    const release = await hold(page, shelfWrite('store', I.cointreau))
+
+    await search(page).fill('Cointreau')
+    const cointreau = chip(page, 'Cointreau')
+    await expect(cointreau).toHaveAttribute('aria-pressed', 'false')
+    const pressed = await recordPressed(cointreau)
+    await cointreau.click()
+    await expect(cointreau).toHaveAttribute('aria-pressed', 'true', { timeout: 300 })
+    const shelfReads = shelfReadCount(bar)
+
+    const undoAnswered = page.waitForResponse((res) => shelfWrite('store', I.gin)(res.request()))
+    await undo.click()
+    await expect(groupRows(page, 'Spirits · 4')).toHaveText(['Bourbon whiskey', 'Gin', 'Laphroaig 10', 'White rum'], {
+      timeout: 300,
+    })
+    await expect(count(page)).toHaveText('12 bottles on the shelf.', { timeout: 300 })
+    await undoAnswered
+    expect(bar.model.shelf.has(I.gin)).toBe(true)
+    // Cointreau's store is still out, so nothing is read back over its flip.
+    await expect(cointreau).toHaveAttribute('aria-pressed', 'true')
+    expect(shelfReadCount(bar)).toBe(shelfReads)
+
+    release()
+    await expect.poll(() => shelfReadCount(bar)).toBeGreaterThan(shelfReads)
+    await expect(groupRows(page, 'Liqueurs · 1')).toHaveText(['Cointreau'])
+    await expect(groupRows(page, 'Spirits · 4')).toHaveText(['Bourbon whiskey', 'Gin', 'Laphroaig 10', 'White rum'])
+    await expect(count(page)).toHaveText('12 bottles on the shelf.')
+    expect(await pressed()).toEqual(['true'])
+    // The fake records a write when it reaches it: Cointreau's only on release.
+    expect(bar.calls('POST', BATCH_STORE).map((c) => c.body)).toEqual([
+      { ingredients: [I.gin] },
+      { ingredients: [I.cointreau] },
+    ])
+    expect(bar.model.shelf.has(I.cointreau)).toBe(true)
+  })
+
+  test('takes the row off again and says so when the shelf refuses the Undo', async ({ page, bar }) => {
+    await openShelf(page)
+    const undo = await removeGin(page, bar)
+    bar.fail(BATCH_STORE, { method: 'POST', status: 500 })
+    const release = await hold(page, shelfWrite('store', I.gin))
+
+    await undo.click()
+    await expect(groupRows(page, 'Spirits · 4')).toHaveText(['Bourbon whiskey', 'Gin', 'Laphroaig 10', 'White rum'], {
+      timeout: 300,
+    })
+    await expect(count(page)).toHaveText('11 bottles on the shelf.', { timeout: 300 })
+
+    release()
+    await expect(page.getByRole('status')).toHaveText('The shelf didn’t take that change.')
+    await expect(groupRows(page, 'Spirits · 3')).toHaveText(['Bourbon whiskey', 'Laphroaig 10', 'White rum'])
+    await expect(count(page)).toHaveText('10 bottles on the shelf.')
+    expect(bar.calls('POST', BATCH_STORE).map((c) => c.body)).toEqual([{ ingredients: [I.gin] }])
+    expect(bar.model.shelf.has(I.gin)).toBe(false)
   })
 })
