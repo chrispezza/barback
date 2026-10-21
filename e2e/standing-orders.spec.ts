@@ -9,7 +9,10 @@ import { expect, test } from './support/test'
 // list row; a staple already on the list is left alone. Pins the effect that
 // writes the list, which calls staplesToQueue (src/data/buy-next.ts). ADR-008
 // Validation: it "queues itself once per session", so leaving Tonight and
-// coming back is the same session and does not queue it again.
+// coming back is the same session and does not queue it again. Once per
+// emptying, not once ever: a staple Tonight has seen back on the shelf is
+// queued again when it next runs out, and a write that failed is sent again
+// the next time Tonight opens (chrispezza/barback#54 review).
 
 function tonicOut(listed: number[] = []): WorldSeed {
   const w = defaultWorld()
@@ -39,8 +42,9 @@ async function settled(bar: FakeBar, quietMs = 500) {
   await expect
     .poll(
       () => {
-        if (bar.requests.length !== seen) {
-          seen = bar.requests.length
+        const count = bar.calls().length
+        if (count !== seen) {
+          seen = count
           since = Date.now()
         }
         return Date.now() - since >= quietMs
@@ -52,6 +56,22 @@ async function settled(bar: FakeBar, quietMs = 500) {
 
 const listStores = (bar: FakeBar) =>
   bar.calls('POST', /\/shopping-list\/batch-store$/).map((c) => c.body)
+
+/**
+ * Run the toast queue down on the page's fake clock. Toasts show one at a time
+ * (src/components/toasts.tsx) and an Undo toast holds for 8 seconds, so a
+ * journey that checks off and removes would otherwise wait 16 seconds for the
+ * receipt it is about. A pointer resting on a toast pauses it, so the pointer
+ * moves off first. Needs page.clock.install() before page.goto.
+ */
+async function clearToasts(page: Page) {
+  await page.mouse.move(0, 0)
+  const host = page.locator('.toast-host')
+  await expect(async () => {
+    if ((await host.count()) > 0) await page.clock.fastForward(8_000)
+    await expect(host).toHaveCount(0, { timeout: 100 })
+  }).toPass({ timeout: 10_000 })
+}
 
 test.describe('a staple off the shelf', () => {
   test.use({ world: tonicOut() })
@@ -114,5 +134,67 @@ test.describe('a staple queued and then dropped from the list', () => {
       { ingredients: [{ id: I.tonic }] },
       { ingredients: [{ id: I.tonic }] },
     ])
+  })
+})
+
+test.describe('a staple queued, checked off on Tonight and then used up', () => {
+  test.use({ world: tonicOut() })
+
+  test('is queued again, with its toast, the next time Tonight opens', async ({ page, bar }) => {
+    await page.clock.install()
+    const queued = page.getByText('Staples out — queued: Tonic.')
+    await page.goto('/tonight')
+    await expect(queued).toBeVisible()
+    await expect(listItem(page, 'Tonic')).toContainText('Staple')
+    await clearToasts(page)
+
+    // Bought and checked off here, so Tonight reads Tonic back on the shelf.
+    await listItem(page, 'Tonic').click()
+    await expect(page.getByText('Moved to the shelf.')).toBeVisible()
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+    expect(bar.model.shelf.has(I.tonic)).toBe(true)
+    await settled(bar)
+    await clearToasts(page)
+
+    // Used up: removed on the Shelf.
+    await goTo(page, 'Shelf', 'Shelf')
+    await page.getByRole('button', { name: 'Remove Tonic from the shelf' }).click()
+    await expect(page.getByText('Bottle removed from the shelf.')).toBeVisible()
+    await expect.poll(() => bar.model.shelf.has(I.tonic)).toBe(false)
+    await clearToasts(page)
+
+    await goTo(page, 'Tonight', 'Tonight')
+    await expect(queued).toBeVisible()
+    await expect(listItem(page, 'Tonic')).toContainText('Staple')
+    await settled(bar)
+    expect(listStores(bar)).toEqual([
+      { ingredients: [{ id: I.tonic }] },
+      { ingredients: [{ id: I.tonic }] },
+    ])
+    expect([...bar.model.list.keys()]).toEqual([I.tonic])
+  })
+})
+
+test.describe('a staple whose queue write fails', () => {
+  test.use({ world: tonicOut() })
+
+  test('is sent again the next time Tonight opens, and not again on this one', async ({ page, bar }) => {
+    bar.fail(/\/shopping-list\/batch-store$/, { method: 'POST', status: 500, times: 1 })
+    await page.goto('/tonight')
+    await expect(page.getByText('The list didn’t take that change.')).toBeVisible()
+    await settled(bar)
+    // One attempt on this mount: no retry loop against a failing list.
+    expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+    expect([...bar.model.list.keys()]).toEqual([])
+
+    await goTo(page, 'Shelf', 'Shelf')
+    await goTo(page, 'Tonight', 'Tonight')
+    await expect(listItem(page, 'Tonic')).toContainText('Staple')
+    await settled(bar)
+    expect(listStores(bar)).toEqual([
+      { ingredients: [{ id: I.tonic }] },
+      { ingredients: [{ id: I.tonic }] },
+    ])
+    expect([...bar.model.list.keys()]).toEqual([I.tonic])
   })
 })
