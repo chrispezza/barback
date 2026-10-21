@@ -7,6 +7,7 @@ import {
   readListSnapshot,
   shoppingListOptions,
   snapshotOf,
+  snapshotStamp,
   writeListSnapshot,
   type ListSnapshot,
 } from './queries'
@@ -66,6 +67,73 @@ describe('snapshotOf', () => {
   })
 })
 
+describe('snapshotStamp', () => {
+  // What Tonight prints after "Offline — the list as it stood". ADR-007 asks
+  // for a list "clearly stamped", because trust in stock data is the driver: a
+  // weekday alone reads as this week, so once the weekday could have come
+  // round again the stamp names its date. Days are counted on the reader's
+  // calendar: six days back no weekday has repeated yet, seven days back
+  // today's has.
+  //
+  // Times are built with the local-time Date constructor and the locale is
+  // passed in, so neither the machine's time zone nor its locale moves an
+  // expectation. Whitespace is flattened because ICU puts U+202F before
+  // AM/PM in some versions and an ordinary space in others.
+  const flat = (s: string) => s.replace(/\s/gu, ' ')
+  const stamp = (at: Date, now: Date, locale = 'en-US') => flat(snapshotStamp(at, now, locale))
+
+  /** Wednesday 21 October 2026, 7:53 PM: the reader is in the aisle. */
+  const NOW = new Date(2026, 9, 21, 19, 53)
+
+  it('names the weekday and time for a list stamped earlier today', () => {
+    expect(stamp(new Date(2026, 9, 21, 9, 15), NOW)).toBe('Wednesday 9:15 AM')
+  })
+
+  it('names the weekday and time up to six days back, before any weekday comes round again', () => {
+    expect(stamp(new Date(2026, 9, 19, 9, 5), NOW)).toBe('Monday 9:05 AM')
+    expect(stamp(new Date(2026, 9, 15, 21, 40), NOW)).toBe('Thursday 9:40 PM')
+    // Six calendar days back, though nearly seven days have passed.
+    expect(stamp(new Date(2026, 9, 15, 0, 10), new Date(2026, 9, 21, 23, 50))).toBe('Thursday 12:10 AM')
+  })
+
+  it('names the date for a list stamped two weeks ago', () => {
+    // The defect: this read "Wednesday 5:40 PM", the same as a list stamped
+    // today at 5:40 PM.
+    expect(stamp(new Date(2026, 9, 7, 17, 40), NOW)).toBe('Wednesday 7 October, 5:40 PM')
+  })
+
+  it('names the date seven calendar days back, where the weekday alone would read as today', () => {
+    // Less than seven days have passed, but "Wednesday" is today's name.
+    expect(stamp(new Date(2026, 9, 14, 21, 40), NOW)).toBe('Wednesday 14 October, 9:40 PM')
+    expect(stamp(new Date(2026, 9, 14, 23, 50), new Date(2026, 9, 21, 0, 10))).toBe(
+      'Wednesday 14 October, 11:50 PM',
+    )
+  })
+
+  it('names the year for a list stamped in an earlier year', () => {
+    expect(stamp(new Date(2025, 9, 21, 17, 40), NOW)).toBe('Tuesday 21 October 2025, 5:40 PM')
+    expect(stamp(new Date(2025, 11, 30, 18, 0), new Date(2026, 0, 9, 12, 0))).toBe(
+      'Tuesday 30 December 2025, 6:00 PM',
+    )
+  })
+
+  it('names the date for a stamp ahead of the clock, which no weekday this week can describe', () => {
+    // The device clock was set back after the list was served.
+    expect(stamp(new Date(2026, 9, 23, 21, 40), NOW)).toBe('Friday 23 October, 9:40 PM')
+  })
+
+  it('takes its names and its clock from the locale it is given', () => {
+    expect(stamp(new Date(2026, 9, 7, 17, 40), NOW, 'en-GB')).toBe('Wednesday 7 October, 17:40')
+    expect(stamp(new Date(2026, 9, 15, 21, 40), NOW, 'en-GB')).toBe('Thursday 21:40')
+  })
+
+  it('reads the stamp snapshotOf writes', () => {
+    const at = new Date(2026, 9, 7, 17, 40)
+    const snapshot = snapshotOf(listResponse(m, [I.campari]).data, at)
+    expect(stamp(new Date(snapshot.at), NOW)).toBe('Wednesday 7 October, 5:40 PM')
+  })
+})
+
 describe('writeListSnapshot and readListSnapshot', () => {
   it('round-trips the names and the stamp', () => {
     const items = listResponse(m, [I.tonic, I.campari, I.cointreau]).data
@@ -90,6 +158,25 @@ describe('writeListSnapshot and readListSnapshot', () => {
 
   it('reads null when the stored value is not JSON', () => {
     localStorage.setItem(LIST_SNAPSHOT_KEY, '{"at":"2026-10-07T21:40:00.000Z","names":["Camp')
+    expect(readListSnapshot()).toBeNull()
+  })
+
+  // Tonight states when the snapshot was served (ADR-007: "clearly stamped").
+  // A stored stamp that is not a time cannot say that, and stored names that
+  // are not a list cannot be listed: either way there is no snapshot to show.
+  it('reads null when the stored stamp is not a time', () => {
+    localStorage.setItem(LIST_SNAPSHOT_KEY, JSON.stringify({ at: 'Wednesday', names: ['Campari'] }))
+    expect(readListSnapshot()).toBeNull()
+    localStorage.setItem(LIST_SNAPSHOT_KEY, JSON.stringify({ names: ['Campari'] }))
+    expect(readListSnapshot()).toBeNull()
+  })
+
+  it('reads null when the stored names are not a list of names', () => {
+    localStorage.setItem(LIST_SNAPSHOT_KEY, JSON.stringify({ at: '2026-10-07T21:40:00.000Z', names: 'Campari' }))
+    expect(readListSnapshot()).toBeNull()
+    localStorage.setItem(LIST_SNAPSHOT_KEY, JSON.stringify({ at: '2026-10-07T21:40:00.000Z', names: [7] }))
+    expect(readListSnapshot()).toBeNull()
+    localStorage.setItem(LIST_SNAPSHOT_KEY, 'null')
     expect(readListSnapshot()).toBeNull()
   })
 
