@@ -122,9 +122,9 @@ export function buyNextGroups(
 
 /**
  * The standing order: staples to queue now. A staple is queued when it is off
- * the shelf, not already on the list, and not queued before (`queued`, which
- * Tonight passes as queuedThisSession), so it is written once rather than on
- * every render or every visit.
+ * the shelf, not already on the list, and not queued before (`queued`: Tonight
+ * passes queuedThisSession with what its current mount has sent), so it is
+ * written once per emptying rather than on every render or every visit.
  */
 export function staplesToQueue<T extends Pick<Ingredient, 'id' | 'in_shelf'>>(
   staples: readonly T[],
@@ -134,20 +134,41 @@ export function staplesToQueue<T extends Pick<Ingredient, 'id' | 'in_shelf'>>(
   return staples.filter((s) => !s.in_shelf && !listedIds.has(s.id) && !queued.has(s.id));
 }
 
-// ADR-008 Validation: an out-of-stock staple "queues itself once per session".
-// The session is the page session: this module's lifetime, so the memory
-// outlives Tonight unmounting on every navigation, and a staple the user drops
-// from the list stays dropped until a reload, which starts a new session.
+// ADR-008: an out-of-stock staple is queued automatically, and it "queues
+// itself once per session" (Validation). Once per emptying, for the page
+// session: a staple is held here from the moment its write is sent until
+// Tonight sees it back on the shelf. A staple the user drops from the list is
+// still off the shelf, so it stays held and stays dropped; one that is checked
+// off and later used up is queued again. The page session is this module's
+// lifetime: it outlives Tonight unmounting on every navigation, and a reload
+// starts a new one.
 const queuedSession = new Set<number>();
 
-/** Staples queued this page session, for staplesToQueue. */
+/** Staples held as queued this page session, for staplesToQueue. */
 export const queuedThisSession: ReadonlySet<number> = queuedSession;
 
 /**
- * Record staples as queued for the rest of the page session. Called as the
- * write is sent, not on success, so a re-render while it is in flight cannot
- * send it twice; a write that fails is not retried until a reload.
+ * Hold staples as queued. Called as the write is sent, not on success, so a
+ * re-render while it is in flight cannot send it twice.
  */
 export function rememberQueued(ids: Iterable<number>): void {
   for (const id of ids) queuedSession.add(id);
+}
+
+/**
+ * Release staples whose write failed, so the next time Tonight opens it sends
+ * them again. The mount that sent them does not (Tonight keeps its own record),
+ * or a lasting failure would loop: mutations do not retry.
+ */
+export function forgetQueued(ids: Iterable<number>): void {
+  for (const id of ids) queuedSession.delete(id);
+}
+
+/**
+ * Release staples that are back on the shelf: the standing order stands for
+ * the next time they run out. Tonight calls it with every staples read, and a
+ * check-off or a shelf change refetches the staples while Tonight is open.
+ */
+export function forgetRestocked(staples: readonly Pick<Ingredient, 'id' | 'in_shelf'>[]): void {
+  for (const s of staples) if (s.in_shelf) queuedSession.delete(s.id);
 }

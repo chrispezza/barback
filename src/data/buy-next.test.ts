@@ -254,7 +254,8 @@ describe('the standing-order memory', () => {
   // ADR-008 Validation: a staple "queues itself once per session". The session
   // is the page session, so the memory lives in this module: a re-imported
   // module (vi.resetModules) is a reload, a new session; the same module is
-  // the same session however often Tonight mounts.
+  // the same session however often Tonight mounts. Once per emptying: a staple
+  // read back on the shelf, or whose write failed, is released.
   const tonicOut = () => world((w) => (w.shelf = without(w.shelf, I.tonic)))
   async function newSession() {
     vi.resetModules()
@@ -276,12 +277,49 @@ describe('the standing-order memory', () => {
     expect(s.staplesToQueue(t.staples, t.listedIds, s.queuedThisSession)).toEqual([])
   })
 
-  it('is the same memory for every importer this session, and empty in the next', async () => {
+  it('is one memory for every importer this session, and empty in the next', async () => {
     const s = await newSession()
+    const t = inputs(tonicOut())
     s.rememberQueued([I.tonic])
     const sameSession = await import('./buy-next')
-    expect(sameSession.queuedThisSession.has(I.tonic)).toBe(true)
+    expect(sameSession.staplesToQueue(t.staples, t.listedIds, sameSession.queuedThisSession)).toEqual([])
     const next = await newSession()
-    expect(next.queuedThisSession.has(I.tonic)).toBe(false)
+    expect(names(next.staplesToQueue(t.staples, t.listedIds, next.queuedThisSession))).toEqual(['Tonic'])
+  })
+
+  it('keeps holding a staple read still off the shelf: dropped from the list, it stays dropped', async () => {
+    const s = await newSession()
+    const out = inputs(tonicOut())
+    s.rememberQueued([I.tonic])
+    s.forgetRestocked(out.staples)
+    expect(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession)).toEqual([])
+  })
+
+  it('releases a staple read back on the shelf, so it is queued again when it next runs out', async () => {
+    const s = await newSession()
+    const out = inputs(tonicOut())
+    s.rememberQueued(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession).map((x) => x.id))
+    // Checked off: the staples read has Tonic on the shelf again.
+    const restocked = inputs(defaultWorld())
+    expect(restocked.staples.find((x) => x.id === I.tonic)?.in_shelf).toBe(true)
+    s.forgetRestocked(restocked.staples)
+    // Used up again: off the shelf and off the list.
+    expect(names(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
+  })
+
+  it('releases only the staples back on the shelf', async () => {
+    const s = await newSession()
+    const out = inputs(world((w) => (w.shelf = without(without(w.shelf, I.tonic), I.limeJuice))))
+    s.rememberQueued([I.tonic, I.limeJuice])
+    s.forgetRestocked(inputs(world((w) => (w.shelf = without(w.shelf, I.limeJuice)))).staples)
+    expect(names(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
+  })
+
+  it('releases a staple whose write failed, so the next Tonight sends it again', async () => {
+    const s = await newSession()
+    const out = inputs(tonicOut())
+    s.rememberQueued([I.tonic])
+    s.forgetQueued([I.tonic])
+    expect(names(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
   })
 })
