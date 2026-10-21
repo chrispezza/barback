@@ -4,7 +4,7 @@ import { BarModel, ingredientResource } from '../../test/fixtures/upstream'
 import { BAR_ID, I, USER_ID, defaultWorld } from '../../test/fixtures/world'
 import type { ToastMessage } from '../components/toasts'
 import { isPlaced } from '../data/hierarchy'
-import { isShelfTogglePending, shelfToggleOptions, type ShelfToggle } from './queries'
+import { isShelfTogglePending, shelfToggleOptions, toggleShelf, type ShelfToggle } from './queries'
 import type { Ingredient, ListResponse } from './types'
 
 // The shelf toggle (frontend-spec §5: "flip UI state immediately, fire
@@ -353,5 +353,30 @@ describe('isShelfTogglePending', () => {
     ;(await written(1)).answer(204)
     await done
     expect(isShelfTogglePending(client, BAR_ID, I.cointreau)).toBe(false)
+  })
+})
+
+describe('toggleShelf', () => {
+  it('drops a second toggle for a bottle still in flight, and lets every other bottle through', async () => {
+    const { m, client, ids } = setup()
+    const fire = (id: number, action: ShelfToggle['action']) =>
+      toggleShelf(client, BAR_ID, USER_ID, { ingredient: m.basic(id), action })
+
+    fire(I.cointreau, 'add')
+    const wCointreau = await written(1)
+    fire(I.cointreau, 'remove')
+    fire(I.campari, 'add')
+    const wCampari = await written(2)
+    expect(writes.map((w) => w.body)).toEqual([{ ingredients: [I.cointreau] }, { ingredients: [I.campari] }])
+    expect(ids()).toContain(I.cointreau)
+
+    wCointreau.answer(204)
+    wCampari.answer(204)
+    await vi.waitFor(() => expect(client.isMutating()).toBe(0))
+    // Settled, the bottle takes a new toggle.
+    fire(I.cointreau, 'remove')
+    const wAgain = await written(3)
+    expect(wAgain.path).toBe(`/api/users/${USER_ID}/ingredients/batch-delete`)
+    wAgain.answer(204)
   })
 })

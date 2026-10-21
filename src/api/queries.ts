@@ -1,4 +1,5 @@
 import {
+  MutationObserver,
   keepPreviousData,
   useMutation,
   useQuery,
@@ -62,6 +63,12 @@ export function useTags(barId: number | undefined) {
 }
 
 export function useShelf(barId: number | undefined) {
+  const queryClient = useQueryClient();
+  // While a shelf toggle is out, a background read of the shelf (a screen
+  // mounting, the tab coming back into view, the network coming back) would
+  // land the server's answer on top of the flip. The toggle reads the shelf
+  // back itself once the last one settles (shelfToggleOptions).
+  const noToggleOut = () => queryClient.isMutating({ mutationKey: shelfToggleKey(barId) }) === 0;
   return useQuery({
     queryKey: ['shelf', barId],
     queryFn: () =>
@@ -70,6 +77,9 @@ export function useShelf(barId: number | undefined) {
         { barId },
       ),
     enabled: barId !== undefined,
+    refetchOnMount: noToggleOut,
+    refetchOnWindowFocus: noToggleOut,
+    refetchOnReconnect: noToggleOut,
   });
 }
 
@@ -449,6 +459,12 @@ export function useCheckOff(
 export interface ShelfToggle {
   ingredient: Pick<Ingredient, 'id' | 'slug' | 'name'>;
   action: 'add' | 'remove';
+  /**
+   * An Undo: the entry the removal took off the cached shelf, and where it
+   * stood. It goes back as it was, placed in its group, rather than as a
+   * pending entry that waits for the read-back.
+   */
+  restore?: { entry: Ingredient; index: number };
 }
 
 /** What a toggle changed on the cached shelf, so a refusal can undo just that. */
@@ -497,8 +513,11 @@ function withoutShelfEntry(list: ShelfList, id: number): ShelfList {
  * < 50 ms"): flip the cached shelf before the write goes out, undo only this
  * toggle if the write is refused, and read the shelf back — with everything
  * server-derived from it — once the last toggle in flight has settled, so an
- * early answer cannot land on top of a later flip. The options are built here,
- * apart from the hook, so they can be driven without rendering (ADR-011).
+ * early answer cannot land on top of a later flip. Nothing else reads the shelf
+ * in the meantime: onMutate cancels a read already out, useShelf holds its
+ * background refetches, and the Undo is a toggle like any other (toggleShelf).
+ * The options are built here, apart from the hook, so they can be driven
+ * without rendering (ADR-011).
  */
 export function shelfToggleOptions(
   queryClient: QueryClient,
@@ -509,13 +528,19 @@ export function shelfToggleOptions(
   const mutationKey = shelfToggleKey(barId);
   return {
     mutationKey,
+    // Always attempt the write. TanStack's default ('online') pauses a mutation
+    // while the device looks offline and replays it on reconnect: the chip would
+    // claim a write nobody sent, and the guard would drop the tap that corrects
+    // it. ADR-007: no outbox; mutations require connectivity. Offline, the fetch
+    // rejects, and onError rolls back and says so.
+    networkMode: 'always',
     mutationFn: ({ ingredient, action }) =>
       api(`/users/${userId}/ingredients/batch-${action === 'add' ? 'store' : 'delete'}`, {
         method: 'POST',
         barId,
         body: { ingredients: [ingredient.id] },
       }),
-    onMutate: async ({ ingredient, action }) => {
+    onMutate: async ({ ingredient, action, restore }) => {
       // Nothing to flip before the shelf has loaded; the read-back settles it.
       if (!queryClient.getQueryData<ShelfList>(shelfKey)) return {};
       // A read-back already in flight would land on top of the flip.
@@ -524,8 +549,9 @@ export function shelfToggleOptions(
       if (!list) return {};
       if (action === 'add') {
         if (list.data.some((i) => i.id === ingredient.id)) return {};
-        const pending = pendingShelfEntry(ingredient);
-        queryClient.setQueryData(shelfKey, withShelfEntry(list, pending, list.data.length));
+        const entry = restore?.entry ?? pendingShelfEntry(ingredient);
+        const index = restore?.index ?? list.data.length;
+        queryClient.setQueryData(shelfKey, withShelfEntry(list, entry, index));
         return { added: true };
       }
       const index = list.data.findIndex((i) => i.id === ingredient.id);
@@ -547,22 +573,21 @@ export function shelfToggleOptions(
       }
       showToast({ message: 'The shelf didn’t take that change.' });
     },
-    onSuccess: (_data, vars) => {
+    onSuccess: (_data, vars, ctx) => {
       if (vars.action !== 'remove') return;
       showToast({
         message: 'Bottle removed from the shelf.',
         tone: 'destructive',
         actionLabel: 'Undo',
-        onAction: () => {
-          void api(`/users/${userId}/ingredients/batch-store`, {
-            method: 'POST',
-            barId,
-            body: { ingredients: [vars.ingredient.id] },
-          }).then(() => {
-            void queryClient.invalidateQueries({ queryKey: ['shelf'] });
-            void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
-          });
-        },
+        // The Undo is the same toggle, the other way: optimistic, rolled back
+        // with the same toast if refused, and read back only once the last
+        // toggle in flight has settled.
+        onAction: () =>
+          toggleShelf(queryClient, barId, userId, {
+            ingredient: vars.ingredient,
+            action: 'add',
+            restore: ctx?.removed,
+          }),
       });
     },
     onSettled: () => {
@@ -593,21 +618,35 @@ export function isShelfTogglePending(
 }
 
 /**
- * The shelf toggle for chips and ledger rows. `toggle` is the guarded entry
- * point: a second tap on a bottle whose toggle is still in flight is a
- * double-tap, not a second decision, and is dropped. Other bottles stay live.
+ * Fire one shelf toggle: the chip, the ledger's Remove and the Undo toast all
+ * come through here. A toggle for a bottle whose last one is still in flight
+ * is a double-tap, not a second decision, and is dropped; other bottles stay
+ * live. Each toggle is its own mutation under the shelf-toggle key, observed
+ * only until it settles, so it outlives the screen that fired it (an Undo can
+ * be tapped after leaving the Shelf) and the cache can collect it afterwards.
  */
+export function toggleShelf(
+  queryClient: QueryClient,
+  barId: number | undefined,
+  userId: number | undefined,
+  vars: ShelfToggle,
+): void {
+  if (isShelfTogglePending(queryClient, barId, vars.ingredient.id)) return;
+  const observer = new MutationObserver(queryClient, shelfToggleOptions(queryClient, barId, userId));
+  // A refusal is answered in onError (rollback and toast); nothing to rethrow.
+  void observer
+    .mutate(vars)
+    .catch(() => undefined)
+    .finally(() => observer.reset());
+}
+
+/** The shelf toggle for chips and ledger rows (toggleShelf). */
 export function useShelfMutation(
   barId: number | undefined,
   userId: number | undefined,
 ) {
   const queryClient = useQueryClient();
-  const mutation = useMutation(shelfToggleOptions(queryClient, barId, userId));
   return {
-    ...mutation,
-    toggle: (vars: ShelfToggle) => {
-      if (isShelfTogglePending(queryClient, barId, vars.ingredient.id)) return;
-      mutation.mutate(vars);
-    },
+    toggle: (vars: ShelfToggle) => toggleShelf(queryClient, barId, userId, vars),
   };
 }
