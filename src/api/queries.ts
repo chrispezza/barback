@@ -121,12 +121,35 @@ export function useCocktail(barId: number | undefined, idOrSlug: string) {
   });
 }
 
+/**
+ * The offline list (ADR-007): the last shopping list the API served, kept as
+ * names only and stamped with when it was served, rendered read-only on
+ * Tonight when the API is unreachable.
+ */
 export interface ListSnapshot {
+  /** ISO 8601 stamp of the response the names came from. */
   at: string;
   names: string[];
 }
 
-const LIST_SNAPSHOT_KEY = 'barback:list-snapshot';
+export const LIST_SNAPSHOT_KEY = 'barback:list-snapshot';
+
+/** What the snapshot keeps of a list response: the names, sorted, and when. */
+export function snapshotOf(items: ShoppingListItem[], now: Date): ListSnapshot {
+  return {
+    at: now.toISOString(),
+    names: items.map((i) => i.ingredient.name).sort(),
+  };
+}
+
+/** Stamp a list the API just served. A courtesy: it never throws. */
+export function writeListSnapshot(items: ShoppingListItem[], now: Date): void {
+  try {
+    localStorage.setItem(LIST_SNAPSHOT_KEY, JSON.stringify(snapshotOf(items, now)));
+  } catch {
+    // Snapshot is a courtesy — never fail the live list over it.
+  }
+}
 
 /** Last list the API served — the store-aisle fallback when it's unreachable. */
 export function readListSnapshot(): ListSnapshot | null {
@@ -138,32 +161,30 @@ export function readListSnapshot(): ListSnapshot | null {
   }
 }
 
-export function useShoppingList(
+/** The list query: every response the API serves is stamped as the snapshot. */
+export function shoppingListOptions(
   barId: number | undefined,
   userId: number | undefined,
 ) {
-  return useQuery({
+  return {
     queryKey: ['shopping-list', barId],
     queryFn: async () => {
       const res = await api<ListResponse<ShoppingListItem>>(
         `/users/${userId}/shopping-list`,
         { barId },
       );
-      try {
-        localStorage.setItem(
-          LIST_SNAPSHOT_KEY,
-          JSON.stringify({
-            at: new Date().toISOString(),
-            names: res.data.map((i) => i.ingredient.name).sort(),
-          } satisfies ListSnapshot),
-        );
-      } catch {
-        // Snapshot is a courtesy — never fail the live list over it.
-      }
+      writeListSnapshot(res.data, new Date());
       return res;
     },
     enabled: barId !== undefined && userId !== undefined,
-  });
+  };
+}
+
+export function useShoppingList(
+  barId: number | undefined,
+  userId: number | undefined,
+) {
+  return useQuery(shoppingListOptions(barId, userId));
 }
 
 /** Count of extra cocktails unlocked by adding this ingredient to the shelf. */
