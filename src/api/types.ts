@@ -61,7 +61,36 @@ export interface CocktailIngredientEntry {
   in_shelf_as_substitute?: boolean;
   in_shelf_as_complex_ingredient?: boolean;
   in_bar_shelf: boolean;
+  /** True when only this exact ingredient will do: the matcher then credits no
+   *  descendant (always emitted, CocktailIngredientResource.php:60). */
+  is_specified: boolean;
   ingredient: { id: number; slug: string; name: string };
+}
+
+/**
+ * The shelf as the upstream matcher reads it for a line that is not
+ * `is_specified` (CocktailService.php:281-288 at v5.15.3): a held ingredient
+ * also counts toward a line calling its direct parent, or its root, and no
+ * other ancestor (chrispezza/barback#20). Built from the shelf rows useShelf
+ * reads; their root-first `materialized_path` ("1/5/6/7/") names both.
+ */
+export interface ShelfIndex {
+  /** Ids of the direct parent and the root of every held ingredient. */
+  readonly parentsAndRoots: ReadonlySet<number>;
+}
+
+export function shelfIndex(
+  rows: readonly Pick<Ingredient, 'id' | 'materialized_path'>[],
+): ShelfIndex {
+  const parentsAndRoots = new Set<number>();
+  for (const row of rows) {
+    const path = (row.materialized_path ?? '').split('/').filter(Boolean);
+    const root = path[0];
+    const parent = path[path.length - 1];
+    if (root !== undefined) parentsAndRoots.add(Number(root));
+    if (parent !== undefined) parentsAndRoots.add(Number(parent));
+  }
+  return { parentsAndRoots };
 }
 
 /**
@@ -70,13 +99,20 @@ export interface CocktailIngredientEntry {
  * complex ingredient — the same cases getCocktailsByIngredients counts.
  * Exact `in_shelf` alone would paint a drink "missing tequila" while the
  * matcher happily pours it with the blanco.
+ *
+ * Only `GET /cocktails/{id}` carries the three in_shelf_as_* flags; the index
+ * and `/similar` load no descendants, substitutes or parts, so a list card
+ * passes the `shelf` too, and a held child brand then counts by the matcher's
+ * own rule (see ShelfIndex). Substitutes and complex ingredients stay
+ * invisible on those endpoints.
  */
-export function isStocked(entry: CocktailIngredientEntry): boolean {
+export function isStocked(entry: CocktailIngredientEntry, shelf?: ShelfIndex): boolean {
   return (
     entry.in_shelf ||
     entry.in_shelf_as_variant === true ||
     entry.in_shelf_as_substitute === true ||
-    entry.in_shelf_as_complex_ingredient === true
+    entry.in_shelf_as_complex_ingredient === true ||
+    (shelf !== undefined && !entry.is_specified && shelf.parentsAndRoots.has(entry.ingredient.id))
   );
 }
 

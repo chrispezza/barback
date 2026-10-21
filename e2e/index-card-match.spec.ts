@@ -4,9 +4,10 @@ import { expect, test } from './support/test'
 // Index cards (frontend-spec §6 "Filter mechanics": on the Index, stock state
 // appears only as per-drink colouring; §7 DrinkCard). The Index paints each
 // card with src/data/match.ts over the index-shaped GET /cocktails resources.
-// Drinks with a line only a child brand or a substitute covers are left out:
-// the index shape carries no in_shelf_as_* flags, a known bug
-// (chrispezza/barback#20) with its own failing-first PR.
+// Drinks with a line only a child brand or a substitute covers are left out
+// here: the index shape carries no in_shelf_as_* flags (chrispezza/barback#20).
+// Child brands are pinned in index-child-brands.spec.ts; a held substitute
+// stays invisible on the index shape, which loads no substitutes.
 //
 // Text is matched on what a reader sees or hears, never on a card's whole
 // textContent: the decorative ✓ is aria-hidden, and how the run separates a
