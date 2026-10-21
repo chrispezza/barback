@@ -48,6 +48,35 @@ const daiquiriNo2 = seed('Daiquiri No. 2', [
   { ingredientId: I.limeJuice, amount: 22.5, units: 'ml' },
   { ingredientId: I.cointreau, amount: 7.5, units: 'ml' },
 ])
+// The world has no absinthe or Peychaud's; only the name matters here.
+const sazerac = seed('Sazerac', [
+  { ingredientId: I.rye, amount: 60, units: 'ml' },
+  { ingredientId: I.simpleSyrup, amount: 7.5, units: 'ml' },
+  { ingredientId: I.angostura, amount: 3, units: 'dash' },
+])
+// A datapack name that ends in a curated slug (scripts/family-assignments.json).
+const amaroSazerac = seed('8 Amaro Sazerac', [
+  { ingredientId: I.rye, amount: 45, units: 'ml' },
+  { ingredientId: I.campari, amount: 15, units: 'ml' },
+  { ingredientId: I.angostura, amount: 2, units: 'dash' },
+])
+
+/** Every curated template, reached from the drink whose upstream slug should
+ *  find it. A new template needs its drink here, named as upstream names it. */
+const CURATED_DRINKS: [id: number, template: string][] = [
+  [C.daiquiri, 'daiquiri'],
+  [C.whiskeySour, 'whiskey-sour'],
+  [C.margarita, 'margarita'],
+  [C.oldFashioned, 'old-fashioned'],
+  [C.manhattan, 'manhattan'],
+  [C.gimlet, 'gimlet'],
+  [C.martini, 'martini'],
+  [C.negroni, 'negroni'],
+  [sazerac.id, 'sazerac'],
+  [manhattan1884.id, 'manhattan-cocktail-1884'],
+  [turfClub1884.id, 'turf-club-cocktail-1884'],
+]
+const CURATED_SEEDS = [sazerac, manhattan1884, turfClub1884]
 
 describe('normalizeSlug', () => {
   it('strips the bar id upstream appends to every cocktail slug', () => {
@@ -84,11 +113,32 @@ describe('ratioForSlug', () => {
     ])
   })
 
-  it('resolves every curated template from the slug upstream would emit for it', () => {
+  it('matches a template key followed by any one bar id', () => {
     for (const r of RATIOS) {
       expect(ratioForSlug(`${r.cocktailSlug}-1`)).toBe(r)
       expect(ratioForSlug(`${r.cocktailSlug}-12`)).toBe(r)
     }
+  })
+
+  it.each([1, 12])(
+    'finds every curated template from the slug upstream emits for its drink in bar %s',
+    (barId) => {
+      // Catches a key that carries a bar id ("negroni-1") or a typo
+      // ("martinii"): either one orphans the template (ADR-002), and the drink
+      // silently falls back to its derived skeleton.
+      const m = bar({ barId, extra: CURATED_SEEDS })
+      for (const [id, template] of CURATED_DRINKS) {
+        const c = cocktail(m, id)
+        expect(ratioForSlug(c.slug)?.cocktailSlug, c.name).toBe(template)
+      }
+    },
+  )
+
+  it('reaches every curated template from some drink’s upstream slug', () => {
+    const m = bar({ extra: CURATED_SEEDS })
+    const reached = CURATED_DRINKS.map(([id]) => ratioForSlug(cocktail(m, id).slug))
+    const unreached = RATIOS.filter((r) => !reached.includes(r)).map((r) => r.cocktailSlug)
+    expect(unreached, 'templates no drink in CURATED_DRINKS reaches').toEqual([])
   })
 
   it('gives a vintage drink its own template, not the modern one it starts with', () => {
@@ -107,15 +157,17 @@ describe('ratioForSlug', () => {
   })
 
   it('never lends one drink’s template to another', () => {
-    const m = bar({ extra: [manhattan1884, turfClub1884, daiquiriNo2] })
+    const m = bar({ extra: [...CURATED_SEEDS, daiquiriNo2, amaroSazerac] })
     for (const c of m.world.cocktails) {
       const slug = cocktail(m, c.id).slug
       const found = ratioForSlug(slug)
       if (found) expect(found.cocktailSlug).toBe(normalizeSlug(slug))
     }
-    // Names that contain a curated slug are not that drink.
-    expect(ratioForSlug(cocktail(m, C.espressoMartini).slug)?.cocktailSlug).not.toBe('martini')
-    expect(ratioForSlug(cocktail(m, daiquiriNo2.id).slug)?.cocktailSlug).not.toBe('daiquiri')
+    // Names that contain a curated slug are not that drink, and none of these
+    // has a template of its own.
+    expect(ratioForSlug(cocktail(m, C.espressoMartini).slug)).toBeUndefined()
+    expect(ratioForSlug(cocktail(m, daiquiriNo2.id).slug)).toBeUndefined()
+    expect(ratioForSlug(cocktail(m, amaroSazerac.id).slug)).toBeUndefined()
   })
 
   it('answers undefined for a slug with no template', () => {
@@ -324,7 +376,9 @@ describe('RATIOS', () => {
     expect(new Set(slugs).size).toBe(slugs.length)
   })
 
-  it('keys each template by a slug without the bar id, in upstream’s slug form', () => {
+  it('keys each template in upstream’s slug form', () => {
+    // Form only: a bar id ("negroni-1") is also in slug form. ratioForSlug's
+    // CURATED_DRINKS tests are what keep the bar id out of the keys.
     for (const r of RATIOS) {
       expect(slugify(r.cocktailSlug)).toBe(r.cocktailSlug)
     }

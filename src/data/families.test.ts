@@ -34,12 +34,12 @@ describe('FAMILIES tags', () => {
   })
 
   it('are the tags the tag script creates upstream', () => {
-    // scripts/tag_families.py creates one tag per key of family-assignments.json;
+    // scripts/tag_families.py creates one tag per key of family-assignments.json
+    // once it has popped "_comment" (tag_families.py:67), and nothing else;
     // §3: FamilyDef.tag "must match the API tag exactly".
-    const keys = Object.keys(JSON.parse(assignmentsJson) as Record<string, unknown>).filter(
-      (k) => !k.startsWith('_'),
-    )
-    expect([...keys].sort()).toEqual(FAMILIES.map((f) => f.tag).sort())
+    const assignments = JSON.parse(assignmentsJson) as Record<string, unknown>
+    delete assignments['_comment']
+    expect(Object.keys(assignments).sort()).toEqual(FAMILIES.map((f) => f.tag).sort())
   })
 
   it('are the family tags the fixture world serves', () => {
