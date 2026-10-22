@@ -80,7 +80,7 @@ test.describe('with the favourites filter on', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Favorites · 1', exact: true })).toBeVisible()
     await expect(summary(page)).toHaveText(sourCounts)
 
-    await page.getByRole('button', { name: '✓ Favorites', exact: true }).click()
+    await page.getByRole('button', { name: 'Favorites', exact: true, pressed: true }).click()
     await expect(page).toHaveURL(/\/drinks\?family=sour$/)
     await expect(page.getByRole('heading', { level: 2, name: 'The index · 5', exact: true })).toBeVisible()
     await expect(summary(page)).toHaveText(SOUR)

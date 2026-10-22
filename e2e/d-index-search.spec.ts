@@ -90,7 +90,7 @@ test.describe('the search itself fails', () => {
 
     await expect(sectionHeading(page, 'Matches')).toBeVisible()
     await expectSearchErrorLine(page)
-    await expect(page.getByText('Nothing by that name.')).toHaveCount(0)
+    await expect(page.getByText('Nothing by that name — try fewer letters, or clear the search and browse by family.')).toHaveCount(0)
     await expect(cards(page)).toHaveCount(0)
     // Meilisearch was asked, then the REST name filter (ADR-004), and both dropped.
     expect(bar.requests.some((r) => r.service === 'search' && r.path === '/indexes/cocktails/search')).toBe(true)
@@ -146,7 +146,7 @@ test.describe('the device is offline', () => {
 
     await expect(sectionHeading(page, 'Matches')).toBeVisible()
     await expectSearchErrorLine(page)
-    await expect(page.getByText('Nothing by that name.')).toHaveCount(0)
+    await expect(page.getByText('Nothing by that name — try fewer letters, or clear the search and browse by family.')).toHaveCount(0)
     await expect(cards(page)).toHaveCount(0)
   })
 

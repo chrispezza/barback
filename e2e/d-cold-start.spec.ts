@@ -126,7 +126,7 @@ test.describe('a cold start with the API out of reach', () => {
 
     await expect(sectionHeading(page, 'Matches')).toBeVisible()
     await expectOneErrorLine(page, matchesSection(page))
-    await expect(page.getByText('Nothing by that name.')).toHaveCount(0)
+    await expect(page.getByText('Nothing by that name — try fewer letters, or clear the search and browse by family.')).toHaveCount(0)
     await expect(cards(page)).toHaveCount(0)
   })
 

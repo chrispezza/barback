@@ -108,11 +108,13 @@ export function Shelf() {
   const [q, setQ] = useState('');
   const results = useIngredientSearch(useDebounced(q, 200));
   // The picker answers from Meilisearch or, failing that, the REST name filter
-  // (ADR-004). A search with neither answering, or one waiting paused for the
-  // network while the device is offline (chrispezza/barback#107), has no
-  // answer: the chip row says so in the error voice and shows no chip, not even
-  // one from an earlier query (ADR-007 Consequences; the Index's search rule).
-  // A paused search goes out again by itself on reconnect.
+  // (ADR-004). A search with neither answering has no answer, and nor has one
+  // that waits paused: offline a search fails (networkMode 'always',
+  // src/api/client.ts), but a retry that comes due while the page is hidden
+  // waits until the page is shown again, and goes out by itself then
+  // (query-core's retryer; chrispezza/barback#143). The chip row says so in
+  // the error voice and shows no chip, not even one from an earlier query
+  // (ADR-007 Consequences; the Index's search rule).
   const searchUnanswered = results.isError || results.isPaused;
   const hits = searchUnanswered ? undefined : results.data;
   // What the chips are marked against, and what decides the write a tap
@@ -138,7 +140,9 @@ export function Shelf() {
   // A bottle just tapped on has no place in the hierarchy until the shelf is
   // read back; its chip and the count carry it until then. So does a bottle
   // whose group is being named, so the groups already named stay put. Only
-  // while that lookup is out: paused offline, every bottle shows, flat.
+  // while that lookup is fetching: once it has failed (as it does offline) or
+  // waits paused (a retry due while the page is hidden), every bottle shows,
+  // flat (chrispezza/barback#143).
   const placedRows = rows.filter(isPlaced);
   const rootNames = useIngredientsByIds(barId, rootIdsOf(placedRows));
   const ledgerRows =
@@ -225,16 +229,24 @@ export function Shelf() {
               />
             );
           })}
+          {/* Directive, never apologetic: the line names what to do next
+              (DS readme, Content fundamentals). The bar holds the kinds of
+              bottle (rum, gin) and only some brands under them. */}
           {hits?.length === 0 && (
-            <p class="recipe-aside">Nothing by that name.</p>
+            <p class="recipe-aside">
+              Nothing by that name — try fewer letters, or the kind of bottle rather than its brand.
+            </p>
           )}
         </div>
       )}
       {/* "Counting the shelf…" only while the count is under way: a shelf
           that cannot be read, its own read or the bar's having failed, is
-          answered by the error line alone. One bottle is "1 bottle". */}
+          answered by the error line alone. One bottle is "1 bottle". A count
+          is set in the interface face, never italic Caslon, which is for
+          ingredient names and asides and "never for numbers" (DS readme,
+          Content fundamentals; chrispezza/barback#66). */}
       {(shelf.data || !shelfFailed) && (
-        <p class="recipe-aside shelf-count" aria-busy={!shelf.data}>
+        <p class="shelf-count" aria-busy={!shelf.data}>
           {shelf.data
             ? `${bottleCount} bottle${bottleCount === 1 ? '' : 's'} on the shelf.`
             : 'Counting the shelf…'}
