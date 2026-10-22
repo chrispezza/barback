@@ -362,12 +362,18 @@ export function Tonight() {
   // data/staples.ts.
   const staples = useStaples(barId, STAPLE_SLUGS);
   const stapleIds = new Set((staples.data ?? []).map((s) => s.id));
+  // Which staples are out is decided only from a staples read that has just
+  // answered, as the list is (listRead, below): the standing orders are writes
+  // the user did not tap (ADR-008). Not the last answer while the staples are
+  // read again, nor the one a failed refetch leaves in hand: either may say a
+  // staple is out that is back on the shelf, or on it when it has run out.
+  const freshStaples = staples.isSuccess && !staples.isFetching ? staples.data : undefined;
   // What this mount has sent. A failed write leaves the session memory so the
   // next mount sends it again; this mount does not, or a lasting failure would
   // loop (mutations do not retry).
   const sentThisMount = useRef(new Set<number>());
   const staplesOut = staplesToQueue(
-    staples.data ?? [],
+    freshStaples ?? [],
     listedIds,
     new Set([...queuedThisSession, ...sentThisMount.current]),
   );
@@ -390,9 +396,9 @@ export function Tonight() {
   // dropped later this session, it stays dropped (chrispezza/barback#55).
   const listedKey = [...listedIds].join(',');
   useEffect(() => {
-    if (staples.data === undefined || !listRead) return;
-    rememberListed(staples.data, listedIds);
-  }, [staples.data, listRead, listedKey]);
+    if (freshStaples === undefined || !listRead) return;
+    rememberListed(freshStaples, listedIds);
+  }, [freshStaples, listRead, listedKey]);
   useEffect(() => {
     if (profile?.id === undefined || staplesOut.length === 0) return;
     if (!listRead) return; // don't queue against a stale view
@@ -410,11 +416,12 @@ export function Tonight() {
   }, [staplesOut.map((s) => s.id).join(','), profile?.id, listRead]);
 
   // A bottle taken off the list by hand. A staple stays dropped, as above;
-  // dropped before the staples read lands, or while it is being read again and
-  // the staples in hand may be stale, the list read after the drop no longer
-  // carries it, so it is held as the drop is sent (rememberDropped).
+  // dropped before the staples read lands, while it is being read again, or
+  // after a refetch of it failed, the staples in hand may be stale and the list
+  // read after the drop no longer carries it, so it is held as the drop is
+  // sent (rememberDropped).
   function dropFromList(id: number) {
-    rememberDropped(id, staples.isFetching ? undefined : staples.data);
+    rememberDropped(id, freshStaples);
     shoppingMutation.mutate({ ingredientIds: [id], action: 'remove' });
   }
 
@@ -459,7 +466,8 @@ export function Tonight() {
   const buyNextReady = favoriteNeeds.length > 0 ? favoritesReady : restockReady;
   // The reads the offer is decided from, beyond the list: one error line for
   // whichever failed, not one per read (chrispezza/barback#71). A staples
-  // read that failed also leaves the standing orders unrun until it answers.
+  // read that failed, first or again, also leaves the standing orders unrun
+  // until it answers (freshStaples).
   const offerReads = [shelf, favorites, recommendations, staples];
   const offerFailed = offerReads.some((read) => read.isError);
 
