@@ -14,20 +14,47 @@ interface ShoppingRowProps {
   onDrop?: () => void;
 }
 
+/** A space no line breaks at (U+00A0). */
+const NBSP = '\u00A0';
+
+/**
+ * What the row's one line puts between two facts: a "·" held to the fact
+ * before it by a no-break space, then an ordinary space, where a line that
+ * wraps breaks. The desktop rail's line is 208px wide, the 390px phone's
+ * 238px, and the line of a bottle that opens three families runs past both: it
+ * wraps after a "·", never with one opening the next line.
+ */
+const SEPARATOR = `${NBSP}· `;
+
+/**
+ * "2 tiki drinks" as one phrase no line breaks inside: the count held to its
+ * family's name (a number stated flatly, never cut from its noun) and the
+ * name's words to each other. The hyphen of "spirit-forward" stays the one
+ * break within a phrase: a non-breaking hyphen (U+2011) would make
+ * "2 spirit-forward drinks ·" 177px that cannot break, and at a 320px viewport,
+ * the width WCAG 1.4.10 reflows to, the line is 168px wide, so the phrase
+ * would overflow it into the row's remove button. A string cannot let a phrase
+ * break only when it must; the DS line could (chrispezza/barback#91).
+ */
+function phrase(count: number, noun: string): string {
+  return `${count}${NBSP}${noun.split(' ').join(NBSP)}`;
+}
+
 /**
  * What a row says of the families its bottle unlocks (frontend-spec §6
  * Journey 3, "unlocks 4 sours, 2 tiki"): "2 sours · 2 tiki drinks · 1
  * highball", in the order unlocksByFamily gives, a number stated flatly before
- * each family's own name. families.ts names the plural only, so one drink
- * drops its final "s", as the Index's family summary does (Drinks.tsx
- * familyNoun) until FamilyDef carries a singular (chrispezza/barback#85).
- * Undefined when no unlocked drink has a family.
+ * each family's own name, each phrase whole on its line (phrase, SEPARATOR).
+ * families.ts names the plural only, so one drink drops its final "s", as the
+ * Index's family summary does (Drinks.tsx familyNoun) until FamilyDef carries
+ * a singular (chrispezza/barback#85). Undefined when no unlocked drink has a
+ * family.
  */
 export function familiesDetail(families: readonly FamilyUnlocks[]): string | undefined {
   if (families.length === 0) return undefined;
   return families
-    .map(({ family, count }) => `${count} ${count === 1 ? family.plural.replace(/s$/, '') : family.plural}`)
-    .join(' · ');
+    .map(({ family, count }) => phrase(count, count === 1 ? family.plural.replace(/s$/, '') : family.plural))
+    .join(SEPARATOR);
 }
 
 /**
@@ -35,7 +62,11 @@ export function familiesDetail(families: readonly FamilyUnlocks[]): string | und
  * no space on either side, so assistive tech hears the two run together:
  * "Unlocks 2" and "2 sours" as "Unlocks 22 sours", "Unlocks 1" and "Staple" as
  * "Unlocks 1Staple". A hair space opening the detail parts them; on screen it
- * adds under 2 px beside the separator.
+ * adds under 2 px beside the separator. A line may break after it, as after
+ * every other "·". A no-break space here (U+202F) would hold "Unlocks N ·" to
+ * the first family, and where the two do not fit one line the break would
+ * fall inside the DS's own "Unlocks N" instead: on the 208px rail,
+ * "Unlocks 12 · 12 dessert drinks ·" is 211px.
  */
 const PART = '\u200A';
 
@@ -63,7 +94,7 @@ export function ShoppingRow({
   const counted = unlocks !== undefined && unlocks !== 0;
   const named = counted && families ? familiesDetail(families) : undefined;
   const detail = isStaple
-    ? [named, 'Staple'].filter((part) => part !== undefined).join(' · ')
+    ? [named, 'Staple'].filter((part) => part !== undefined).join(SEPARATOR)
     : unlocks === 0 && reach
       ? reachDetail(reach)
       : named;
