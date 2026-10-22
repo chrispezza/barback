@@ -83,14 +83,26 @@ function BuyNextCard({
 }
 
 /**
- * What a read still answers. A refetch that fails leaves the query's last
- * answer in hand beside the error (TanStack Query keeps `data`), and that
- * answer is stale. No stock answer is ever served stale: the section says so
- * in the error voice instead, with no card, count or empty state drawn from
- * it (ADR-007 Consequences; chrispezza/barback#61).
+ * What a read answers for the question on screen, if anything. Two answers in
+ * hand are not that:
+ *
+ * - A refetch that failed leaves the query's last answer beside the error
+ *   (TanStack Query keeps `data`), and that answer is stale. No stock answer
+ *   is ever served stale: the section says so in the error voice instead
+ *   (ADR-007 Consequences; chrispezza/barback#61).
+ * - While a new family's read is under way, `data` is the previous family's
+ *   answer (keepPreviousData, as a placeholder), offline the very read whose
+ *   refetch failed. Under the new family's name it states something false
+ *   (frontend-spec §6; chrispezza/barback#73).
+ *
+ * In either case the section draws no card, count or empty state from it.
  */
-function answerOf<T>(read: { data: T | undefined; isError: boolean }): T | undefined {
-  return read.isError ? undefined : read.data;
+function answerOf<T>(read: {
+  data: T | undefined;
+  isError: boolean;
+  isPlaceholderData: boolean;
+}): T | undefined {
+  return read.isError || read.isPlaceholderData ? undefined : read.data;
 }
 
 /** The shelf read as the pour section's empty states use it: its total once read. */
@@ -170,9 +182,10 @@ export function Tonight() {
     for (const read of own) if (read.isError) void read.refetch();
   }
 
-  // Each section draws only on what its read still answers (answerOf): after
-  // a failed refetch, its error line alone, never the cards and count of the
-  // last good read beside it.
+  // Each section draws only on what its read answers (answerOf): after a
+  // failed refetch, its error line alone, never the cards and count of the
+  // last good read beside it; across a family switch, its header with no
+  // count and no cards until the new family's read lands, as on a first load.
   const canMakeAnswer = answerOf(canMake);
   const canMakeTotal = canMakeAnswer?.meta?.total;
   const pourCards = canMakeAnswer?.data ?? [];
@@ -220,17 +233,17 @@ export function Tonight() {
   // the family within reach is pointed at the family, not told to stock up.
   // A shelf read that failed says nothing about bareness, even with an older
   // answer in hand; the section says the read failed instead.
-  // A count still on screen from the previous family (placeholderData, while
-  // the new family's read is under way) says nothing about this one; nor does
-  // a count whose refetch failed (answerOf).
+  // The counts are answerOf's: neither the previous family's (placeholderData,
+  // while the new family's read is under way) nor one whose refetch failed
+  // says anything about this family.
   const pourEmpty = pourEmptyState(
     shelf.isError
       ? 'failed'
       : shelf.data
         ? (shelf.data.meta?.total ?? shelf.data.data.length)
         : 'pending',
-    canMake.isPlaceholderData ? undefined : canMakeTotal,
-    nearMiss.isPlaceholderData ? undefined : nearMissTotal,
+    canMakeTotal,
+    nearMissTotal,
     scope !== undefined,
   );
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
