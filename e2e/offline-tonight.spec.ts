@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { C, I, defaultWorld, type WorldSeed } from '../test/fixtures/world'
+import type { FakeBar } from './support/fake-bar'
 import { expect, test } from './support/test'
 
 // Tonight with the API out of reach (ADR-007). Validation: "Kill the API
@@ -50,6 +51,32 @@ const listItem = (page: Page, name: string) =>
 
 const offlineLine = (page: Page) => page.locator('#buy').getByText(/^Offline — the list as it stood .+\.$/)
 const snapshotNames = (page: Page) => page.locator('#buy .snapshot-list li')
+
+/**
+ * Resolve once the fake has recorded no new request for `quietMs` (as in
+ * e2e/standing-orders.spec.ts). The assertion that follows is that a write did
+ * not happen, so the screen must go quiet first.
+ */
+async function settled(bar: FakeBar, quietMs = 500) {
+  let seen = -1
+  let since = Date.now()
+  await expect
+    .poll(
+      () => {
+        const count = bar.calls().length
+        if (count !== seen) {
+          seen = count
+          since = Date.now()
+        }
+        return Date.now() - since >= quietMs
+      },
+      { intervals: [50], timeout: 10_000 },
+    )
+    .toBe(true)
+}
+
+const listStores = (bar: FakeBar) =>
+  bar.calls('POST', /\/shopping-list\/batch-store$/).map((c) => c.body)
 
 /** The section's error line (ErrorLine is role="alert") and its retry. */
 async function expectErrorLine(page: Page, section: string) {
@@ -170,5 +197,48 @@ test.describe('a warm start: the list was read, then the API went away', () => {
     await expect(offlineLine(page)).toBeVisible()
     await expect(snapshotNames(page)).toHaveText(['Campari', 'Cointreau'])
     await expectNothingWrites(page)
+  })
+})
+
+test.describe('a staple runs out while the list cannot be read', () => {
+  // Standing orders (ADR-008) queue an out-of-stock staple by themselves, and
+  // decide what is already listed from the list they read. While that read
+  // fails, the rows in hand are the ones the failed refetch left behind, and
+  // the rail shows the snapshot alone (ADR-007), so nothing queues; once the
+  // list answers, the staple queues as ADR-008 says. Review of
+  // chrispezza/barback#67.
+  test.use({ world: listing([I.campari]) })
+
+  test('nothing queues until the list answers, then the staple queues with its toast', async ({ page, bar }) => {
+    const queued = page.getByText('Staples out — queued: Tonic.')
+    await page.goto('/tonight')
+    await expect(listItem(page, 'Campari')).toBeVisible()
+    await settled(bar)
+
+    // Tonic is used up while Tonight is closed, and the list read fails: the
+    // first try and its one retry (src/app.tsx, retry: 1). The rest answers.
+    await goTo(page, 'Shelf', 'Shelf')
+    bar.model.shelf.delete(I.tonic)
+    bar.fail(/^\/users\/1\/shopping-list$/, { method: 'GET', status: 500, times: 2 })
+    await goTo(page, 'Tonight', 'Tonight')
+    // Nothing queues while the read is under way: the rows in hand are stale.
+    await settled(bar)
+    expect(listStores(bar)).toEqual([])
+
+    // Nor once it has failed and the rail shows the snapshot alone.
+    await expect(offlineLine(page)).toBeVisible()
+    await expect(snapshotNames(page)).toHaveText(['Campari'])
+    await settled(bar)
+    expect(listStores(bar)).toEqual([])
+    expect([...bar.model.list.keys()]).toEqual([I.campari])
+    await expect(queued).toHaveCount(0)
+
+    // The list answers the next time Tonight opens: Tonic queues, once.
+    await goTo(page, 'Shelf', 'Shelf')
+    await goTo(page, 'Tonight', 'Tonight')
+    await expect(queued).toBeVisible()
+    await expect(listItem(page, 'Tonic')).toContainText('Staple')
+    await settled(bar)
+    expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
   })
 })
