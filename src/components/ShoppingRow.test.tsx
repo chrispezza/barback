@@ -146,7 +146,7 @@ describe('ShoppingRow detail line', () => {
     // Campari completes the Negroni, a spirit-forward drink, against the default shelf.
     barWithout(I.campari)
     const { container } = renderRow({ ingredientId: I.campari, name: 'Campari' })
-    expect(meta(container)).toBe('Unlocks 1·\u200A1\u00A0spirit-forward\u00A0drink')
+    expect(meta(container)).toBe('Unlocks 1· \u200A1\u00A0spirit-forward\u00A0drink')
     expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
   })
 
@@ -224,7 +224,7 @@ describe('ShoppingRow families', () => {
     // Scotch whisky opens the Rob Roy (spirit-forward) and the Bobby Burns (no family tag).
     barWithout(I.scotch)
     const { container } = renderRow({ ingredientId: I.scotch, name: 'Scotch whisky' })
-    expect(meta(container)).toBe('Unlocks 2·\u200A1\u00A0spirit-forward\u00A0drink')
+    expect(meta(container)).toBe('Unlocks 2· \u200A1\u00A0spirit-forward\u00A0drink')
   })
 
   it('states the count alone until the tags of its drinks are read', () => {
@@ -248,7 +248,7 @@ describe('ShoppingRow families', () => {
     const { container } = renderRow({ ingredientId: I.espresso, name: 'Espresso' })
     // The Espresso Martini still wants vodka, so it is not among them.
     expect(meta(container)).toBe(
-      'Unlocks 5·\u200A1\u00A0sour\u00A0· 1\u00A0spirit-forward\u00A0drink\u00A0· 1\u00A0highball\u00A0· ' +
+      'Unlocks 5· \u200A1\u00A0sour\u00A0· 1\u00A0spirit-forward\u00A0drink\u00A0· 1\u00A0highball\u00A0· ' +
         '1\u00A0tiki\u00A0drink\u00A0· 1\u00A0dessert\u00A0drink',
     )
   })
@@ -261,7 +261,7 @@ describe('ShoppingRow families', () => {
     m.world.cocktails.push(espressoDrink(300, T.tiki))
     const { container } = renderRow({ ingredientId: I.espresso, name: 'Espresso' })
     expect(meta(container)).toBe(
-      'Unlocks 11·\u200A3\u00A0tiki\u00A0drinks\u00A0· 2\u00A0sours\u00A0· 2\u00A0spirit-forward\u00A0drinks\u00A0· ' +
+      'Unlocks 11· \u200A3\u00A0tiki\u00A0drinks\u00A0· 2\u00A0sours\u00A0· 2\u00A0spirit-forward\u00A0drinks\u00A0· ' +
         '2\u00A0highballs\u00A0· 2\u00A0dessert\u00A0drinks',
     )
   })
@@ -286,7 +286,7 @@ describe('ShoppingRow families', () => {
     // Lime juice opens the Daiquiri and the Gimlet, both sours.
     barWithout(I.limeJuice)
     const { container } = renderRow({ ingredientId: I.limeJuice, name: 'Lime juice', isStaple: true })
-    expect(meta(container)).toBe('Unlocks 2·\u200A2\u00A0sours\u00A0· Staple')
+    expect(meta(container)).toBe('Unlocks 2· \u200A2\u00A0sours\u00A0· Staple')
     expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
   })
 })

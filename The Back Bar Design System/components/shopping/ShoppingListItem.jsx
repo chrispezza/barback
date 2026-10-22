@@ -12,7 +12,8 @@ const CSS = `
 .bb-shop[data-checked="true"] .bb-shop__name{color:var(--sage-600);text-decoration:line-through;text-decoration-color:rgba(156,175,164,0.6)}
 .bb-shop__meta{display:block;margin-top:3px;font-family:var(--font-body);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.10em;text-indent:0.10em;color:var(--cream-400)}
 .bb-shop__unlocks{color:var(--rose-400)}
-.bb-shop__sep{color:var(--rule-strong);margin:0 4px}
+.bb-shop__sep{color:var(--rule-strong);margin:0 0 0 4px}
+.bb-shop__gap{display:inline-block;width:4px;white-space:pre;text-indent:0}
 .bb-shop[data-checked="true"] .bb-shop__meta,.bb-shop[data-checked="true"] .bb-shop__unlocks{color:var(--sage-600)}
 .bb-shop__note{flex:none;font-family:var(--font-serif);font-size:13px;color:var(--cream-400);font-style:italic}
 `;
@@ -28,7 +29,13 @@ function injectOnce() {
 
 /** One purchase on the list — rose accent, shows what it unlocks. Secondary
  *  facts (unlocks, detail) share one line under the name in one voice; `note`
- *  stays the trailing editorial aside. */
+ *  stays the trailing editorial aside.
+ *
+ *  The "·" between the count and the detail is a mark for the eye only
+ *  (aria-hidden), so a real space follows it: the button's accessible name is
+ *  "Unlocks 2 Staple", never "Unlocks 2Staple". The space sits in a 4px box,
+ *  the right-hand margin the "·" had, so the line is drawn as before; and the
+ *  line may wrap after the "·", never before it. */
 export function ShoppingListItem({ name, unlocks, detail, note, checked = false, onToggle }) {
   injectOnce();
   const hasMeta = unlocks != null || detail;
@@ -42,7 +49,12 @@ export function ShoppingListItem({ name, unlocks, detail, note, checked = false,
         {hasMeta && (
           <span className="bb-shop__meta">
             {unlocks != null && <span className="bb-shop__unlocks">Unlocks {unlocks}</span>}
-            {unlocks != null && detail && <span className="bb-shop__sep" aria-hidden="true">·</span>}
+            {unlocks != null && detail && (
+              <React.Fragment>
+                <span className="bb-shop__sep" aria-hidden="true">·</span>
+                <span className="bb-shop__gap">{" "}</span>
+              </React.Fragment>
+            )}
             {detail && <span>{detail}</span>}
           </span>
         )}

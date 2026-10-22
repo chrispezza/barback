@@ -269,3 +269,19 @@ update). Every change is backward compatible; new props are optional.
 Not yet revised: the UI kit pages (`ui_kits/back-bar-app/*.html`) load
 `_ds_bundle.js`, which is a stale build of revision 1 and fails in a classic
 script; rebuild the bundle before relying on the kit.
+
+### Revision 3 — 22 October 2026
+
+Findings from the consuming app's accessibility pass, fixed at the source
+(ADR-006). Every change is backward compatible: no prop is added, removed or
+retyped, and each component renders as it did except where a row says
+otherwise.
+
+| Component | Change | Why |
+| --- | --- | --- |
+| `FamilyFilterBar` | One Tab stop (a roving tabindex): the segment the focus is on while it is in the bar, otherwise the selected one, otherwise the first enabled one. ArrowLeft and ArrowRight move the focus, wrapping at the ends; Home and End jump to them; disabled segments are passed over. Moving selects nothing; Enter or Space selects, as before. `role="group"` and `aria-pressed` are unchanged. | "Chips, steppers and the filter bar are fully keyboard operable" did not hold for the bar: every segment was its own Tab stop and the arrow keys did nothing (chrispezza/barback#138). Selection does not follow the focus because, in the app, every selection navigates. |
+| `SearchField` | The input is a 44px target (`min-height: 44px`, `box-sizing: border-box`) set over the frame's 1px border (`margin: -1px 0`) rather than inside it; Clear sits over the border the same way. | The input was the 44px frame less its two borders, 42px, under the 44px floor. The 44px Clear inside that 42px box grew the frame to 46px when a first character was typed, moving everything below it; the frame is now the same size with Clear in it as without. |
+| `ShoppingListItem` | A real space follows the aria-hidden `·` between the unlock count and the detail, in a 4px box that takes over the `·`'s right margin. | The button's accessible name ran the count and the detail together ("Unlocks 2Staple"). On screen the line is drawn exactly as before, and it may now wrap after the `·`. |
+
+The component cards still load the stale `_ds_bundle.js` (see Revision 2), so
+they show none of this until the bundle is rebuilt.
