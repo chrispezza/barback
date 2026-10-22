@@ -67,6 +67,27 @@ async function expectNoViolations(page: Page, scope: string): Promise<void> {
 }
 
 /**
+ * As expectNoViolations, over a scope that holds an EmptyState. axe reports
+ * one finding on every EmptyState: color-contrast on its —◆— fleuron
+ * (`.bb-empty__fleuron`, brass at .55 alpha, #756D43 on #122E26, 2.78:1). The
+ * fleuron is the design system's one ornament, aria-hidden, and WCAG 1.4.3
+ * exempts pure decoration; its colour is the design system's own, so it changes
+ * only in a numbered revision (ADR-006), and chrispezza/barback#168 tracks it.
+ * Only that one finding on that one element is set aside: every other rule
+ * still runs on the fleuron, and color-contrast still runs on everything else.
+ */
+async function expectNoViolationsBesideFleuron(page: Page, scope: string): Promise<void> {
+  const { violations } = await new AxeBuilder({ page }).include(scope).withTags(WCAG).analyze()
+  const found = violations.flatMap((v) =>
+    v.nodes
+      .map((n) => n.target.join(' '))
+      .filter((target) => !(v.id === 'color-contrast' && /(^|[\s>])\.bb-empty__fleuron$/.test(target)))
+      .map((target) => `${v.id}: ${target}`),
+  )
+  expect(found).toEqual([])
+}
+
+/**
  * Every control in `scope` is named with the words it shows (WCAG 2.5.3).
  * axe-core holds this rule as experimental, so it runs only when asked for.
  */
@@ -80,19 +101,33 @@ async function expectLabelsInNames(page: Page, scope: string): Promise<void> {
   expect(passes.flatMap((p) => p.nodes).length).toBeGreaterThan(0)
 }
 
+/**
+ * The marks that stand in for words: × and +, the arrows (U+2190–U+21FF) and
+ * the dingbats (U+2700–U+27BF, ✕ and ✖ among them) except ✓ (U+2713), which
+ * Iconography lists with ◆ and · as the only marks the UI uses. ◆ (U+25C6)
+ * and · (U+00B7) lie outside every range here.
+ */
+const STRAY_GLYPH = '[×+←-⇿✀-✒✔-➿]'
+
 /** The text nodes inside `scope` that carry a glyph Iconography does not list. */
 async function strayGlyphs(scope: Locator): Promise<string[]> {
-  return scope.evaluate((root) => {
+  return scope.evaluate((root, pattern) => {
+    const stray = new RegExp(pattern)
     const found: string[] = []
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const text = node.textContent ?? ''
-      // ✕ ✖ × + and the arrows and dingbats: marks standing in for words.
-      if (/[✕✖×+←-⇿✀-➿]/.test(text)) found.push(text)
+      if (stray.test(text)) found.push(text)
     }
     return found
-  })
+  }, STRAY_GLYPH)
 }
+
+test('the stray-glyph check passes the three marks Iconography lists, and no other', () => {
+  const stray = new RegExp(STRAY_GLYPH)
+  for (const mark of ['◆', '✓', '·']) expect(stray.test(mark), mark).toBe(false)
+  for (const glyph of ['✕', '✖', '×', '+', '←', '→', '✔', '✗', '➕']) expect(stray.test(glyph), glyph).toBe(true)
+})
 
 test.describe('a To buy row’s drop action', () => {
   test.use({ world: tonightWorld((w) => (w.list = [I.campari, I.cointreau])) })
@@ -153,6 +188,7 @@ test.describe('the names a bare shelf starts with', () => {
       'Start with Gin, Sweet vermouth, White rum — the most recipes call for them.',
     )
     await expect(page.getByText(/open the most drinks/)).toHaveCount(0)
+    await expectNoViolationsBesideFleuron(page, '#pour')
   })
 })
 
@@ -224,6 +260,7 @@ test.describe('a family’s empty state', () => {
     )
     await expect(emptyState(page).getByRole('button')).toHaveText(['Show all families'])
     expect(await browseSeen(page)).toEqual([])
+    await expectNoViolationsBesideFleuron(page, '#pour')
   })
 
   test('under a family that holds a drink still offers to browse it', async ({ page }) => {
@@ -234,5 +271,6 @@ test.describe('a family’s empty state', () => {
     )
     await expect(emptyState(page).getByRole('button')).toHaveText(['Browse dessert drinks', 'Show all families'])
     expect(await browseSeen(page)).toEqual(['Browse dessert drinks'])
+    await expectNoViolationsBesideFleuron(page, '#pour')
   })
 })
