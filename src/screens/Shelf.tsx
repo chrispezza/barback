@@ -35,12 +35,14 @@ export function Shelf() {
   // Ledger grouping: bottles under their root ancestor (Spirits, Liqueurs…).
   // A bottle just tapped on has no place in the hierarchy until the shelf is
   // read back; its chip and the count carry it until then. So does a bottle
-  // whose group is still being named, so the groups already named stay put.
+  // whose group is being named, so the groups already named stay put. Only
+  // while that lookup is out: paused offline, every bottle shows, flat.
   const placedRows = rows.filter(isPlaced);
   const rootNames = useIngredientsByIds(barId, rootIdsOf(placedRows));
-  const ledgerRows = rootNames.isPlaceholderData
-    ? placedRows.filter((r) => rootNames.data.has(rootIdOf(r)))
-    : placedRows;
+  const ledgerRows =
+    rootNames.isPlaceholderData && rootNames.fetchStatus === 'fetching'
+      ? placedRows.filter((r) => rootNames.data.has(rootIdOf(r)))
+      : placedRows;
   const groups = ledgerGroups(ledgerRows, rootNames.data);
 
   function removeRow(ingredient: Ingredient) {

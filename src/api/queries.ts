@@ -399,7 +399,8 @@ const heldNameOptions = new WeakMap<
  * screen or before it was last shown, while the lookup is out. A root none of
  * them names is missing from that map until the answer lands, and
  * isPlaceholderData says the map may be partial: the ledger holds that root's
- * bottles back rather than read flat (Shelf).
+ * bottles back while the lookup is fetching rather than read flat, and shows
+ * them all when it is paused offline (Shelf).
  *
  * One set of roots gets one options object for the life of the client.
  * useQuery asks for the options on every render, and TanStack keeps a stand-in
