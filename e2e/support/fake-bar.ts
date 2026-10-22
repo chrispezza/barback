@@ -6,6 +6,7 @@ import {
   cocktailResource,
   ingredientDocument,
   ingredientResource,
+  shoppingListResource,
 } from '../../test/fixtures/upstream'
 
 // A small, stateful fake of Bar Assistant v5.15.3 behind Playwright route
@@ -302,11 +303,9 @@ export class FakeBar {
           key === 'number' ? Number(v) : Number((v as { id: number }).id),
         )
       if (r.method === 'GET' && rest === 'shopping-list') {
-        // ShoppingListController::index — sorted by ingredient name, not paginated.
-        const data = [...m.list.entries()]
-          .map(([id, quantity]) => ({ ingredient: m.basic(id), quantity }))
-          .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name))
-        return json(200, { data })
+        // ShoppingListController::index — sorted by name the way PHP compares
+        // strings, not by a collation; not paginated.
+        return json(200, { data: shoppingListResource(m) })
       }
       if (r.method === 'POST' && rest === 'shopping-list/batch-store') {
         for (const v of (body['ingredients'] as { id: number; quantity?: number }[]) ?? []) {
