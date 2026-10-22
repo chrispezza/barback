@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/preact'
 import { BarModel } from '../../test/fixtures/upstream'
 import { C, I, T, defaultWorld, type CocktailSeed } from '../../test/fixtures/world'
 import { FAMILIES } from '../data/families'
-import { ShoppingRow, familiesDetail, singular } from './ShoppingRow'
+import { ShoppingRow, familiesDetail } from './ShoppingRow'
 
 // The list row's detail line (frontend-spec §9, "Hierarchy-aware brands"): a
 // bottle that unlocks nothing says what it builds toward. One that unlocks
@@ -239,63 +239,9 @@ describe('familiesDetail', () => {
     expect(familiesDetail([])).toBeUndefined()
   })
 
-  it('names every declared family by its own plural, and one drink by its singular', () => {
+  it('names every declared family by its own plural', () => {
     for (const family of FAMILIES) {
       expect(familiesDetail([{ family, count: 2 }])).toBe(`2 ${family.plural}`)
-      expect(familiesDetail([{ family, count: 1 }])).toBe(`1 ${singular(family.plural)}`)
     }
-  })
-})
-
-describe('singular', () => {
-  it('reads the plurals a family can carry', () => {
-    // The declared families (families.ts) and family names a curated
-    // taxonomy may use (frontend-spec §8): the plural is the content, and
-    // the singular must follow it.
-    expect(
-      Object.fromEntries(
-        [
-          'sours',
-          'spirit-forward drinks',
-          'highballs',
-          'tiki drinks',
-          'dessert drinks',
-          'fizzes',
-          'punches',
-          'smashes',
-          'fixes',
-          'collinses',
-          'toddies',
-          'daisies',
-          'rickeys',
-          'juleps',
-          'swizzles',
-          'sangarees',
-          'flips',
-        ].map((p) => [p, singular(p)]),
-      ),
-    ).toEqual({
-      sours: 'sour',
-      'spirit-forward drinks': 'spirit-forward drink',
-      highballs: 'highball',
-      'tiki drinks': 'tiki drink',
-      'dessert drinks': 'dessert drink',
-      fizzes: 'fizz',
-      punches: 'punch',
-      smashes: 'smash',
-      fixes: 'fix',
-      collinses: 'collins',
-      toddies: 'toddy',
-      daisies: 'daisy',
-      rickeys: 'rickey',
-      juleps: 'julep',
-      swizzles: 'swizzle',
-      sangarees: 'sangaree',
-      flips: 'flip',
-    })
-  })
-
-  it('leaves a name with no plural ending as it is', () => {
-    expect(singular('tiki')).toBe('tiki')
   })
 })

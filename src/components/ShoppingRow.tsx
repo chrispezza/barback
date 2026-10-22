@@ -15,26 +15,18 @@ interface ShoppingRowProps {
 }
 
 /**
- * One family's name for one drink, from its plural in families.ts: a plural
- * in "-ies" ends in "y", one in "-es" after s, x, z, ch or sh drops the "es",
- * any other drops a final "s"; a name with no plural ending stands as it is.
- */
-export function singular(plural: string): string {
-  if (/ies$/.test(plural)) return plural.replace(/ies$/, 'y');
-  if (/(s|x|z|ch|sh)es$/.test(plural)) return plural.replace(/es$/, '');
-  return plural.replace(/s$/, '');
-}
-
-/**
  * What a row says of the families its bottle unlocks (frontend-spec §6
  * Journey 3, "unlocks 4 sours, 2 tiki"): "2 sours · 2 tiki drinks · 1
  * highball", in the order unlocksByFamily gives, a number stated flatly before
- * each family's own name. Undefined when no unlocked drink has a family.
+ * each family's own name. families.ts names the plural only, so one drink
+ * drops its final "s", as the Index's family summary does (Drinks.tsx
+ * familyNoun) until FamilyDef carries a singular (chrispezza/barback#85).
+ * Undefined when no unlocked drink has a family.
  */
 export function familiesDetail(families: readonly FamilyUnlocks[]): string | undefined {
   if (families.length === 0) return undefined;
   return families
-    .map(({ family, count }) => `${count} ${count === 1 ? singular(family.plural) : family.plural}`)
+    .map(({ family, count }) => `${count} ${count === 1 ? family.plural.replace(/s$/, '') : family.plural}`)
     .join(' · ');
 }
 
