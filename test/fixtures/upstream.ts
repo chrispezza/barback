@@ -399,6 +399,15 @@ const utf8 = new TextEncoder()
  * numeric, otherwise byte by byte over the UTF-8 (zend_binary_strcmp: memcmp,
  * then the shorter first). Not a collation: every capital sorts before every
  * lowercase letter, and an accented letter after both.
+ *
+ * Two cases are out of scope because no ingredient name looks like either:
+ * - Numeric names that a double cannot tell apart, such as integers past 2^53
+ *   or two that overflow to the same infinity ('1e999', '2e999'). PHP
+ *   compares 64-bit integers exactly and compares two equal overflows as
+ *   bytes; this treats the pair as equal.
+ * - Sets that mix numeric and other names, where the comparison is not
+ *   transitive ('9' < '10' < '1a' < '9'). There asort's order depends on
+ *   zend_sort, and Array.prototype.sort can differ.
  */
 export function phpCompare(a: string, b: string): number {
   if (PHP_NUMERIC.test(a) && PHP_NUMERIC.test(b)) return Math.sign(Number(a) - Number(b))
