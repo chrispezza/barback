@@ -153,10 +153,12 @@ export function FirstPours() {
           } queued.`,
         });
       } finally {
-        // Still held until the list is read back after this write (the hook's
-        // onSettled has begun that read), so the next Choose decides against
-        // rows that include it.
-        await shoppingList.refetch({ cancelRefetch: false });
+        // Still held until the list is read back after this write, so the next
+        // Choose decides against rows that include it. The hook settles the
+        // write only once its read-back is over (useShoppingMutation), so
+        // mostly there is nothing left to wait for. A read still under way, one
+        // that took the read-back's place, is joined; none is started.
+        await listAsRead();
       }
     } catch {
       // A refused write is answered by its own hook: the rollback and the toast.
