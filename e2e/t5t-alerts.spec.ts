@@ -81,11 +81,23 @@ async function expectRing(target: Locator) {
   await expect(target).toHaveCSS('outline-offset', '2px')
 }
 
-/** Reach a Retry from the keyboard and press it. */
+/** At most this many Tab presses from where the screen left focus to any Retry. */
+const TAB_BUDGET = 80
+
+/**
+ * Reach a Retry with Tab from where the screen left focus, as a keyboard user
+ * would, and press it with Enter. Every Retry is in the tab order (frontend-spec
+ * §7: "all interactive elements keyboard-operable"); one Tab cannot reach would
+ * use up the budget and fail here.
+ */
 async function pressRetry(retry: Locator) {
-  await retry.focus()
+  const page = retry.page()
+  await expect(retry).toBeVisible()
+  for (let i = 0; i < TAB_BUDGET && !(await retry.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press('Tab')
+  }
   await expect(retry).toBeFocused()
-  await retry.page().keyboard.press('Enter')
+  await page.keyboard.press('Enter')
 }
 
 test.describe('Tonight on a cold start with the API out of reach and no snapshot', () => {
