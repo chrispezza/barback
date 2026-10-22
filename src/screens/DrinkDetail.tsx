@@ -33,6 +33,9 @@ function measure(entry: CocktailIngredientEntry): string {
   return `${entry.amount} ${entry.units}`;
 }
 
+/** The screen's name when the bar has no drink by that slug. */
+const NOT_FOUND_TITLE = 'No such drink';
+
 export function DrinkDetail({ slug }: { slug: string }) {
   const bars = useBars();
   const barId = useBarId();
@@ -49,9 +52,13 @@ export function DrinkDetail({ slug }: { slug: string }) {
   const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
   const toggleFavorite = useToggleFavorite(barId);
 
+  // The bar's own 404: there is no such drink (CocktailController::show).
+  const notFound = recipe.isError && isCocktailNotFound(recipe.error);
+
   useEffect(() => {
-    if (cocktail) setScreenTitle(cocktail.name);
-  }, [cocktail?.name]);
+    if (notFound) setScreenTitle(NOT_FOUND_TITLE);
+    else if (cocktail) setScreenTitle(cocktail.name);
+  }, [notFound, cocktail?.name]);
 
   // Standalone PWA has no browser chrome — the screen carries its own way back.
   const goBack = () => {
@@ -71,8 +78,14 @@ export function DrinkDetail({ slug }: { slug: string }) {
   // waits on /bars for the bar id and stays disabled until then, so a disabled
   // read is never "missing": a bootstrap that failed is the error voice, and
   // its Retry asks for the bootstrap again.
-  const barsFailed = barId === undefined && bars.isError;
-  if (barsFailed || (recipe.isError && !isCocktailNotFound(recipe.error))) {
+  //
+  // Offline, TanStack's default networkMode ('online') pauses a read instead
+  // of failing it, and a paused read is neither loading nor in error. The bar
+  // cannot answer, so a paused read with nothing to show is the error voice
+  // too; it goes out again by itself on reconnect.
+  const barsFailed = barId === undefined && (bars.isError || bars.isPaused);
+  const recipePaused = recipe.isPending && recipe.isPaused;
+  if (barsFailed || recipePaused || (recipe.isError && !notFound)) {
     return (
       <main class="screen screen--narrow">
         {backRow}
@@ -81,10 +94,13 @@ export function DrinkDetail({ slug }: { slug: string }) {
     );
   }
   // Only the bar's own 404 says there is no such drink; the next move is the index.
-  if (recipe.isError) {
+  // The heading names the screen for the outline and RouteEffects; the empty
+  // state says the rest.
+  if (notFound) {
     return (
       <main class="screen screen--narrow">
         {backRow}
+        <h1 class="visually-hidden">{NOT_FOUND_TITLE}</h1>
         <EmptyState
           body="No drink by that name — the index has the rest."
           action={
