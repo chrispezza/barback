@@ -16,7 +16,7 @@ import { useIngredientSearch } from '../api/search';
 import type { Ingredient } from '../api/types';
 import { useLogout } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
-import { ledgerGroups, rootIdsOf } from '../data/hierarchy';
+import { isPlaced, ledgerGroups, rootIdsOf } from '../data/hierarchy';
 import { useDebounced } from '../hooks';
 
 export function Shelf() {
@@ -33,13 +33,14 @@ export function Shelf() {
   const rows = shelf.data?.data ?? [];
 
   // Ledger grouping: bottles under their root ancestor (Spirits, Liqueurs…).
-  const rootNames = useIngredientsByIds(barId, rootIdsOf(rows));
-  const groups = ledgerGroups(rows, rootNames.data);
+  // A bottle just tapped on has no place in the hierarchy until the shelf is
+  // read back; its chip and the count carry it until then.
+  const ledgerRows = rows.filter(isPlaced);
+  const rootNames = useIngredientsByIds(barId, rootIdsOf(ledgerRows));
+  const groups = ledgerGroups(ledgerRows, rootNames.data);
 
   function removeRow(ingredient: Ingredient) {
-    if (!mutation.isPending) {
-      mutation.mutate({ ingredientId: ingredient.id, action: 'remove' });
-    }
+    mutation.toggle({ ingredient, action: 'remove' });
   }
 
   // The remove action is always visible (touch-reachable) but quiet at rest;
@@ -80,10 +81,9 @@ export function Shelf() {
                 key={hit.id}
                 label={hit.name}
                 state={isOnShelf ? 'have' : 'default'}
-                disabled={mutation.isPending}
                 onToggle={() =>
-                  mutation.mutate({
-                    ingredientId: hit.id,
+                  mutation.toggle({
+                    ingredient: hit,
                     action: isOnShelf ? 'remove' : 'add',
                   })
                 }
@@ -110,7 +110,7 @@ export function Shelf() {
           </section>
         ))
       ) : (
-        <div>{rows.map(shelfRowLine)}</div>
+        <div>{ledgerRows.map(shelfRowLine)}</div>
       )}
 
       {shelf.data && rows.length === 0 && (
