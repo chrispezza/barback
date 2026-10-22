@@ -1,4 +1,4 @@
-import { clearToken, getToken, navigateOutsideTree } from '../auth';
+import { clearToken, getToken, isDoor, navigateOutsideTree } from '../auth';
 
 // ADR-005: multi-origin only until the reverse proxy lands — keep the base
 // swappable and never bake absolute URLs deeper than this module.
@@ -59,10 +59,15 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
 
   if (res.status === 401) {
     // Session ended mid-use: keep their place and say so on the login screen,
-    // rather than a hard reload onto a blank form.
+    // rather than a hard reload onto a blank form. Calls in flight together
+    // all 401 at once (the bootstrap's /profile and /bars on a stale token):
+    // the first moves to the door, and the rest find it already there — taking
+    // `next` from the location again would wrap the door into its own next.
     clearToken();
-    const next = window.location.pathname + window.location.search;
-    navigateOutsideTree(`/login?reason=expired&next=${encodeURIComponent(next)}`);
+    if (!isDoor(window.location.pathname)) {
+      const next = window.location.pathname + window.location.search;
+      navigateOutsideTree(`/login?reason=expired&next=${encodeURIComponent(next)}`);
+    }
     throw apiError('unauthenticated', res.status, null);
   }
   if (!res.ok) throw apiError(`API ${res.status} on ${path}`, res.status, await readUpstreamMessage(res));

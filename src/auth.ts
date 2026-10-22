@@ -16,9 +16,27 @@ export function isAuthenticated(): boolean {
   return getToken() !== null;
 }
 
-/** Only same-origin paths may be a post-login destination. */
+const DOOR = '/login';
+
+/**
+ * Whether a path is the login screen itself, however it is written — with a
+ * query or hash, a trailing slash or dot segments. Read the way the router
+ * reads location: the resolved pathname, trailing slashes dropped (preact-iso).
+ */
+export function isDoor(path: string): boolean {
+  try {
+    return new URL(path, window.location.origin).pathname.replace(/\/+$/, '') === DOOR;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Only same-origin paths may be a post-login destination, and never the door
+ * itself: logging in there would land back on the login screen.
+ */
 export function safeNext(next: string | undefined): string {
-  if (next && next.startsWith('/') && !next.startsWith('//')) return next;
+  if (next && next.startsWith('/') && !next.startsWith('//') && !isDoor(next)) return next;
   return '/tonight';
 }
 
