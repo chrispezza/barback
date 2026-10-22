@@ -40,7 +40,7 @@ import {
   restockSuggestions,
   staplesToQueue,
 } from '../data/buy-next';
-import { cardIngredients } from '../data/match';
+import { cardIngredients, oneBottleAway } from '../data/match';
 import { STAPLE_SLUGS } from '../data/staples';
 import { useDebounced } from '../hooks';
 
@@ -474,18 +474,48 @@ export function Tonight() {
             tone="gap"
           />
           {(nearMiss.isError || barsFailed) && <ErrorLine onRetry={() => retry(nearMiss)} />}
+          {/* A near miss converts directly to the list (frontend-spec §6
+              Journey 1): beside each card, outside its link, as the classics
+              compose a card and its action, a tap lists the one bottle the
+              card names (ADR-008: a suggestion is listed on a tap, never by
+              itself). A card that names none (the #19 overlap) offers nothing.
+              Listed or not is a fact about the list, so neither shows before
+              the list has been read, nor while it cannot be (ADR-007). */}
           <ul class="card-list">
-            {nearMissCards.map((c) => (
-              <li key={c.id}>
-                <DrinkCard
-                  name={c.name}
-                  favorited={c.is_favorited}
-                  href={`/drinks/${c.slug}`}
-                  ingredients={cardIngredients(c, shelfIdx)}
-                  match="near"
-                />
-              </li>
-            ))}
+            {nearMissCards.map((c) => {
+              const bottle = oneBottleAway(c, shelfIdx);
+              return (
+                <li key={c.id} class="first-pour-item">
+                  <DrinkCard
+                    name={c.name}
+                    favorited={c.is_favorited}
+                    href={`/drinks/${c.slug}`}
+                    ingredients={cardIngredients(c, shelfIdx)}
+                    match="near"
+                  />
+                  {/* Its own block, so the action keeps its width and sits at
+                      the left under the card's missing-line: nothing is
+                      centred but empty states and the ratio device. */}
+                  {listKnown && bottle !== undefined && (
+                    <div>
+                      {listedIds.has(bottle.id) ? (
+                        <span class="listed-mark">Listed</span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={shoppingMutation.isPending}
+                          aria-label={`Add ${bottle.name} to the list`}
+                          onClick={() => listIt(bottle.id, bottle.name)}
+                        >
+                          + List
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
 
