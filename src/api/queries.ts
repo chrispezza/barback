@@ -698,19 +698,23 @@ export interface CheckOff {
 /**
  * What every shelf change reads back once it has settled — a check-off and its
  * Undo, a chip, a ledger Remove and its Undo: the shelf, the list, the drink
- * sections and every count shown beside them — each row's "Unlocks N" and
- * "In N drinks", Buy next and Restock next, the staples (frontend-spec §4,
- * "they must refetch after any shelf change"; §6 journey 3, "refreshes all
- * counts"). Upstream works the unlock count out against the user's shelf, as
- * it does the drink sections and Restock next (IngredientController::extra in
- * the reference clone), and its shelf batch-store takes the bottle off the
- * list (ShelfController::batchStore). One list for all of them, so no shelf
- * change leaves a count where an earlier one put it.
+ * sections, the cards "In the same vein" and every count shown beside them —
+ * each row's "Unlocks N" and "In N drinks", Buy next and Restock next, the
+ * staples (frontend-spec §4, "they must refetch after any shelf change"; §6
+ * journey 3, "refreshes all counts"). Upstream works the unlock count out
+ * against the user's shelf, as it does the drink sections, the similar
+ * drinks' in_shelf and Restock next (IngredientController::extra,
+ * CocktailResource in the reference clone), and its shelf batch-store takes
+ * the bottle off the list (ShelfController::batchStore). /similar is held for
+ * five minutes (useSimilarCocktails), so without it here a recipe opened again
+ * paints its cards Can pour off a shelf that has changed. One list for all of
+ * them, so no shelf change leaves a count or a card where an earlier one put it.
  */
 const SHELF_READ_BACK = [
   'shelf',
   'shopping-list',
   'cocktails',
+  'similar',
   'ingredient-extra',
   'ingredient-reach',
   'recommend',
