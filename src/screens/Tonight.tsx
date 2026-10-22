@@ -483,6 +483,20 @@ export function Tonight() {
   const offerReads = [shelf, favorites, recommendations, staples];
   const offerFailed = offerReads.some((read) => read.isError);
 
+  // One failure is announced once (WCAG 4.1.3; chrispezza/barback#71). A read
+  // several sections wait on stops each of them, and each says so, but only
+  // the first in the page's order carries the alert; the others say the same
+  // words without one. The pour section is first, and its line stands for
+  // /bars (as do the near section's and the rail's) and for the shelf (as
+  // does the offer's), so it announces both; /profile, which only the rail
+  // waits on, is the rail's to announce. A section's own read is its own.
+  // Each Retry is named for what it asks again, so the screen's several are
+  // told apart; each still asks for everything its line stands for (retry).
+  const nearAnnounces = nearMiss.isError;
+  const listAnnounces = !barsFailed;
+  const offerAnnounces = favorites.isError || recommendations.isError || staples.isError;
+  const drinks = scope ?? 'drinks';
+
   return (
     <main class="screen">
       <h1>Tonight</h1>
@@ -513,7 +527,10 @@ export function Tonight() {
           {/* The shelf is this section's too: it decides a bare shelf, and the
               cards read held child brands off it. One line for whatever failed. */}
           {(canMake.isError || shelf.isError || barsFailed) && (
-            <ErrorLine onRetry={() => retry(canMake, shelf, ...statusReads, ...offerReads)} />
+            <ErrorLine
+              retries={`the ${drinks} you can pour`}
+              onRetry={() => retry(canMake, shelf, ...statusReads, ...offerReads)}
+            />
           )}
           {pourEmpty === 'near' && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
@@ -599,7 +616,11 @@ export function Tonight() {
             tone="gap"
           />
           {(nearMiss.isError || barsFailed) && (
-            <ErrorLine onRetry={() => retry(nearMiss, ...statusReads, ...offerReads)} />
+            <ErrorLine
+              announce={nearAnnounces}
+              retries={`the ${drinks} one bottle away`}
+              onRetry={() => retry(nearMiss, ...statusReads, ...offerReads)}
+            />
           )}
           {/* A near miss converts directly to the list (frontend-spec §6
               Journey 1): beside each card, outside its link, as the classics
@@ -675,7 +696,11 @@ export function Tonight() {
                 </ul>
               </div>
             ) : (
-              <ErrorLine onRetry={() => retry(shoppingList)} />
+              <ErrorLine
+                announce={listAnnounces}
+                retries="the list"
+                onRetry={() => retry(shoppingList)}
+              />
             )
           ) : (
             <>
@@ -691,7 +716,9 @@ export function Tonight() {
                   as not, and a tap would list it again rather than take it off. */}
               {listKnown && listQuery.trim().length >= 1 && (
                 <div class="chip-row">
-                  {listSearchUnanswered && <ErrorLine onRetry={() => retry(listResults)} />}
+                  {listSearchUnanswered && (
+                    <ErrorLine retries="the search" onRetry={() => retry(listResults)} />
+                  )}
                   {listHits?.map((hit) => {
                     const isListed = listedIds.has(hit.id);
                     return (
@@ -748,7 +775,13 @@ export function Tonight() {
               {/* The reads the offer is decided from, the shelf's included: one
                   line for whichever failed, here, where the offer would go,
                   and nothing offered that it decides. */}
-              {offerFailed && <ErrorLine onRetry={() => retry(...offerReads)} />}
+              {offerFailed && (
+                <ErrorLine
+                  announce={offerAnnounces}
+                  retries="the suggestions"
+                  onRetry={() => retry(...offerReads)}
+                />
+              )}
 
               {favoritesReady && favoriteNeedsShown.length > 0 && (
                 <section class="restock-section">

@@ -87,6 +87,18 @@ async function expectErrorLine(page: Page, section: string) {
 }
 
 /**
+ * The section's error line for a failure the pour section's line announces
+ * (the bootstrap): the same words and a Retry named for what it asks again,
+ * with no second alert (chrispezza/barback#71).
+ */
+async function expectQuietErrorLine(page: Page, section: string, retry: string) {
+  await expect(page.locator(section).getByRole('alert')).toHaveCount(0)
+  const line = page.locator(section).getByText('The bar didn’t answer — try again.')
+  await expect(line).toHaveCount(1)
+  await expect(line.getByRole('button', { name: retry, exact: true })).toBeVisible()
+}
+
+/**
  * Nothing in the rail can write: no check-off, no drop, no "List it", no add
  * field. Check-off rows and add-field chips are toggles (aria-pressed); the
  * error line's Retry is not, and only reads.
@@ -115,7 +127,7 @@ test.describe('a cold start with the API out of reach', () => {
     await expect(offlineLine(page)).toBeVisible()
     await expect(snapshotNames(page)).toHaveText(['Campari', 'Cointreau'])
     await expectErrorLine(page, '#pour')
-    await expectErrorLine(page, '#near')
+    await expectQuietErrorLine(page, '#near', 'Retry the drinks one bottle away')
     // The rail's answer is the snapshot, not the error line.
     await expect(page.locator('#buy').getByRole('alert')).toHaveCount(0)
     await expectNothingWrites(page)
@@ -132,8 +144,9 @@ test.describe('a cold start with the API out of reach', () => {
     await page.goto('/tonight')
 
     await expectErrorLine(page, '#pour')
-    await expectErrorLine(page, '#near')
-    await expectErrorLine(page, '#buy')
+    await expectQuietErrorLine(page, '#near', 'Retry the drinks one bottle away')
+    await expectQuietErrorLine(page, '#buy', 'Retry the list')
+    await expect(page.getByRole('alert')).toHaveCount(1)
     await expect(offlineLine(page)).toHaveCount(0)
     await expect(snapshotNames(page)).toHaveCount(0)
     await expectNothingWrites(page)
@@ -157,6 +170,7 @@ test.describe('a cold start with the API out of reach', () => {
     await expect(listItem(page, 'Cointreau')).toBeVisible()
     await expect(offlineLine(page)).toHaveCount(0)
     await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(page.getByText('The bar didn’t answer — try again.')).toHaveCount(0)
     await expect(page.locator('#pour .card-list > li').first()).toBeVisible()
   })
 })

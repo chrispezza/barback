@@ -582,6 +582,13 @@ a {
   outline: none;
 }
 
+/* A section's heading takes focus when the error line that held it goes
+   (ErrorLine): the system's ring, as on every focus-visible target */
+.tonight-grid h2:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 /* Loading voice reserves its line so the counts don't shift the family bar */
 .bar-status {
   min-height: calc(var(--display-3) * var(--display-3-lh));
