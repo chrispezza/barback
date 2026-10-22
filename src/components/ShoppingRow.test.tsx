@@ -140,7 +140,7 @@ describe('ShoppingRow detail line', () => {
     // Campari completes the Negroni, a spirit-forward drink, against the default shelf.
     barWithout(I.campari)
     const { container } = renderRow({ ingredientId: I.campari, name: 'Campari' })
-    expect(meta(container)).toBe('Unlocks 1·1 spirit-forward drink')
+    expect(meta(container)).toBe('Unlocks 1·\u200A1 spirit-forward drink')
     expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
   })
 
@@ -185,7 +185,7 @@ describe('ShoppingRow families', () => {
     // Scotch whisky opens the Rob Roy (spirit-forward) and the Bobby Burns (no family tag).
     barWithout(I.scotch)
     const { container } = renderRow({ ingredientId: I.scotch, name: 'Scotch whisky' })
-    expect(meta(container)).toBe('Unlocks 2·1 spirit-forward drink')
+    expect(meta(container)).toBe('Unlocks 2·\u200A1 spirit-forward drink')
   })
 
   it('states the count alone until the tags of its drinks are read', () => {
@@ -209,7 +209,7 @@ describe('ShoppingRow families', () => {
     const { container } = renderRow({ ingredientId: I.espresso, name: 'Espresso' })
     // The Espresso Martini still wants vodka, so it is not among them.
     expect(meta(container)).toBe(
-      'Unlocks 5·1 sour · 1 spirit-forward drink · 1 highball · 1 tiki drink · 1 dessert drink',
+      'Unlocks 5·\u200A1 sour · 1 spirit-forward drink · 1 highball · 1 tiki drink · 1 dessert drink',
     )
   })
 
@@ -221,15 +221,31 @@ describe('ShoppingRow families', () => {
     m.world.cocktails.push(espressoDrink(300, T.tiki))
     const { container } = renderRow({ ingredientId: I.espresso, name: 'Espresso' })
     expect(meta(container)).toBe(
-      'Unlocks 11·3 tiki drinks · 2 sours · 2 spirit-forward drinks · 2 highballs · 2 dessert drinks',
+      'Unlocks 11·\u200A3 tiki drinks · 2 sours · 2 spirit-forward drinks · 2 highballs · 2 dessert drinks',
     )
+  })
+
+  it('opens the detail with a hair space only beside a count, so assistive tech hears the two apart', () => {
+    // The DS separator between them is aria-hidden and has no space either side.
+    barWithout(I.scotch)
+    const { container, unmount } = renderRow({ ingredientId: I.scotch, name: 'Scotch whisky' })
+    const detail = container.querySelector('.bb-shop__meta > span:last-child')?.textContent
+    expect(detail).toBe('\u200A1 spirit-forward drink')
+    unmount()
+
+    // No count, no separator: the reach line and a lone staple stand as they are.
+    barWithout(I.coffeeLiqueur)
+    expect(meta(renderRow({ ingredientId: I.coffeeLiqueur, name: 'Coffee liqueur' }).container)).toBe('In 1 drink')
+    cleanup()
+    barWithout(I.clubSoda)
+    expect(meta(renderRow({ ingredientId: I.clubSoda, name: 'Club soda', isStaple: true }).container)).toBe('Staple')
   })
 
   it('keeps a staple’s attribution after the families', () => {
     // Lime juice opens the Daiquiri and the Gimlet, both sours.
     barWithout(I.limeJuice)
     const { container } = renderRow({ ingredientId: I.limeJuice, name: 'Lime juice', isStaple: true })
-    expect(meta(container)).toBe('Unlocks 2·2 sours · Staple')
+    expect(meta(container)).toBe('Unlocks 2·\u200A2 sours · Staple')
     expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
   })
 })

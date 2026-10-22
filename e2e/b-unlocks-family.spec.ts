@@ -20,8 +20,11 @@ import { expect, test } from './support/test'
 // families' own plural names (src/data/families.ts): most drinks first, ties in
 // the families' declared order, "1 highball" for one. A drink with no family
 // tag is counted in "Unlocks N" but not named. The DS row renders the count,
-// an aria-hidden "·" separator and the detail as three spans, so the line's
-// text joins them without spaces: "Unlocks 2·1 spirit-forward drink".
+// an aria-hidden "·" separator and the detail as three spans with no space
+// between them, so ShoppingRow opens the detail with a hair space (U+200A)
+// that parts the count from it for assistive tech: the line's text is
+// "Unlocks 2·\u200A1 spirit-forward drink", and the row is named
+// "Scotch whisky Unlocks 2 1 spirit-forward drink", never "Unlocks 21 …".
 //
 // Every line the row states is true when it is stated: the count alone until
 // the tags of the drinks it counts have been read, never a breakdown of some
@@ -118,7 +121,11 @@ test.describe('To buy, annotated by family', () => {
     bar,
   }) => {
     await page.goto('/tonight')
-    await expect(rowLine(page, 'White rum')).toHaveText('Unlocks 6·2 sours · 2 tiki drinks · 1 highball')
+    await expect(rowLine(page, 'White rum')).toHaveText('Unlocks 6·\u200A2 sours · 2 tiki drinks · 1 highball')
+    // Assistive tech hears the count and the families apart: "6", then "2 sours".
+    await expect(
+      rail(page).getByRole('button', { name: 'White rum Unlocks 6 2 sours · 2 tiki drinks · 1 highball', exact: true }),
+    ).toBeVisible()
     // A bottle that unlocks nothing still says what it is in, and nothing of families.
     await expect(rowLine(page, 'Cointreau')).toHaveText('In 1 drink')
 
@@ -135,7 +142,7 @@ test.describe('To buy, a bottle whose drinks are partly untagged', () => {
 
   test('counts both and names the one family', async ({ page }) => {
     await page.goto('/tonight')
-    await expect(rowLine(page, 'Scotch whisky')).toHaveText('Unlocks 2·1 spirit-forward drink')
+    await expect(rowLine(page, 'Scotch whisky')).toHaveText('Unlocks 2·\u200A1 spirit-forward drink')
   })
 })
 
@@ -198,7 +205,7 @@ test.describe('To buy, a staple', () => {
 
   test('keeps its attribution after the breakdown', async ({ page }) => {
     await page.goto('/tonight')
-    await expect(rowLine(page, 'Lime juice')).toHaveText('Unlocks 2·2 sours · Staple')
+    await expect(rowLine(page, 'Lime juice')).toHaveText('Unlocks 2·\u200A2 sours · Staple')
   })
 })
 
@@ -230,19 +237,19 @@ test.describe('To buy, after a check-off', () => {
       }).observe(document, { childList: true, subtree: true, characterData: true })
     })
     await page.goto('/tonight')
-    await expect(rowLine(page, 'White rum')).toHaveText('Unlocks 1·1 sour')
+    await expect(rowLine(page, 'White rum')).toHaveText('Unlocks 1·\u200A1 sour')
     await expect(rowLine(page, 'Mint')).toHaveText('In 1 drink')
 
     await listItem(page, 'Mint').click()
     await expect(page.getByText('Moved to the shelf.')).toBeVisible()
     expect(bar.model.shelf.has(I.mint)).toBe(true)
-    await expect(rowLine(page, 'White rum')).toHaveText('Unlocks 2·1 sour · 1 highball')
+    await expect(rowLine(page, 'White rum')).toHaveText('Unlocks 2·\u200A1 sour · 1 highball')
 
     // Before its drinks' tags are read, a count stands alone; it never stands
-    // beside the breakdown of the drinks it counted before ("Unlocks 2·1 sour").
+    // beside the breakdown of the drinks it counted before ("Unlocks 2", "1 sour").
     const lines = await page.evaluate(() => (window as unknown as { __lines: string[] }).__lines)
-    const allowed = ['Unlocks 1', 'Unlocks 1·1 sour', 'Unlocks 2', 'Unlocks 2·1 sour · 1 highball']
+    const allowed = ['Unlocks 1', 'Unlocks 1·\u200A1 sour', 'Unlocks 2', 'Unlocks 2·\u200A1 sour · 1 highball']
     expect(lines.filter((l) => !allowed.includes(l))).toEqual([])
-    expect(lines[lines.length - 1]).toBe('Unlocks 2·1 sour · 1 highball')
+    expect(lines[lines.length - 1]).toBe('Unlocks 2·\u200A1 sour · 1 highball')
   })
 })

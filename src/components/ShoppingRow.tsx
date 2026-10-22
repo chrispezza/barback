@@ -31,6 +31,15 @@ export function familiesDetail(families: readonly FamilyUnlocks[]): string | und
 }
 
 /**
+ * The DS row sets the "·" between its count and its detail aria-hidden, with
+ * no space on either side, so assistive tech hears the two run together:
+ * "Unlocks 2" and "2 sours" as "Unlocks 22 sours", "Unlocks 1" and "Staple" as
+ * "Unlocks 1Staple". A hair space opening the detail parts them; on screen it
+ * adds under 2 px beside the separator.
+ */
+const PART = '\u200A';
+
+/**
  * DS ShoppingListItem fed with the live "unlocks N" count. A zero unlock is
  * honest but discouraging — it means "completes nothing by itself", not
  * "useless" — so those rows say what the bottle builds toward instead. A
@@ -50,7 +59,9 @@ export function ShoppingRow({
   const { data: unlocks } = useIngredientUnlocks(barId, ingredientId);
   const families = useUnlockFamilies(barId, ingredientId);
   const reach = useIngredientReach(barId, ingredientId, !isStaple && unlocks === 0);
-  const named = unlocks !== undefined && unlocks > 0 && families ? familiesDetail(families) : undefined;
+  // The row states a count once it is read and is not 0.
+  const counted = unlocks !== undefined && unlocks !== 0;
+  const named = counted && families ? familiesDetail(families) : undefined;
   const detail = isStaple
     ? [named, 'Staple'].filter((part) => part !== undefined).join(' · ')
     : unlocks === 0 && reach
@@ -61,8 +72,8 @@ export function ShoppingRow({
       <div class="shopping-row-main">
         <ShoppingListItem
           name={name}
-          unlocks={unlocks === 0 ? undefined : unlocks}
-          detail={detail}
+          unlocks={counted ? unlocks : undefined}
+          detail={counted && detail ? `${PART}${detail}` : detail}
           onToggle={onCheckOff}
         />
       </div>
