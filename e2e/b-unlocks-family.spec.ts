@@ -336,11 +336,11 @@ test.describe('To buy, after a check-off', () => {
     // The lines are raw text, the no-break spaces as the row writes them.
     const allowed = [
       'Unlocks 1',
-      'Unlocks 1·\u200A1\u00A0sour',
+      'Unlocks 1· \u200A1\u00A0sour',
       'Unlocks 2',
-      'Unlocks 2·\u200A1\u00A0sour\u00A0· 1\u00A0highball',
+      'Unlocks 2· \u200A1\u00A0sour\u00A0· 1\u00A0highball',
     ]
     expect(lines.filter((l) => !allowed.includes(l))).toEqual([])
-    expect(lines[lines.length - 1]).toBe('Unlocks 2·\u200A1\u00A0sour\u00A0· 1\u00A0highball')
+    expect(lines[lines.length - 1]).toBe('Unlocks 2· \u200A1\u00A0sour\u00A0· 1\u00A0highball')
   })
 })
