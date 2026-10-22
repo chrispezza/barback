@@ -127,6 +127,28 @@ describe('snapshotStamp', () => {
     expect(stamp(new Date(2026, 9, 15, 21, 40), NOW, 'en-GB')).toBe('Thursday 21:40')
   })
 
+  it('words a stamp up to six days back exactly as Tonight did before the date was named', () => {
+    // The formatter Tonight used before chrispezza/barback#64, written out as
+    // it was. Up to six days back the brief keeps that wording, in every
+    // locale: an en-GB morning reads "Monday 09:05", not "Monday 9:05".
+    const before = (at: Date, locale: string) =>
+      flat(at.toLocaleString(locale, { weekday: 'long', hour: 'numeric', minute: '2-digit' }))
+    const monday = new Date(2026, 9, 19, 9, 5)
+    expect(stamp(monday, NOW, 'en-GB')).toBe('Monday 09:05')
+    for (const locale of ['en-US', 'en-GB', 'en-AU', 'de-DE', 'fr-FR', 'ja-JP', 'ko-KR']) {
+      for (const at of [new Date(2026, 9, 21, 9, 15), monday, new Date(2026, 9, 15, 21, 40)]) {
+        expect(stamp(at, NOW, locale), `${locale} ${at.toString()}`).toBe(before(at, locale))
+      }
+    }
+  })
+
+  it('writes the time the same way either side of the six-day line', () => {
+    // Six days back an en-GB morning reads "Monday 09:05" (above); once the
+    // date is named the time keeps its leading zero.
+    expect(stamp(new Date(2026, 9, 7, 9, 5), NOW, 'en-GB')).toBe('Wednesday 7 October, 09:05')
+    expect(stamp(new Date(2026, 9, 7, 9, 5), NOW)).toBe('Wednesday 7 October, 9:05 AM')
+  })
+
   it('reads the stamp snapshotOf writes', () => {
     const at = new Date(2026, 9, 7, 17, 40)
     const snapshot = snapshotOf(listResponse(m, [I.campari]).data, at)
