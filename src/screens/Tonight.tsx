@@ -23,6 +23,7 @@ import {
 } from '../api/queries';
 import { shelfIndex, type RecommendedIngredient } from '../api/types';
 import { useIngredientSearch } from '../api/search';
+import { useUnlockCounts } from '../api/unlocks';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
@@ -34,6 +35,7 @@ import {
   forgetRestocked,
   queuedThisSession,
   rankFavoriteNeeds,
+  rankList,
   rememberDropped,
   rememberListed,
   rememberQueued,
@@ -206,6 +208,22 @@ export function Tonight() {
   // an empty state is a fact, never a read still under way (frontend-spec §5;
   // chrispezza/barback#69).
   const listKnown = !listUnavailable && shoppingList.data !== undefined;
+  // To buy is ranked by what each bottle unlocks (frontend-spec §6 Journey 3),
+  // on the counts the rows state: the same reads, under the same keys, as each
+  // ShoppingRow's. They are asked for only while the rows can show. The rows
+  // wait in name order until every count has answered, then settle once; the
+  // order settled last is held while any count is read, or read again, so a
+  // bottle listed onto a ranked list waits below it, and a check-off's
+  // refreshed counts move the rows once, when the last one answers (rankList,
+  // answeredCounts). Writing the ref here is idempotent: the same reads give
+  // the same order.
+  const unlockCounts = useUnlockCounts(
+    barId,
+    listUnavailable ? [] : listItems.map((item) => item.ingredient.id),
+  );
+  const settledOrder = useRef<readonly number[]>([]);
+  const toBuy = rankList(listItems, unlockCounts, settledOrder.current);
+  if (toBuy.settled) settledOrder.current = toBuy.rows.map((item) => item.ingredient.id);
 
   // Dashboard lead: whole-bar counts, deliberately unscoped by family — the
   // line is the bar's status; the scoped story is told by the sections below.
@@ -590,7 +608,7 @@ export function Tonight() {
                 )
               ) : (
                 <div>
-                  {listItems.map((item) => (
+                  {toBuy.rows.map((item) => (
                     <ShoppingRow
                       key={item.ingredient.id}
                       ingredientId={item.ingredient.id}

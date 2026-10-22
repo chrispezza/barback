@@ -5,9 +5,16 @@
 //
 // Only staplesToQueue feeds a write the user did not tap (a standing order);
 // everything else here is a suggestion, listed on a tap. Groups, highest
-// first: Buy next (one bottle), For your favorites, Restock next.
+// first: Buy next (one bottle), For your favorites, Restock next. What is
+// already listed, To buy, is ranked by rankList.
 
-import type { Cocktail, Ingredient, RecommendedIngredient, ShelfIndex } from '../api/types';
+import type {
+  Cocktail,
+  Ingredient,
+  RecommendedIngredient,
+  ShelfIndex,
+  ShoppingListItem,
+} from '../api/types';
 import { lineHeld } from './match';
 
 /** How many bottles the favourites group and the restock group each hold. */
@@ -154,6 +161,54 @@ export function buyNextGroups(
     pick,
     favoriteNeeds: favoriteNeeds.filter((f) => f.id !== pick?.id),
     suggestions: suggestions.filter((r) => r.id !== pick?.id),
+  };
+}
+
+/** To buy in the order Tonight shows it, and whether that order is settled. */
+export interface RankedList<T> {
+  rows: T[];
+  /**
+   * Every row's count had answered, so `rows` is the ranking. Tonight keeps a
+   * settled order and passes it back as `held` until the next one.
+   */
+  settled: boolean;
+}
+
+/**
+ * To buy, ranked (frontend-spec §6 Journey 3, "Shopping (leverage-first):
+ * items ranked by unlock count"; §2 Tonight, "unlocks 4" per item). The list
+ * arrives by ingredient name (ShoppingListController::index sorts by
+ * ingredient.name, ShoppingListController.php:38 at v5.15.3); the bottle that
+ * opens the most drinks comes first, ties by name, one that opens nothing last.
+ *
+ * `unlocks` holds every count that has answered (api/unlocks.ts
+ * answeredCounts): a count still being read is absent, on a first read and on
+ * a read again alike, though its row may state the last one. The rows are
+ * ranked only once every bottle's count is in, so the order changes once
+ * rather than once per answer. Until then they keep `held`, the last settled
+ * order (empty before the first, so on a first read every row waits in name
+ * order): a held bottle no longer listed drops out, and a bottle not in it,
+ * listed since, waits below by name. So after a check-off refreshes every
+ * count, the rows keep their places, less the bottle shelved, until the last
+ * refresh answers, and are never ranked on a mix of old counts and new. A
+ * count that cannot be read never arrives, and the rows stay as they stand:
+ * the list states no rank it cannot back.
+ */
+export function rankList<T extends Pick<ShoppingListItem, 'ingredient'>>(
+  items: readonly T[],
+  unlocks: ReadonlyMap<number, number>,
+  held: readonly number[] = [],
+): RankedList<T> {
+  const byName = (a: T, b: T) => a.ingredient.name.localeCompare(b.ingredient.name);
+  if (items.every((item) => unlocks.has(item.ingredient.id))) {
+    const count = (item: T) => unlocks.get(item.ingredient.id) ?? 0;
+    return { rows: [...items].sort((a, b) => count(b) - count(a) || byName(a, b)), settled: true };
+  }
+  const place = new Map(held.map((id, i) => [id, i]));
+  const placed = (item: T) => place.get(item.ingredient.id) ?? Number.POSITIVE_INFINITY;
+  return {
+    rows: [...items].sort((a, b) => placed(a) - placed(b) || byName(a, b)),
+    settled: false,
   };
 }
 

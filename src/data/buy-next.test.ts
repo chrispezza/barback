@@ -8,6 +8,7 @@ import {
   buyNextGroups,
   favoriteGaps,
   rankFavoriteNeeds,
+  rankList,
   restockSuggestions,
   staplesToQueue,
 } from './buy-next'
@@ -590,5 +591,152 @@ describe('favourite gaps, for a favourite the server pours (chrispezza/barback#2
     // Club soda is a staple (src/data/staples.ts), a rule the user wrote.
     const d = decide(world((w) => (mojitoOnTonic(w), (w.favorites = [C.mojito]))))
     expect(names(d.queue)).toEqual(['Club soda'])
+  })
+})
+
+describe('To buy, ranked by what each bottle unlocks (frontend-spec §6 Journey 3)', () => {
+  // The list as Tonight receives it: GET /users/{id}/shopping-list, sorted by
+  // ingredient name (ShoppingListController.php:38 at v5.15.3). Each count is
+  // GET /ingredients/{id}/extra's length: the drinks the bottle would add to
+  // what the user's shelf pours (IngredientController.php:199-226).
+  //
+  // Against the default shelf with the Whiskey Sour's egg white: Scotch whisky
+  // opens the Rob Roy and the Bobby Burns; Campari, Dry vermouth and Mint one
+  // drink each; Cointreau and Tequila nothing alone.
+  const listed = [I.campari, I.cointreau, I.dryVermouth, I.mint, I.scotch, I.tequila]
+
+  const idsOf = (rows: readonly { ingredient: { id: number } }[]) => rows.map((r) => r.ingredient.id)
+
+  /** The list Tonight reads with these bottles on it, and their counts. */
+  function toBuy(ids: number[] = listed) {
+    const m = new BarModel(world((w) => (w.shelf.push(I.eggWhite), (w.list = ids))))
+    const items = [...m.list.entries()]
+      .map(([id, quantity]) => ({ ingredient: m.basic(id), quantity }))
+      .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name))
+    const unlocks = (id: number) => {
+      const before = m.canMake()
+      return [...m.canMakeWith(new Set([...m.shelf, id]))].filter((c) => !before.has(c)).length
+    }
+    /** The counts in hand once these bottles' reads have answered: all, by default. */
+    const counted = (answered: number[] = idsOf(items)) => new Map(answered.map((id) => [id, unlocks(id)]))
+    return { items, counted }
+  }
+  const rowNames = (rows: readonly { ingredient: { name: string } }[]) => rows.map((r) => r.ingredient.name)
+  const BY_NAME = ['Campari', 'Cointreau', 'Dry vermouth', 'Mint', 'Scotch whisky', 'Tequila']
+  const RANKED = ['Scotch whisky', 'Campari', 'Dry vermouth', 'Mint', 'Cointreau', 'Tequila']
+
+  it('comes from upstream by name, which is not the ranking', () => {
+    expect(rowNames(toBuy().items)).toEqual(BY_NAME)
+  })
+
+  it('puts the bottle that opens the most drinks first, ties by name, and one that opens nothing last', () => {
+    const { items, counted } = toBuy()
+    const ranked = rankList(items, counted())
+    expect(ranked.settled).toBe(true)
+    expect(rowNames(ranked.rows)).toEqual(RANKED)
+  })
+
+  it('ranks the same whatever order the rows arrive in', () => {
+    const { items, counted } = toBuy()
+    expect(rowNames(rankList([...items].reverse(), counted()).rows)).toEqual(RANKED)
+  })
+
+  it('counts a zero as a count: a bottle that opens nothing does not hold the order', () => {
+    const { items, counted } = toBuy([I.cointreau, I.campari])
+    const ranked = rankList(items, counted())
+    expect(ranked.settled).toBe(true)
+    expect(rowNames(ranked.rows)).toEqual(['Campari', 'Cointreau'])
+  })
+
+  it('waits in name order until every count is in, the leader’s included', () => {
+    const { items, counted } = toBuy()
+    for (const missing of listed) {
+      const ranked = rankList(items, counted(listed.filter((id) => id !== missing)))
+      expect(ranked.settled, `without ${missing}`).toBe(false)
+      expect(rowNames(ranked.rows), `without ${missing}`).toEqual(BY_NAME)
+    }
+    expect(rowNames(rankList(items, new Map()).rows)).toEqual(BY_NAME)
+  })
+
+  it('holds the last settled order while a bottle listed since is counted, with the newcomer below', () => {
+    const { items, counted } = toBuy()
+    const held = idsOf(rankList(items, counted()).rows)
+    // Rye whiskey, listed from the Manhattan's card; the list comes back by name.
+    const after = toBuy([...listed, I.rye])
+    expect(rowNames(after.items)).toEqual([...BY_NAME.slice(0, 4), 'Rye whiskey', ...BY_NAME.slice(4)])
+
+    const waiting = rankList(after.items, counted(), held)
+    expect(waiting.settled).toBe(false)
+    expect(rowNames(waiting.rows)).toEqual([...RANKED, 'Rye whiskey'])
+
+    const settled = rankList(after.items, after.counted(), held)
+    expect(settled.settled).toBe(true)
+    expect(rowNames(settled.rows)).toEqual([
+      'Scotch whisky',
+      'Campari',
+      'Dry vermouth',
+      'Mint',
+      'Rye whiskey',
+      'Cointreau',
+      'Tequila',
+    ])
+  })
+
+  it('puts several newcomers below the held rows by name, and forgets held bottles no longer listed', () => {
+    const { items, counted } = toBuy()
+    const held = idsOf(rankList(items, counted()).rows)
+    const after = toBuy([I.campari, I.mint, I.scotch, I.rye, I.honeySyrup])
+    const waiting = rankList(after.items, counted([I.campari, I.mint, I.scotch]), held)
+    expect(rowNames(waiting.rows)).toEqual(['Scotch whisky', 'Campari', 'Mint', 'Honey syrup', 'Rye whiskey'])
+  })
+
+  it('after a check-off, keeps its places less the bottle shelved until every refreshed count is in, then settles once', () => {
+    // Gin off the shelf, listed with Campari, Dry vermouth and Mint: Gin opens
+    // the Gimlet and the Gin Tonic, Mint the Mojito, and Campari and Dry
+    // vermouth nothing while the Negroni and the Martini want gin.
+    const m = new BarModel(
+      world((w) => {
+        w.shelf = [...w.shelf.filter((id) => id !== I.gin), I.eggWhite]
+        w.list = [I.campari, I.dryVermouth, I.gin, I.mint]
+      }),
+    )
+    const listOf = () =>
+      [...m.list.entries()]
+        .map(([id, quantity]) => ({ ingredient: m.basic(id), quantity }))
+        .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name))
+    const unlocks = (id: number) => {
+      const before = m.canMake()
+      return [...m.canMakeWith(new Set([...m.shelf, id]))].filter((c) => !before.has(c)).length
+    }
+    /** The counts that have answered, read against the shelf as it stands. */
+    const answered = (ids: number[]) => new Map(ids.map((id) => [id, unlocks(id)]))
+
+    const first = rankList(listOf(), answered([I.campari, I.dryVermouth, I.gin, I.mint]))
+    expect(first.settled).toBe(true)
+    expect(rowNames(first.rows)).toEqual(['Gin', 'Mint', 'Campari', 'Dry vermouth'])
+    const held = idsOf(first.rows)
+
+    // Checked off: Gin on the shelf and off the list, and every count asked
+    // for again. They answer one by one; Dry vermouth's last.
+    m.shelf.add(I.gin)
+    m.list.delete(I.gin)
+    for (const ids of [[], [I.campari], [I.campari, I.mint]]) {
+      const waiting = rankList(listOf(), answered(ids), held)
+      expect(waiting.settled, `with ${ids.length} answered`).toBe(false)
+      expect(rowNames(waiting.rows), `with ${ids.length} answered`).toEqual(['Mint', 'Campari', 'Dry vermouth'])
+    }
+    const settled = rankList(listOf(), answered([I.campari, I.mint, I.dryVermouth]), held)
+    expect(settled.settled).toBe(true)
+    expect(rowNames(settled.rows)).toEqual(['Campari', 'Dry vermouth', 'Mint'])
+  })
+
+  it('stays as it stands while a count cannot be read, and is settled for an empty list', () => {
+    const { items, counted } = toBuy()
+    const held = idsOf(rankList(items, counted()).rows)
+    // Scotch whisky's read failed: its count never arrives.
+    const noScotch = counted(listed.filter((id) => id !== I.scotch))
+    expect(rowNames(rankList(items, noScotch, held).rows)).toEqual(RANKED)
+    expect(rowNames(rankList(items, noScotch).rows)).toEqual(BY_NAME)
+    expect(rankList([], new Map())).toEqual({ rows: [], settled: true })
   })
 })
