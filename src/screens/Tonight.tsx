@@ -297,8 +297,9 @@ export function Tonight() {
   // Before the shelf and the list have both been read, that set is empty and
   // no held child brand is known, so they would offer a bottle already on the
   // shelf or the list, with a live "List it" (chrispezza/barback#69). They
-  // wait for both reads. A shelf read that failed, with an older answer in hand
-  // or none, says so where they go instead (ADR-007 Consequences).
+  // wait for both reads, and for reads of their own (below). A shelf read that
+  // failed, with an older answer in hand or none, says so where they go
+  // instead (ADR-007 Consequences).
   const suggestionsReady = listKnown && shelfAnswer !== undefined;
 
   // What the pour section says when nothing pours (frontend-spec §5 "Empty
@@ -420,13 +421,22 @@ export function Tonight() {
   // What the favorited drinks still need — aspiration outranks the generic
   // server ranking, so these pin above Restock next (data/buy-next.ts).
   const favorites = useCocktails(barId, { favorites: true }, 100);
+  // Beyond the shelf and the list (suggestionsReady), each part of the offer
+  // is decided from reads of its own, and waits for every one of them: the
+  // offer is one ranking whose groups leave out what a higher one claimed
+  // (ADR-008), so a part shown early would show one bottle and then another.
+  // A read that failed decides nothing, the answer a failed refetch leaves in
+  // hand included (unlessFailed); the rail says so instead.
+  const favoritesAnswer = unlessFailed(favorites);
+  const recommendationsAnswer = unlessFailed(recommendations);
+  const staplesAnswer = unlessFailed(staples);
   const favoriteNeeds = rankFavoriteNeeds(
-    favoriteGaps(favorites.data?.data ?? [], ownedOrListed, shelfIdx),
+    favoriteGaps(favoritesAnswer?.data ?? [], ownedOrListed, shelfIdx),
   );
   // Staples and favorite gaps own their groups; both stay out of the
   // general suggestions, as does a parent a held brand already covers.
   const suggestions = restockSuggestions(
-    recommendations.data ?? [],
+    recommendationsAnswer ?? [],
     ownedOrListed,
     stapleIds,
     favoriteNeeds,
@@ -438,6 +448,20 @@ export function Tonight() {
     favoriteNeeds: favoriteNeedsShown,
     suggestions: suggestionsShown,
   } = buyNextGroups(favoriteNeeds, suggestions);
+  // For your favorites is decided from the favourites. Restock next, and the
+  // empty state's names (its first three), leave out the staples and what the
+  // favourites claim, so they wait for those reads as well as the ranking.
+  const favoritesReady = suggestionsReady && favoritesAnswer !== undefined;
+  const restockReady =
+    favoritesReady && recommendationsAnswer !== undefined && staplesAnswer !== undefined;
+  // Buy next is the favourites' leader whenever they need a bottle, which no
+  // ranking outranks; only when they need none is it Restock next's.
+  const buyNextReady = favoriteNeeds.length > 0 ? favoritesReady : restockReady;
+  // The reads the offer is decided from, beyond the list: one error line for
+  // whichever failed, not one per read (chrispezza/barback#71). A staples
+  // read that failed also leaves the standing orders unrun until it answers.
+  const offerReads = [shelf, favorites, recommendations, staples];
+  const offerFailed = offerReads.some((read) => read.isError);
 
   return (
     <main class="screen">
@@ -519,11 +543,12 @@ export function Tonight() {
             <EmptyState
               title={pourEmpty === 'bare' ? 'The shelf is bare' : 'Nothing pours yet'}
               body={
-                // The names are suggestions, decided against what is owned or
-                // listed: like Buy next and the groups, they wait for both
-                // reads (suggestionsReady), and a shelf that could not be read
-                // names none (chrispezza/barback#104). The counts still speak.
-                suggestionsReady && suggestions.length > 0
+                // The names are Restock next's suggestions, decided against
+                // what is owned or listed, the staples and what the favourites
+                // claim: like Restock next, they wait for every one of those
+                // reads (restockReady), and one that failed names none
+                // (chrispezza/barback#104). The counts still speak.
+                restockReady && suggestions.length > 0
                   ? `Start with ${suggestions
                       .slice(0, 3)
                       .map((s) => s.name)
@@ -602,7 +627,7 @@ export function Tonight() {
         </section>
 
         <aside class="tonight-rail" id="buy" tabIndex={-1}>
-          {suggestionsReady && buyNext && (
+          {buyNextReady && buyNext && (
             <BuyNextCard
               id={buyNext.id}
               name={buyNext.name}
@@ -641,7 +666,10 @@ export function Tonight() {
                 onChange={setListQuery}
                 onClear={() => setListQuery('')}
               />
-              {listQuery.trim().length >= 1 && (
+              {/* Listed or not is a fact about the list, so no chip shows
+                  before the list has been read: one already listed would show
+                  as not, and a tap would list it again rather than take it off. */}
+              {listKnown && listQuery.trim().length >= 1 && (
                 <div class="chip-row">
                   {listResults.data?.map((hit) => {
                     const isListed = listedIds.has(hit.id);
@@ -696,11 +724,12 @@ export function Tonight() {
                 </div>
               )}
 
-              {/* The shelf the groups are decided against is its own read: one
-                  line for it here, where they would go, and nothing offered. */}
-              {shelf.isError && <ErrorLine onRetry={() => retry(shelf)} />}
+              {/* The reads the offer is decided from, the shelf's included: one
+                  line for whichever failed, here, where the offer would go,
+                  and nothing offered that it decides. */}
+              {offerFailed && <ErrorLine onRetry={() => retry(...offerReads)} />}
 
-              {suggestionsReady && favoriteNeedsShown.length > 0 && (
+              {favoritesReady && favoriteNeedsShown.length > 0 && (
                 <section class="restock-section">
                   <MatchHeader label="For your favorites" align="left" tone="gap" />
                   {favoriteNeedsShown.map((f) => (
@@ -722,7 +751,7 @@ export function Tonight() {
                 </section>
               )}
 
-              {suggestionsReady && suggestionsShown.length > 0 && (
+              {restockReady && suggestionsShown.length > 0 && (
                 <section class="restock-section">
                   <MatchHeader label="Restock next" align="left" />
                   {suggestionsShown.map((s) => (
