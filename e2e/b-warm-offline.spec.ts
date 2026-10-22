@@ -50,7 +50,9 @@ async function expectErrorLineAlone(section: ReturnType<typeof pour>) {
   await expect(alert.getByRole('button', { name: 'Retry' })).toBeVisible()
   // Nothing from the read that failed: no cards, no match marks, no empty state.
   await expect(cards(section)).toHaveCount(0)
-  await expect(section.getByText('Can pour', { exact: true })).toHaveCount(0)
+  // The card's mark reads "✓Can pour" as text; case-sensitive, so the
+  // section's own "You can pour" header never matches.
+  await expect(section.getByText(/Can pour$/)).toHaveCount(0)
   await expect(section.getByText(/^One bottle away: /)).toHaveCount(0)
   await expect(section.locator('.bb-empty')).toHaveCount(0)
   await expect(section.getByRole('button', { name: /^Show all/ })).toHaveCount(0)
