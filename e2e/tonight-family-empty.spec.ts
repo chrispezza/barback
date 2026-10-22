@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { I, T, bareWorld, defaultWorld } from '../test/fixtures/world'
+import type { FakeBar } from './support/fake-bar'
 import { expect, test } from './support/test'
 
 // What Tonight's pour section says when nothing pours (frontend-spec §5
@@ -110,6 +111,57 @@ test.describe('a stocked shelf from which nothing pours but some drinks are one 
       'Nothing pours yet — the bottles below are one purchase away.',
     )
     await expect(page.getByRole('heading', { name: 'The shelf is bare' })).toHaveCount(0)
+  })
+})
+
+test.describe('the shelf cannot be read', () => {
+  // GET /ingredients?filter[on_shelf]=true fails twice: the first try and its
+  // one retry (src/app.tsx, retry: 1); the bar answers from the third. The
+  // shelf decides one thing here, whether it is bare. What pours and what is
+  // one bottle away still answer, so the pour section still says what those
+  // counts support, and says in the error voice that the shelf read failed
+  // (frontend-spec §5 "Empty states are directive"; the section rule beside
+  // barsFailed in src/screens/Tonight.tsx, chrispezza/barback#63).
+  const failShelf = (bar: FakeBar) => bar.fail(/^\/ingredients$/, { method: 'GET', status: 500, times: 2 })
+
+  const expectShelfErrorLine = async (page: Page) => {
+    const alert = pour(page).getByRole('alert')
+    await expect(alert).toHaveCount(1)
+    await expect(alert).toContainText('The bar didn’t answer — try again.')
+    await expect(alert.getByRole('button', { name: 'Retry' })).toBeVisible()
+  }
+
+  test.describe('with gin alone on the shelf', () => {
+    // The Gin Tonic and the Martini are each one bottle away; nothing pours.
+    test.use({ world: { ...defaultWorld(), shelf: [I.gin] } })
+
+    test('still points at the near misses, and Retry reads the shelf again', async ({ page, bar }) => {
+      failShelf(bar)
+      await page.goto('/tonight')
+      await expect(near(page).getByRole('heading', { level: 2 })).toHaveText('One bottle away · 2')
+      await expect(pour(page).locator('.bb-empty__body')).toHaveText(
+        'Nothing pours yet — the bottles below are one purchase away.',
+      )
+      await expectShelfErrorLine(page)
+      await expect(page.getByRole('heading', { name: 'The shelf is bare' })).toHaveCount(0)
+
+      await pour(page).getByRole('button', { name: 'Retry' }).click()
+      await expect(pour(page).getByRole('alert')).toHaveCount(0)
+      await expect(pour(page).locator('.bb-empty__body')).toHaveText(
+        'Nothing pours yet — the bottles below are one purchase away.',
+      )
+      await expect(page.getByRole('heading', { name: 'The shelf is bare' })).toHaveCount(0)
+    })
+  })
+
+  test('under ?family=tiki still names the family, never calling the shelf bare', async ({ page, bar }) => {
+    failShelf(bar)
+    await page.goto('/tonight?family=tiki')
+    await expect(near(page).getByRole('heading', { level: 2 })).toHaveText('tiki drinks one bottle away · 0')
+    await expect(emptyTitle(page)).toHaveText('No tiki drinks pour yet')
+    await expectShelfErrorLine(page)
+    await expect(page.getByRole('heading', { name: 'The shelf is bare' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Stock the shelf' })).toHaveCount(0)
   })
 })
 
