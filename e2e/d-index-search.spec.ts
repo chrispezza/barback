@@ -24,6 +24,12 @@ import { expect, test } from './support/test'
 //
 // Every failed read below fails its first try and its one retry (src/app.tsx,
 // retry: 1).
+//
+// The store aisle (ADR-007) is the device offline, not only the bar out of
+// reach: the browser reports navigator.onLine false, and TanStack Query's
+// default networkMode pauses a read asked for then instead of failing it
+// (chrispezza/barback#107). A paused search has no answer either, and says so
+// the same way; it goes out again by itself when the device reconnects.
 
 const ERROR = 'The bar didn’t answer — try again.'
 
@@ -121,6 +127,63 @@ test.describe('the search itself fails', () => {
     await expect(cards(page)).toHaveCount(0)
 
     await alert.getByRole('button', { name: 'Retry' }).click()
+
+    await expect(sectionHeading(page, 'Matches · 1')).toBeVisible()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(cardNames(page)).toHaveText(['Daiquiri'])
+  })
+})
+
+test.describe('the device is offline', () => {
+  test('a search says so in the error voice, not a bare "Matches" header', async ({ page, bar, context }) => {
+    await openIndex(page)
+    await context.setOffline(true)
+    bar.takeSearchDown()
+    bar.takeApiDown()
+
+    await searchBox(page).fill('daiq')
+
+    await expect(sectionHeading(page, 'Matches')).toBeVisible()
+    await expectSearchErrorLine(page)
+    await expect(page.getByText('Nothing by that name.')).toHaveCount(0)
+    await expect(cards(page)).toHaveCount(0)
+  })
+
+  test('a search after one that answered shows the error line, not the last query’s count and cards', async ({
+    page,
+    bar,
+    context,
+  }) => {
+    await openIndex(page)
+    await searchBox(page).fill('daiq')
+    await expect(sectionHeading(page, 'Matches · 1')).toBeVisible()
+    await expect(cardNames(page)).toHaveText(['Daiquiri'])
+
+    await context.setOffline(true)
+    bar.takeSearchDown()
+    bar.takeApiDown()
+    await searchBox(page).fill('gim')
+
+    await expectSearchErrorLine(page)
+    await expect(sectionHeading(page, 'Matches')).toBeVisible()
+    await expect(cards(page)).toHaveCount(0)
+  })
+
+  test('the paused search goes out on reconnect, and the matches take the error line’s place', async ({
+    page,
+    bar,
+    context,
+  }) => {
+    await openIndex(page)
+    await context.setOffline(true)
+    const asked = bar.requests.length
+
+    await searchBox(page).fill('daiq')
+    await expectSearchErrorLine(page)
+    // Paused, not failed: nothing was sent while the device was offline.
+    expect(bar.requests.slice(asked)).toEqual([])
+
+    await context.setOffline(false)
 
     await expect(sectionHeading(page, 'Matches · 1')).toBeVisible()
     await expect(page.getByRole('alert')).toHaveCount(0)
