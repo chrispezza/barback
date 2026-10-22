@@ -527,3 +527,57 @@ describe('a check-off', () => {
     })
   })
 })
+
+// frontend-spec §4: "can-make and near-miss are server-derived from shelf
+// state, so they must refetch after any shelf change"; §6 journey 3, "refreshes
+// all counts". A list row's "Unlocks N" (GET /ingredients/{id}/extra) is
+// computed upstream against the user's shelf (IngredientController::extra,
+// app/Http/Controllers/IngredientController.php 209-211 at v5.15.3), and the
+// shelf's batch-store takes the bottle off the list (ShelfController::batchStore,
+// ShelfController.php 140-142), so a chip, a Remove and its Undo change the same
+// counts a check-off does, and read the same ones back.
+describe('what a shelf toggle reads back', () => {
+  /** The keys a settled check-off invalidates, then a clean slate for the toggle. */
+  async function checkOffReadBack(): Promise<unknown[]> {
+    const client = new QueryClient()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const observer = new QueryMutationObserver(client, checkOffOptions(client, BAR_ID, USER_ID))
+    const done = observer.mutate({ ingredientId: I.campari })
+    ;(await written(1)).answer(204)
+    ;(await written(2)).answer(204)
+    await done
+    const keys = invalidate.mock.calls.map(([filters]) => filters?.queryKey)
+    writes = []
+    toasts.shown = []
+    return keys
+  }
+
+  it('is what a check-off reads back, the unlock lines included, for a chip', async () => {
+    const expected = await checkOffReadBack()
+    expect(expected).toEqual(expect.arrayContaining([['ingredient-extra'], ['ingredient-reach']]))
+    const { client, toggle } = setup()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+
+    const done = toggle(I.cointreau, 'add')
+    ;(await written(1)).answer(204)
+    expect(await done).toBe('taken')
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual(expected)
+  })
+
+  it('is what a check-off reads back for a Remove, and again for its Undo', async () => {
+    const expected = await checkOffReadBack()
+    const { client, toggle } = setup()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const readBack = () => invalidate.mock.calls.map(([filters]) => filters?.queryKey)
+
+    const removed = toggle(I.gin, 'remove')
+    ;(await written(1)).answer(204)
+    expect(await removed).toBe('taken')
+    expect(readBack()).toEqual(expected)
+
+    toasts.shown[0]?.onAction?.()
+    ;(await written(2)).answer(204)
+    await vi.waitFor(() => expect(isShelfTogglePending(client, BAR_ID, I.gin)).toBe(false))
+    expect(readBack()).toEqual([...expected, ...expected])
+  })
+})
