@@ -6,6 +6,7 @@ import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
 import { EmptyState } from '@ds/feedback/EmptyState';
 import { ShelfRow } from '@ds/inventory/ShelfRow';
+import { measure } from '../api/measure';
 import {
   isCocktailNotFound,
   useBarId,
@@ -18,20 +19,11 @@ import {
   useSimilarCocktails,
   useToggleFavorite,
 } from '../api/queries';
-import { isStocked, shelfIndex, type CocktailIngredientEntry } from '../api/types';
+import { isStocked, shelfIndex } from '../api/types';
 import { setScreenTitle } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
 import { cardIngredients, matchState } from '../data/match';
-import { deriveRatio, fractionGlyph, ratioForSlug } from '../data/ratios';
-
-/** The measure only — the row already prints the name above it. Dashes,
- *  barspoons etc. must not be unit-converted (2 dash, not 0.02 oz). */
-function measure(entry: CocktailIngredientEntry): string {
-  if (['ml', 'cl', 'oz'].includes(entry.units)) {
-    return `${fractionGlyph(entry.formatted.oz.amount)} oz`;
-  }
-  return `${entry.amount} ${entry.units}`;
-}
+import { deriveRatio, ratioForSlug } from '../data/ratios';
 
 /** The screen's name when the bar has no drink by that slug. */
 const NOT_FOUND_TITLE = 'No such drink';

@@ -49,6 +49,10 @@ export interface FormattedAmount {
 
 export interface CocktailIngredientEntry {
   amount: number;
+  /** The upper bound of a measure authored as a range ("22.5–30 ml"), as
+   *  authored; null for a single amount. Always emitted
+   *  (CocktailIngredientResource.php:53). */
+  amount_max: number | null;
   /** Original units as authored — may be non-volumetric ('dash', 'barspoon'). */
   units: string;
   /** Keyed by unit system — pick per the bar's default units. */
