@@ -85,4 +85,16 @@ describe('Login failure lines', () => {
     expect(window.localStorage.getItem('barback.token')).toBe('issued')
     expect(screen.queryByRole('alert')).toBeNull()
   })
+
+  // "/\evil.example" resolves to //evil.example (a backslash reads as a slash
+  // in an http URL): another host, which history.pushState refuses. The login
+  // took, so it goes on to Tonight and blames nothing.
+  it('goes on to Tonight, blaming nothing, when next resolves to another host', async () => {
+    window.history.replaceState(null, '', `/login?next=${encodeURIComponent('/\\evil.example')}`)
+    answer(200, JSON.stringify({ data: { token: 'issued' } }))
+    logIn()
+    await vi.waitFor(() => expect(window.location.pathname).toBe('/tonight'))
+    expect(window.localStorage.getItem('barback.token')).toBe('issued')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
 })
