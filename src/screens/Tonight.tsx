@@ -21,9 +21,9 @@ import {
   useShoppingMutation,
   useStaples,
 } from '../api/queries';
-import { shelfIndex, type RecommendedIngredient } from '../api/types';
+import { shelfIndex, type RecommendedIngredient, type ShelfIndex } from '../api/types';
 import { useIngredientSearch } from '../api/search';
-import { useUnlockCounts } from '../api/unlocks';
+import { useFamilyDrinks, useUnlockCounts, type FamilyDrinks } from '../api/unlocks';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
@@ -42,7 +42,7 @@ import {
   restockSuggestions,
   staplesToQueue,
 } from '../data/buy-next';
-import { cardIngredients, oneBottleAway } from '../data/match';
+import { cardIngredients, familyNextStep, oneBottleAway } from '../data/match';
 import { STAPLE_SLUGS } from '../data/staples';
 import { useDebounced } from '../hooks';
 
@@ -129,6 +129,27 @@ function pourEmptyState(
   if (shelf === 'pending' || canMakeTotal !== 0 || nearMissTotal === undefined) return undefined;
   if (nearMissTotal > 0) return 'near';
   return familyActive ? 'family' : 'bar';
+}
+
+/** The family empty state's line where no bottle can be named (chrispezza/barback#72). */
+const FAMILY_NAMES_NONE = 'None is one bottle away either — browse them to see what they call for.';
+
+/**
+ * What the family empty state says (frontend-spec §6 Journey 2, "Family-aware
+ * empty states ... come from this journey's gap data"; chrispezza/barback#74):
+ * the next step its drinks give (familyNextStep), the Index's own line. It
+ * waits for the family's drinks, so the state never shows one line and then
+ * another. Without the shelf, or the drinks, nothing is named: a bottle a held
+ * child brand covers would be (chrispezza/barback#20).
+ */
+function familyEmptyBody(
+  shelf: ShelfIndex | 'failed',
+  drinks: FamilyDrinks,
+  plural: string,
+): string | undefined {
+  if (shelf === 'failed' || drinks === 'failed') return FAMILY_NAMES_NONE;
+  if (drinks === 'pending') return undefined;
+  return familyNextStep(drinks, shelf, plural) ?? FAMILY_NAMES_NONE;
 }
 
 /** One restock suggestion: live "unlocks N" (same voice as the shopping list). */
@@ -284,6 +305,18 @@ export function Tonight() {
     nearMissTotal,
     scope !== undefined,
   );
+  // The family's own drinks are read only once its counts say nothing in it
+  // pours or is one bottle away, and only against a shelf that answered.
+  const answeredShelf = shelfIdx !== undefined && !shelf.isError ? shelfIdx : undefined;
+  const familyDrinks = useFamilyDrinks(
+    barId,
+    family?.tagId,
+    pourEmpty === 'family' && answeredShelf !== undefined,
+  );
+  const familyBody =
+    pourEmpty === 'family' && scope !== undefined
+      ? familyEmptyBody(answeredShelf ?? 'failed', familyDrinks, scope)
+      : undefined;
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const ownedOrListed = new Set([
     ...listItems.map((item) => item.ingredient.id),
@@ -444,10 +477,11 @@ export function Tonight() {
               </Button>
             </p>
           )}
-          {pourEmpty === 'family' && family !== undefined && scope !== undefined && (
+          {/* familyBody is decided only for the family state, once it can be said. */}
+          {familyBody !== undefined && family !== undefined && scope !== undefined && (
             <EmptyState
               title={`No ${scope} pour yet`}
-              body="None is one bottle away either — browse them to see what they call for."
+              body={familyBody}
               action={
                 <>
                   <Button
