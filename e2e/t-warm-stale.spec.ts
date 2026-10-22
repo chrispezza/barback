@@ -232,6 +232,35 @@ test.describe('the Index after its reads fail (chrispezza/barback#105)', () => {
     await expect(penicillin.locator('.bb-drink__missing-line')).toHaveText('One bottle away: Honey syrup')
   })
 
+  // The line stands for the Index's own reads. Without a family its three
+  // count reads are not asked for, and their filters ({ on_shelf: true,
+  // tag_id: undefined }) key the same query as the rail's whole-bar can-pour
+  // read: TanStack Query drops an undefined value when it hashes a key. That
+  // read's failure is the rail's to keep quiet about (chrispezza/barback#103),
+  // not a read of the Index's.
+  test('without a family, says nothing of a whole-bar count it does not draw on', async ({ page }) => {
+    await page.goto('/drinks')
+    await expect(cards(page)).toHaveCount(15)
+    await expect(page.locator('.rail-standing')).toHaveText('11 bottles · 5 pourable')
+
+    await goTo(page, 'Shelf', 'Shelf')
+    const wholeBarCanPour = (url: URL) =>
+      url.pathname === '/bar/api/cocktails' &&
+      url.searchParams.get('filter[on_shelf]') === 'true' &&
+      url.searchParams.get('per_page') === '1' &&
+      !url.searchParams.has('filter[tag_id]')
+    const { dropped } = await outage(page, wholeBarCanPour)
+    await goTo(page, 'Drinks', 'Drinks')
+
+    // The rail's read, and its one retry, failed: the standing says nothing.
+    await expect.poll(() => dropped(/^\/cocktails$/), { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
+    await expect(page.locator('.rail-standing')).toHaveCount(0)
+    // Every read of the Index's answered.
+    await expect(main(page).getByRole('alert')).toHaveCount(0)
+    await expect(sectionHeading(page, 'The index · 15')).toBeVisible()
+    await expect(cards(page)).toHaveCount(15)
+  })
+
   test('a search says so beside its hits when the shelf could not be read again', async ({ page }) => {
     await page.goto('/drinks')
     await expect(cards(page)).toHaveCount(15)
