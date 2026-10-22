@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { BarModel } from '../../test/fixtures/upstream'
 import { BAR_ID, I, defaultWorld } from '../../test/fixtures/world'
-import { unlocksOptions, type ExtraCocktail } from './unlocks'
+import { answeredCounts, unlocksOptions, type ExtraCocktail } from './unlocks'
 import type { ListResponse } from './types'
 
 // The read To buy is ranked on (frontend-spec §6 Journey 3; §2 Tonight,
@@ -27,10 +27,14 @@ function extra(id: number): ListResponse<ExtraCocktail> {
   }
 }
 
-/** Never the network (ADR-011): every call is answered from the model. */
-function serve() {
+/**
+ * Never the network (ADR-011): every call is answered from the model, once
+ * `gate` lets it through (at once, by default).
+ */
+function serve(gate: () => Promise<void> = async () => {}) {
   const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
     const id = Number(new URL(url).pathname.match(/^\/api\/ingredients\/(\d+)\/extra$/)?.[1])
+    await gate()
     return new Response(JSON.stringify(extra(id)), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -106,5 +110,72 @@ describe('a bottle’s unlock count', () => {
     expect(early.getCurrentResult().fetchStatus).toBe('idle')
     expect(early.getCurrentResult().data).toBeUndefined()
     expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('the counts To buy is ordered on (answeredCounts)', () => {
+  const counts = (ids: number[], observers: ReturnType<typeof observe>[]) =>
+    answeredCounts(
+      ids,
+      observers.map((o) => o.getCurrentResult()),
+    )
+
+  it('holds each bottle’s count once its read answers, a 0 included, and none before', async () => {
+    let open = () => {}
+    const gate = new Promise<void>((resolve) => (open = resolve))
+    serve(() => gate)
+    const ids = [I.campari, I.cointreau]
+    const reads = ids.map((id) => observe(BAR_ID, id))
+    await vi.waitFor(() => expect(reads.every((r) => r.getCurrentResult().fetchStatus === 'fetching')).toBe(true))
+    expect(counts(ids, reads)).toEqual(new Map())
+
+    open()
+    await vi.waitFor(() => expect(counts(ids, reads)).toEqual(new Map([[I.campari, 1], [I.cointreau, 0]])))
+  })
+
+  it('leaves a count out while it is read again, though the row still states the last one', async () => {
+    let gate = Promise.resolve()
+    serve(() => gate)
+    const ids = [I.campari, I.mint]
+    const reads = ids.map((id) => observe(BAR_ID, id))
+    await vi.waitFor(() => expect(counts(ids, reads)).toEqual(new Map([[I.campari, 1], [I.mint, 1]])))
+
+    // A check-off elsewhere takes Gin off the shelf's reckoning, and every
+    // count is asked for again (useCheckOff invalidates ['ingredient-extra']).
+    let open = () => {}
+    gate = new Promise<void>((resolve) => (open = resolve))
+    m.shelf.delete(I.gin)
+    void client.invalidateQueries({ queryKey: ['ingredient-extra'] })
+    await vi.waitFor(() => expect(reads.every((r) => r.getCurrentResult().fetchStatus === 'fetching')).toBe(true))
+    expect(reads.map((r) => r.getCurrentResult().data)).toEqual([1, 1])
+    expect(counts(ids, reads)).toEqual(new Map())
+
+    open()
+    await vi.waitFor(() => expect(counts(ids, reads)).toEqual(new Map([[I.campari, 0], [I.mint, 1]])))
+  })
+
+  it('leaves out a count that could not be read, and keeps one whose read again failed, as its row does', async () => {
+    let fail = false
+    const fetch = vi.fn(async (url: string) => {
+      if (fail) return new Response(JSON.stringify({ message: 'Server Error' }), { status: 500 })
+      const id = Number(new URL(url).pathname.match(/^\/api\/ingredients\/(\d+)\/extra$/)?.[1])
+      return new Response(JSON.stringify(extra(id)), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetch)
+    const campari = observe(BAR_ID, I.campari)
+    await vi.waitFor(() => expect(campari.getCurrentResult().isSuccess).toBe(true))
+
+    fail = true
+    const scotch = observe(BAR_ID, I.scotch)
+    await vi.waitFor(() => expect(scotch.getCurrentResult().isError).toBe(true))
+    expect(counts([I.campari, I.scotch], [campari, scotch])).toEqual(new Map([[I.campari, 1]]))
+
+    await client.invalidateQueries({ queryKey: ['ingredient-extra', BAR_ID, I.campari] })
+    await vi.waitFor(() => expect(campari.getCurrentResult().isError).toBe(true))
+    expect(campari.getCurrentResult().fetchStatus).toBe('idle')
+    expect(counts([I.campari, I.scotch], [campari, scotch])).toEqual(new Map([[I.campari, 1]]))
   })
 })

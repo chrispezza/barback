@@ -690,6 +690,46 @@ describe('To buy, ranked by what each bottle unlocks (frontend-spec §6 Journey 
     expect(rowNames(waiting.rows)).toEqual(['Scotch whisky', 'Campari', 'Mint', 'Honey syrup', 'Rye whiskey'])
   })
 
+  it('after a check-off, keeps its places less the bottle shelved until every refreshed count is in, then settles once', () => {
+    // Gin off the shelf, listed with Campari, Dry vermouth and Mint: Gin opens
+    // the Gimlet and the Gin Tonic, Mint the Mojito, and Campari and Dry
+    // vermouth nothing while the Negroni and the Martini want gin.
+    const m = new BarModel(
+      world((w) => {
+        w.shelf = [...w.shelf.filter((id) => id !== I.gin), I.eggWhite]
+        w.list = [I.campari, I.dryVermouth, I.gin, I.mint]
+      }),
+    )
+    const listOf = () =>
+      [...m.list.entries()]
+        .map(([id, quantity]) => ({ ingredient: m.basic(id), quantity }))
+        .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name))
+    const unlocks = (id: number) => {
+      const before = m.canMake()
+      return [...m.canMakeWith(new Set([...m.shelf, id]))].filter((c) => !before.has(c)).length
+    }
+    /** The counts that have answered, read against the shelf as it stands. */
+    const answered = (ids: number[]) => new Map(ids.map((id) => [id, unlocks(id)]))
+
+    const first = rankList(listOf(), answered([I.campari, I.dryVermouth, I.gin, I.mint]))
+    expect(first.settled).toBe(true)
+    expect(rowNames(first.rows)).toEqual(['Gin', 'Mint', 'Campari', 'Dry vermouth'])
+    const held = idsOf(first.rows)
+
+    // Checked off: Gin on the shelf and off the list, and every count asked
+    // for again. They answer one by one; Dry vermouth's last.
+    m.shelf.add(I.gin)
+    m.list.delete(I.gin)
+    for (const ids of [[], [I.campari], [I.campari, I.mint]]) {
+      const waiting = rankList(listOf(), answered(ids), held)
+      expect(waiting.settled, `with ${ids.length} answered`).toBe(false)
+      expect(rowNames(waiting.rows), `with ${ids.length} answered`).toEqual(['Mint', 'Campari', 'Dry vermouth'])
+    }
+    const settled = rankList(listOf(), answered([I.campari, I.mint, I.dryVermouth]), held)
+    expect(settled.settled).toBe(true)
+    expect(rowNames(settled.rows)).toEqual(['Campari', 'Dry vermouth', 'Mint'])
+  })
+
   it('stays as it stands while a count cannot be read, and is settled for an empty list', () => {
     const { items, counted } = toBuy()
     const held = idsOf(rankList(items, counted()).rows)

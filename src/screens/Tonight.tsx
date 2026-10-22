@@ -211,10 +211,12 @@ export function Tonight() {
   // To buy is ranked by what each bottle unlocks (frontend-spec §6 Journey 3),
   // on the counts the rows state: the same reads, under the same keys, as each
   // ShoppingRow's. They are asked for only while the rows can show. The rows
-  // wait in name order until every count is in, then settle once; the order
-  // settled last is held, so a bottle listed onto a ranked list waits below
-  // it rather than sending every row back to name order (rankList). Writing
-  // the ref here is idempotent: the same reads give the same order.
+  // wait in name order until every count has answered, then settle once; the
+  // order settled last is held while any count is read, or read again, so a
+  // bottle listed onto a ranked list waits below it, and a check-off's
+  // refreshed counts move the rows once, when the last one answers (rankList,
+  // answeredCounts). Writing the ref here is idempotent: the same reads give
+  // the same order.
   const unlockCounts = useUnlockCounts(
     barId,
     listUnavailable ? [] : listItems.map((item) => item.ingredient.id),

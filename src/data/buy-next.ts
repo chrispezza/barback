@@ -168,7 +168,7 @@ export function buyNextGroups(
 export interface RankedList<T> {
   rows: T[];
   /**
-   * Every row's count was in hand, so `rows` is the ranking. Tonight keeps a
+   * Every row's count had answered, so `rows` is the ranking. Tonight keeps a
    * settled order and passes it back as `held` until the next one.
    */
   settled: boolean;
@@ -181,12 +181,17 @@ export interface RankedList<T> {
  * ingredient.name, ShoppingListController.php:38 at v5.15.3); the bottle that
  * opens the most drinks comes first, ties by name, one that opens nothing last.
  *
- * `unlocks` holds the count each row states, for every bottle counted so far.
- * The rows are ranked only once every bottle is counted, so the order changes
- * once rather than once per answer. Until then they keep `held`, the last
- * settled order (empty before the first, so on a first read every row waits
- * in name order), and a bottle not in it, listed since, waits below by name.
- * A count that cannot be read never arrives, and the rows stay as they stand:
+ * `unlocks` holds every count that has answered (api/unlocks.ts
+ * answeredCounts): a count still being read is absent, on a first read and on
+ * a read again alike, though its row may state the last one. The rows are
+ * ranked only once every bottle's count is in, so the order changes once
+ * rather than once per answer. Until then they keep `held`, the last settled
+ * order (empty before the first, so on a first read every row waits in name
+ * order): a held bottle no longer listed drops out, and a bottle not in it,
+ * listed since, waits below by name. So after a check-off refreshes every
+ * count, the rows keep their places, less the bottle shelved, until the last
+ * refresh answers, and are never ranked on a mix of old counts and new. A
+ * count that cannot be read never arrives, and the rows stay as they stand:
  * the list states no rank it cannot back.
  */
 export function rankList<T extends Pick<ShoppingListItem, 'ingredient'>>(

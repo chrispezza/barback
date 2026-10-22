@@ -1,4 +1,4 @@
-import { queryOptions, useQueries } from '@tanstack/react-query';
+import { queryOptions, useQueries, type QueryObserverResult } from '@tanstack/react-query';
 import { api } from './client';
 import type { ListResponse } from './types';
 
@@ -34,11 +34,31 @@ export function unlocksOptions(barId: number | undefined, ingredientId: number) 
   });
 }
 
+/** What the order needs of one bottle's read: the count it holds, and whether it is under way. */
+export type UnlockRead = Pick<QueryObserverResult<number>, 'data' | 'fetchStatus'>;
+
 /**
- * The unlock counts in hand for these bottles, as their rows state them. A
- * bottle still being counted, or whose count could not be read, is absent: the
- * caller decides what an absent count means (data/buy-next.ts rankList).
+ * The counts that have answered, for the bottles `reads` belong to (in the same
+ * order). A read under way leaves its bottle out, on a first read and on a
+ * read again alike: after a check-off refreshes every count (useCheckOff), or
+ * a refetch on focus, the row still states its last count, but until the read
+ * answers that count may be the one the check-off changed. A bottle whose
+ * count could not be read, with none in hand, is left out too. What an absent
+ * count means for the order is rankList's (data/buy-next.ts).
  */
+export function answeredCounts(
+  ingredientIds: readonly number[],
+  reads: readonly (UnlockRead | undefined)[],
+): ReadonlyMap<number, number> {
+  const counts = new Map<number, number>();
+  ingredientIds.forEach((id, i) => {
+    const read = reads[i];
+    if (read?.data !== undefined && read.fetchStatus === 'idle') counts.set(id, read.data);
+  });
+  return counts;
+}
+
+/** The answered unlock counts for these bottles (answeredCounts), read as their rows read them. */
 export function useUnlockCounts(
   barId: number | undefined,
   ingredientIds: readonly number[],
@@ -46,10 +66,5 @@ export function useUnlockCounts(
   const reads = useQueries({
     queries: ingredientIds.map((id) => unlocksOptions(barId, id)),
   });
-  const counts = new Map<number, number>();
-  ingredientIds.forEach((id, i) => {
-    const count = reads[i]?.data;
-    if (count !== undefined) counts.set(id, count);
-  });
-  return counts;
+  return answeredCounts(ingredientIds, reads);
 }
