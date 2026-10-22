@@ -261,12 +261,23 @@ a {
   }
 
   /* Taller than the viewport, the stuck rail would clip its own tail
-     (later rows, restock, print) — so it scrolls internally instead. */
+     (later rows, restock, print) — so it scrolls internally instead.
+     A scrolling box clips at its padding box on every side (overflow-y: auto
+     makes overflow-x auto too), and a row's Remove, its check-off control,
+     Print the list and Restock next's List it sit on the rail's edges. The
+     padding is the focus ring's reach (2px offset + 2px width), so no ring
+     loses a side: the ring is never removed (Visual foundations, "Focus").
+     The negative margin gives it back, and the sticky inset and height take
+     it into account, so the rail's content keeps its 320px column and its
+     place, 24px from the viewport's top and bottom once stuck. */
   .tonight-rail {
+    --ring-reach: calc(var(--focus-width) + var(--focus-offset));
     position: sticky;
-    top: 24px;
-    max-height: calc(100vh - 48px);
+    top: calc(24px - var(--ring-reach));
+    max-height: calc(100vh - 48px + 2 * var(--ring-reach));
     overflow-y: auto;
+    padding: var(--ring-reach);
+    margin: calc(-1 * var(--ring-reach));
   }
 }
 
