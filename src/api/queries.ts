@@ -495,18 +495,88 @@ export function useShoppingMutation(
   });
 }
 
+/** One check-off: the listed bottle that was bought. */
+export interface CheckOff {
+  ingredientId: number;
+}
+
+/**
+ * What a check-off reads back once it has settled, and its Undo once that has:
+ * the shelf, the list, the drink sections and every count shown beside them —
+ * each row's "Unlocks N" and "In N drinks", Buy next and Restock next, the
+ * staples (frontend-spec §4; §6 journey 3, "refreshes all counts"). One list
+ * for both, so an Undo never leaves a count where the check-off put it.
+ */
+const CHECK_OFF_READ_BACK = [
+  'shelf',
+  'shopping-list',
+  'cocktails',
+  'ingredient-extra',
+  'ingredient-reach',
+  'recommend',
+  'staples',
+] as const;
+
+function readBackCheckOff(queryClient: QueryClient): void {
+  for (const key of CHECK_OFF_READ_BACK) {
+    void queryClient.invalidateQueries({ queryKey: [key] });
+  }
+}
+
+/**
+ * The Undo on "Moved to the shelf.": the check-off in reverse, held to the
+ * same rule (frontend-spec §5, "never the reverse order"). The list takes the
+ * bottle back first; the shelf gives it up only once the list has it. Upstream's
+ * shelf batch-delete leaves the list alone (ShelfController::batchDelete in the
+ * reference clone), so a refused second step leaves the bottle in both places —
+ * harmless, visible — and never in neither. A refusal at either step says
+ * where the bottle is. Not a mutation: it is attempted however the device looks
+ * (ADR-007: no outbox), and read back whatever was answered.
+ */
+async function undoCheckOff(
+  queryClient: QueryClient,
+  barId: number | undefined,
+  userId: number | undefined,
+  { ingredientId }: CheckOff,
+): Promise<void> {
+  let listed = false;
+  try {
+    await api(`/users/${userId}/shopping-list/batch-store`, {
+      method: 'POST',
+      barId,
+      body: { ingredients: [{ id: ingredientId }] },
+    });
+    listed = true;
+    await api(`/users/${userId}/ingredients/batch-delete`, {
+      method: 'POST',
+      barId,
+      body: { ingredients: [ingredientId] },
+    });
+  } catch {
+    showToast({
+      message: listed
+        ? 'The undo didn’t take — the bottle is on the list and still on the shelf.'
+        : 'The undo didn’t take — the bottle is still on the shelf.',
+    });
+  } finally {
+    readBackCheckOff(queryClient);
+  }
+}
+
 /**
  * Check-off (frontend-spec §5): shelf batch-store FIRST, list batch-delete
  * only on success — a failure may leave the item in both places (visible,
- * self-healing), never vanished.
+ * self-healing), never vanished. Its Undo keeps the same rule the other way
+ * round (undoCheckOff). The options are built here, apart from the hook, so
+ * they can be driven without rendering (ADR-011).
  */
-export function useCheckOff(
+export function checkOffOptions(
+  queryClient: QueryClient,
   barId: number | undefined,
   userId: number | undefined,
-) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ ingredientId }: { ingredientId: number }) => {
+): UseMutationOptions<void, Error, CheckOff> {
+  return {
+    mutationFn: async ({ ingredientId }) => {
       await api(`/users/${userId}/ingredients/batch-store`, {
         method: 'POST',
         barId,
@@ -526,34 +596,20 @@ export function useCheckOff(
       showToast({
         message: 'Moved to the shelf.',
         actionLabel: 'Undo',
-        onAction: () => {
-          void (async () => {
-            await api(`/users/${userId}/ingredients/batch-delete`, {
-              method: 'POST',
-              barId,
-              body: { ingredients: [vars.ingredientId] },
-            });
-            await api(`/users/${userId}/shopping-list/batch-store`, {
-              method: 'POST',
-              barId,
-              body: { ingredients: [{ id: vars.ingredientId }] },
-            });
-            for (const key of ['shelf', 'shopping-list', 'cocktails', 'recommend', 'staples']) {
-              void queryClient.invalidateQueries({ queryKey: [key] });
-            }
-          })();
-        },
+        onAction: () => void undoCheckOff(queryClient, barId, userId, vars),
       });
     },
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['shelf'] });
-      void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
-      void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
-      void queryClient.invalidateQueries({ queryKey: ['ingredient-extra'] });
-      void queryClient.invalidateQueries({ queryKey: ['recommend'] });
-      void queryClient.invalidateQueries({ queryKey: ['staples'] });
-    },
-  });
+    onSettled: () => readBackCheckOff(queryClient),
+  };
+}
+
+/** The check-off for shopping-list rows (checkOffOptions). */
+export function useCheckOff(
+  barId: number | undefined,
+  userId: number | undefined,
+) {
+  const queryClient = useQueryClient();
+  return useMutation(checkOffOptions(queryClient, barId, userId));
 }
 
 /** One shelf toggle: the bottle as the chip or ledger row knows it, and which way. */
