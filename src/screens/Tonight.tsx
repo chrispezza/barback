@@ -610,12 +610,15 @@ export function Tonight() {
                 // call a bottle at all (potential_cocktails,
                 // IngredientService::getIngredientsForPossibleCocktails at
                 // v5.15.3), not the drinks it would open. On a bare shelf a
-                // gin alone opens none.
+                // gin alone opens none. It says how the names were ranked,
+                // never that they lead it: the staples and the favourites'
+                // bottles set aside before them may be called for by more
+                // recipes, and the third may tie the next.
                 restockReady && suggestions.length > 0
                   ? `Start with ${suggestions
                       .slice(0, 3)
                       .map((s) => s.name)
-                      .join(', ')} — the most recipes call for them.`
+                      .join(', ')} — ranked by how many recipes call for them.`
                   : pourEmpty === 'bare'
                     ? 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
                     : // A stocked shelf may hold all three already: say only what the counts do.

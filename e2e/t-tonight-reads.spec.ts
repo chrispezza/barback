@@ -559,7 +559,7 @@ test.describe('the bare shelf’s empty state, until its suggestions are ready',
       expect(await bodies(page)).toEqual([GENERIC])
 
       releaseStaples()
-      const names = 'Start with Gin, Sweet vermouth, White rum — the most recipes call for them.'
+      const names = 'Start with Gin, Sweet vermouth, White rum — ranked by how many recipes call for them.'
       await expect(emptyBody(page)).toHaveText(names)
       expect(await bodies(page)).toEqual([GENERIC, names])
     })
@@ -581,7 +581,7 @@ test.describe('the bare shelf’s empty state, until its suggestions are ready',
       expect(await bodies(page)).toEqual([GENERIC])
 
       releaseFavorites()
-      const names = 'Start with White rum, Scotch whisky, Bourbon whiskey — the most recipes call for them.'
+      const names = 'Start with White rum, Scotch whisky, Bourbon whiskey — ranked by how many recipes call for them.'
       await expect(emptyBody(page)).toHaveText(names)
       expect(await bodies(page)).toEqual([GENERIC, names])
     })

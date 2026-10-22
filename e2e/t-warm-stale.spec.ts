@@ -361,9 +361,9 @@ test.describe('Tonight’s empty state after the shelf read fails (chrispezza/ba
     // The names are suggestions, decided against what is owned or listed, as
     // Buy next and Restock next are: with neither the shelf nor its held
     // brands known, a bottle the shelf holds or covers could be named.
-    const startWith = pour(page).getByText(/^Start with .+ — the most recipes call for them\.$/)
+    const startWith = pour(page).getByText(/^Start with .+ — ranked by how many recipes call for them\.$/)
     await page.goto('/tonight')
-    await expect(startWith).toHaveText('Start with Gin, Sweet vermouth, White rum — the most recipes call for them.')
+    await expect(startWith).toHaveText('Start with Gin, Sweet vermouth, White rum — ranked by how many recipes call for them.')
 
     await goTo(page, 'Shelf', 'Shelf')
     await outage(page, isShelfRead)

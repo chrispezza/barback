@@ -509,7 +509,7 @@ test.describe('directive empty states (§5)', () => {
       await page.goto('/tonight')
       await expect(page.getByRole('heading', { name: 'The shelf is bare', exact: true })).toBeVisible()
       // Staples own their group, so the first non-staple recommendations lead.
-      await expect(pour(page)).toContainText('Start with Gin, Sweet vermouth, White rum — the most recipes call for them.')
+      await expect(pour(page)).toContainText('Start with Gin, Sweet vermouth, White rum — ranked by how many recipes call for them.')
       await pour(page).getByRole('button', { name: 'Stock the shelf' }).click()
       await expect(page).toHaveURL(/\/shelf$/)
       await expect(page.getByRole('heading', { level: 1, name: 'Shelf' })).toBeVisible()
