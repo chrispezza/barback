@@ -640,7 +640,33 @@ export function useToggleFavorite(barId: number | undefined) {
   });
 }
 
-/** Add or remove shopping-list entries. Payload keys differ from the shelf batch. */
+/**
+ * Add or remove shopping-list entries. Payload keys differ from the shelf batch.
+ *
+ * The write is pending until the list has been read back, not only until it
+ * has answered: every + List and List it holds while the mutation is pending,
+ * and whether a bottle is listed is drawn from that read. Freed on the answer
+ * alone, a control still offers the bottle for one round trip, and a second
+ * tap sends a second batch-store, which upstream answers by setting a listed
+ * row's quantity back to the one sent, or 1 (ShoppingListController::batchStore,
+ * ShoppingListController.php 76-79 at v5.15.3), and Tonight leaves a second
+ * receipt.
+ * TanStack awaits onSettled before it settles the mutation, so returning the
+ * read-back is what holds it; a read-back that fails does not reject it.
+ *
+ * How long the hold lasts. A read-back paused when it starts (the device is
+ * already offline) frees it at once. A read-back whose retry pauses (its first
+ * try failed, and the device is now offline or the tab hidden; queries retry
+ * once, app.tsx) holds the list controls until the device is online and the
+ * tab in view again, and then the hold frees. That wait is acceptable: freed
+ * offline, a control would take a tap whose write TanStack pauses and sends on
+ * reconnect (chrispezza/barback#52), the queued write ADR-007 rules out.
+ * Where the hold has a gap: another ['shopping-list'] invalidation while this
+ * read-back is out (a check-off's read-back, or a second list write's) cancels
+ * it and starts a read of its own. The cancelled read frees the hold before
+ * the new one lands, and a second tap can land in that round trip
+ * (chrispezza/barback#142).
+ */
 export function useShoppingMutation(
   barId: number | undefined,
   userId: number | undefined,
@@ -660,9 +686,7 @@ export function useShoppingMutation(
             body: { ingredients: ingredientIds.map((id) => ({ id })) },
           }),
     onError: () => showToast({ message: 'The list didn’t take that change.' }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
-    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['shopping-list'] }),
   });
 }
 

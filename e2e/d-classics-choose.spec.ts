@@ -331,23 +331,31 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
       ],
       instructions: 'Build over ice and top with soda.',
     })
+    const toasts = await recordToasts(page)
     const listed = listLoaded(page)
     await openRoster(page)
     await listed
     await expect(entry(page, 'Paloma')).toContainText('One bottle away: Tequila')
     // Hold every list read from here on: the read-back after Margarita's write.
     const reread = await hold(page, isListRead)
+    const mark = bar.calls().length
 
     await chooseButton(page, 'Margarita').click()
-    await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
     await reread.arrived
     // The rows in hand predate the write: Paloma's tequila would read as unlisted.
     await expect(chooseButton(page, 'Paloma')).toBeDisabled()
     await chooseButton(page, 'Paloma').click({ force: true })
+    // The list write is pending until its read-back lands (useShoppingMutation),
+    // so the receipt follows the new rows rather than the write's answer. The
+    // recorder holds every toast shown since load, so one that came and went
+    // while the read was held is counted too.
+    await settled(page)
+    expect(await toasts(), 'no receipt while the read-back is held').toEqual([])
 
     const listedAgain = listLoaded(page)
     reread.release()
     await listedAgain
+    await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
     await expect(chooseButton(page, 'Paloma')).toBeEnabled()
     expect(bar.calls('POST', /\/shopping-list\/batch-store$/)).toHaveLength(1)
 
@@ -356,6 +364,21 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
     await expect(toast(page)).toHaveText('Paloma — favorited.', { timeout: 10_000 })
     expect(bar.calls('POST', /\/shopping-list\/batch-store$/)).toHaveLength(1)
     expect(bar.model.favorites.has(90)).toBe(true)
+    // One list read for Margarita's write: the read-back that frees Choose. No
+    // second read follows it before Choose is free. Paloma's Choose finds the
+    // tequila listed, so it writes nothing and reads nothing. The fake records
+    // a call when it answers it.
+    const sent = bar
+      .calls()
+      .slice(mark)
+      .map((r) => `${r.method} ${r.path}`)
+      .filter((call) => call.startsWith('POST') || call === 'GET /users/1/shopping-list')
+    expect(sent).toEqual([
+      `POST /cocktails/${C.margarita}/toggle-favorite`,
+      'POST /users/1/shopping-list/batch-store',
+      'GET /users/1/shopping-list',
+      'POST /cocktails/90/toggle-favorite',
+    ])
   })
 
   test('a read under way leaves a focused Choose as it is, and Enter waits for that read to decide', async ({
