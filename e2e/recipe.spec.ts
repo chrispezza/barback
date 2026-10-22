@@ -17,7 +17,7 @@ const line = (page: Page, name: string) =>
   ingredientList(page).getByRole('listitem').filter({ hasText: name })
 const lineName = (row: Locator) => row.locator('.bb-row__name')
 const addToList = (page: Page, name: string) =>
-  page.getByRole('button', { name: `Add ${name} to the list`, exact: true })
+  page.getByRole('button', { name: `List it: ${name}`, exact: true })
 const addMissing = (page: Page) => page.getByRole('button', { name: 'Add missing to the list' })
 const favorite = (page: Page) => main(page).getByRole('button', { name: /favorite/i })
 /** The ratio device by its whole accessible name. A bare `name` string is a
@@ -213,7 +213,7 @@ test.describe('stock colouring from the show endpoint (§2, §9)', () => {
 })
 
 test.describe('the gap goes to the list (§6 journey 3, §9)', () => {
-  test('+ List queues one bottle and the line reads Listed', async ({ page, bar }) => {
+  test('List it queues one bottle and the line reads Listed', async ({ page, bar }) => {
     await openRecipe(page, 'penicillin-1', 'Penicillin')
     await addToList(page, 'Honey syrup').click()
 
@@ -494,7 +494,7 @@ test.describe('journeys through the recipe (§6)', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Tonight' })).toBeVisible()
   })
 
-  test("Tonight → a near miss → its recipe → + List → the bottle is on Tonight's list", async ({ page, bar }) => {
+  test("Tonight → a near miss → its recipe → List it → the bottle is on Tonight's list", async ({ page, bar }) => {
     await page.goto('/tonight')
     await page.getByRole('link', { name: /^Negroni/ }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Negroni' })).toBeVisible()
@@ -519,7 +519,7 @@ test.describe('keyboard (§7)', () => {
   // each walk starts from a control focused by the test, not from wherever
   // focus was left.
 
-  test('Favorite and + List are reached by Tab and operated by Space and Enter', async ({ page, bar }) => {
+  test('Favorite and List it are reached by Tab and operated by Space and Enter', async ({ page, bar }) => {
     await openRecipe(page, 'penicillin-1', 'Penicillin')
     await back(page).focus()
 
@@ -535,7 +535,7 @@ test.describe('keyboard (§7)', () => {
     expect(bar.model.list.has(I.honeySyrup)).toBe(true)
   })
 
-  test('Add missing is reached past every + List and operated by Space', async ({ page, bar }) => {
+  test('Add missing is reached past every List it and operated by Space', async ({ page, bar }) => {
     await openRecipe(page, 'espresso-martini-1', 'Espresso Martini')
     await back(page).focus()
 

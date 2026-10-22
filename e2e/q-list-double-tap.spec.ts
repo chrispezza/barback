@@ -6,7 +6,9 @@ import { expect, test } from './support/test'
 
 // A list write holds its control until the list has been read back. Every
 // + List and List it (frontend-spec §2 "Add gap to list": POST
-// /users/{id}/shopping-list/batch-store) is disabled while its write is out.
+// /users/{id}/shopping-list/batch-store) is held while its write is out:
+// disabled, or on the Recipe aria-disabled, which keeps the focus a keyboard
+// gave it (e2e/t5r-recipe.spec.ts).
 // The write's answer alone does not free it: whether the bottle is listed is
 // drawn from the list read the write starts (§4: shopping mutations invalidate
 // ['shopping-list']), so until that read lands the control still offers the
@@ -17,8 +19,9 @@ import { expect, test } from './support/test'
 //
 // Every API answer is held (bar.slowDown), so the read-back is still out when
 // the second tap lands. The second tap is forced: a held control takes no
-// tap, and the browser drops a click on a disabled button, so a forced tap on
-// a held control sends nothing.
+// tap. The browser drops a click on a disabled button, and the Recipe turns
+// away a click on an aria-disabled one, so a forced tap on a held control
+// sends nothing.
 
 /** How long the fake holds every answer: the list read-back is out this long. */
 const LATENCY = 1500
@@ -40,6 +43,9 @@ const rail = (page: Page) => page.locator('#buy')
 const heading = (page: Page, name: string) => page.getByRole('heading', { name, exact: true })
 const addToList = (scope: Locator | Page, bottle: string) =>
   scope.getByRole('button', { name: `Add ${bottle} to the list`, exact: true })
+/** A recipe line's List it, named for its bottle. */
+const listIt = (scope: Locator | Page, bottle: string) =>
+  scope.getByRole('button', { name: `List it: ${bottle}`, exact: true })
 const listedMark = (scope: Locator) => scope.getByText('Listed', { exact: true })
 /** A recipe line by the bottle it names. */
 const recipeLine = (page: Page, name: string) =>
@@ -128,16 +134,16 @@ async function receiptsShown(page: Page): Promise<number> {
 }
 
 test.describe('on the Recipe', () => {
-  test('two quick taps on + List send one write, and the line reads Listed', async ({ page, bar }) => {
+  test('two quick taps on List it send one write, and the line reads Listed', async ({ page, bar }) => {
     await page.goto('/drinks/penicillin-1')
     await expect(page.getByRole('heading', { level: 1, name: 'Penicillin' })).toBeVisible()
     const honey = recipeLine(page, 'Honey syrup')
-    await expect(addToList(page, 'Honey syrup')).toBeEnabled()
+    await expect(listIt(page, 'Honey syrup')).toBeEnabled()
 
-    await tapTwice(page, bar, addToList(page, 'Honey syrup'))
+    await tapTwice(page, bar, listIt(page, 'Honey syrup'))
 
     await expect(listedMark(honey)).toBeVisible({ timeout: 10_000 })
-    await expect(addToList(page, 'Honey syrup')).toHaveCount(0)
+    await expect(listIt(page, 'Honey syrup')).toHaveCount(0)
     expect(listWrites(bar)).toEqual([{ ingredients: [{ id: I.honeySyrup }] }])
     // A sanity check, not the discriminator: upstream resets the quantity to 1
     // on a second write too, so only the writes above tell one tap from two.
