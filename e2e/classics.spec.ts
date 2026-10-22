@@ -224,9 +224,12 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     expect([...bar.model.list.entries()]).toEqual([[I.tequila, 1]])
   })
 
-  // The hold covers the pending favourite and list writes only. The window
-  // after they settle, before the roster refetch lands, is divergence 7 in the
-  // PR and is deliberately not asserted here.
+  // This case holds Choose while the favourite and list writes are pending.
+  // The window after they settle, while the list is read back, was divergence
+  // 7 in the PR that added this file. Choose is now held while the list is
+  // first read and while it is read back after a write, and a Choose made
+  // during a later read waits for it; e2e/d-classics-choose.spec.ts ("Choose
+  // waits for the list") pins all three.
   test('a second tap while the favourite and list writes are pending writes nothing more', async ({ page, bar }) => {
     await openRoster(page)
     bar.slowDown(600)

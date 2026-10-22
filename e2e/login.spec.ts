@@ -8,12 +8,14 @@ import { expect, test } from './support/test'
 // in the URL, so the door has to hand the whole URL back) and §9 (nav role
 // hints, brand mark links home). §5's rules do not touch this screen.
 //
-// Not asserted here, because the code diverges from the spec (reported with
-// this PR, or tracked elsewhere): the 429 and network-failure lines on the
-// login form; which bar the bootstrap reads (chrispezza/barback#25); a 401
-// burst, where every in-flight call 401s and each one re-wraps `next` around
-// the door itself; and a `next` the URL parser resolves off-origin ("/\host",
-// "/\t/host"), which logs in but reports the credentials line.
+// Not asserted here, because the code diverges from the spec: which bar the
+// bootstrap reads (chrispezza/barback#25). Three divergences once listed here
+// have since been fixed and are pinned in their own specs: the 429 and
+// network-failure lines on the login form (e2e/login-errors.spec.ts); a 401
+// burst, where every in-flight call 401s and each one re-wrapped `next` around
+// the door itself (e2e/e-expired-token.spec.ts); and a `next` the URL parser
+// resolves off-origin ("/\host", "/\t/host"), which logged in but reported the
+// credentials line (e2e/e-safe-next.spec.ts).
 
 const TOKEN_KEY = 'barback.token'
 const SESSION_ENDED = 'The session ended — log in to pick up where you were.'

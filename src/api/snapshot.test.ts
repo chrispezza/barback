@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
-import { BarModel } from '../../test/fixtures/upstream'
+import { BarModel, shoppingListResource } from '../../test/fixtures/upstream'
 import { BAR_ID, I, USER_ID, defaultWorld } from '../../test/fixtures/world'
 import {
   LIST_SNAPSHOT_KEY,
@@ -23,16 +23,14 @@ import type { ListResponse, ShoppingListItem } from './types'
 // to end in e2e/offline-snapshot.spec.ts.
 
 /**
- * GET /users/{id}/shopping-list as Bar Assistant v5.15.3 answers it:
- * UserShoppingListResource rows (ingredient id, slug, name; quantity), sorted
- * by ingredient name with PHP's string comparison, byte-wise for these names
- * (ShoppingListController.php:38), not paginated.
+ * GET /users/{id}/shopping-list as Bar Assistant v5.15.3 answers it with these
+ * ids listed once each: the fixture's own model of
+ * ShoppingListController::index (shoppingListResource, the rows the e2e fake
+ * serves), not paginated. A model of its own holds the ids, so `m` is left as
+ * it is.
  */
 function listResponse(m: BarModel, ids: number[]): ListResponse<ShoppingListItem> {
-  const data = ids
-    .map((id) => ({ ingredient: m.basic(id), quantity: 1 }))
-    .sort((a, b) => (a.ingredient.name < b.ingredient.name ? -1 : 1))
-  return { data }
+  return { data: shoppingListResource(new BarModel({ ...m.world, list: ids })) }
 }
 
 const SERVED = new Date('2026-10-07T21:40:00.000Z')

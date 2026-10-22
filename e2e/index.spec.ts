@@ -9,9 +9,12 @@ import { expect, test } from './support/test'
 // FamilyBar, FamilyHeader, MatchHeader) and §9 (cocktail search, favourites
 // filter), plus the pager. Only conformant behaviour is asserted. Divergences
 // are left out on purpose and tracked in the PR that adds this file, among
-// them: search ignoring the active family, the cold deep link that lists every
-// drink under a family header until /tags answers, the missing family-aware
-// empty state, the family bar's arrow keys, and "type-ahead disables".
+// them: search ignoring the active family (chrispezza/barback#81), the family
+// bar's arrow keys, and "type-ahead disables" (chrispezza/barback#76). Two
+// that were left out here have since been fixed and are pinned elsewhere: a
+// cold deep link to a family, which listed every drink under the family's
+// header until /tags answered (e2e/b-family-reads.spec.ts), and the
+// family-aware empty state (e2e/b-family-empty.spec.ts).
 
 interface FamilyCase {
   segment: string

@@ -2,10 +2,12 @@ import type { Page, Request, Route } from '@playwright/test'
 import type { WorldSeed } from '../../test/fixtures/world'
 import {
   BarModel,
+  SEARCHABLE_ATTRIBUTES,
   cocktailDocument,
   cocktailResource,
   ingredientDocument,
   ingredientResource,
+  orderByName,
   shoppingListResource,
 } from '../../test/fixtures/upstream'
 
@@ -203,14 +205,13 @@ export class FakeBar {
     if (/^\/users\/[^/]*[^0-9/][^/]*\//.test(p)) return notFound()
 
     if (r.method === 'GET' && p === '/tags') {
-      // TagController::index — ordered by name, with cocktails_count, not paginated.
-      const tags = [...w.tags]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((t) => ({
-          id: t.id,
-          name: t.name,
-          cocktails_count: w.cocktails.filter((c) => c.tagIds?.includes(t.id)).length,
-        }))
+      // TagController::index — ORDER BY name (SQLite BINARY, byte order), with
+      // cocktails_count, not paginated.
+      const tags = orderByName(w.tags).map((t) => ({
+        id: t.id,
+        name: t.name,
+        cocktails_count: w.cocktails.filter((c) => c.tagIds?.includes(t.id)).length,
+      }))
       return json(200, { data: tags })
     }
 
@@ -225,7 +226,8 @@ export class FakeBar {
       }
       const name = q.get('filter[name]')
       if (name) items = items.filter((i) => nameMatches(name, i.name, m.slugOfIngredient(i)))
-      items.sort((a, b) => a.name.localeCompare(b.name))
+      // defaultSort('name'): SQLite BINARY, byte order.
+      items = orderByName(items)
       return json(200, paginate(items.map((i) => ingredientResource(m, i.id, 'index')), q, 50, '/ingredients'))
     }
     if (r.method === 'GET' && (match = p.match(/^\/ingredients\/([^/]+)\/extra$/))) {
@@ -270,7 +272,8 @@ export class FakeBar {
         const n = Number(missing)
         items = items.filter((c) => (n >= 3 ? m.missingIngredients(c) >= n : m.missingIngredients(c) === n))
       }
-      items.sort((a, b) => a.name.localeCompare(b.name))
+      // defaultSort('name'): SQLite BINARY, byte order.
+      items = orderByName(items)
       return json(
         200,
         paginate(items.map((c) => cocktailResource(m, c, 'index', { includeTags })), q, 25, '/cocktails'),
@@ -278,6 +281,10 @@ export class FakeBar {
     }
     if (r.method === 'POST' && (match = p.match(/^\/cocktails\/(\d+)\/toggle-favorite$/))) {
       const id = Number(match[1])
+      // CocktailService::toggleFavorite starts with Cocktail::findOrFail
+      // (app/Services/CocktailService.php:228): a drink the bar does not have
+      // is a 404, and nothing is favourited.
+      if (!m.cocktail(id)) return notFound()
       if (m.favorites.has(id)) m.favorites.delete(id)
       else m.favorites.add(id)
       return json(200, { data: { id, is_favorited: m.favorites.has(id) } })
@@ -374,11 +381,16 @@ export class FakeBar {
     }
     const { q = '', limit = 20 } = (r.body ?? {}) as { q?: string; limit?: number }
     const m = this.model
-    const docs =
-      match[1] === 'cocktails'
+    const index = match[1] === 'cocktails' ? 'cocktails' : 'ingredients'
+    const docs: Record<string, unknown>[] =
+      index === 'cocktails'
         ? m.world.cocktails.map((c) => cocktailDocument(m, c))
         : m.world.ingredients.map((i) => ingredientDocument(m, i))
-    const matched = docs.filter((d) => prefixMatches(q, d.name))
+    const matched = docs
+      .map((doc) => ({ doc, rank: attributeRank(q, doc, SEARCHABLE_ATTRIBUTES[index]) }))
+      .filter((x): x is { doc: Record<string, unknown>; rank: number } => x.rank !== undefined)
+      .sort((a, b) => a.rank - b.rank)
+      .map((x) => x.doc)
     const hits = matched.slice(0, limit)
     // Meilisearch's public search response (POST /indexes/{uid}/search; v1.15,
     // deploy/docker-compose.yml:58). With limit/offset, estimatedTotalHits counts
@@ -405,11 +417,35 @@ function nameMatches(term: string, name: string, slug: string): boolean {
   return words.every((w) => name.toLowerCase().includes(w) || slug.includes(w))
 }
 
-/** Meilisearch default matching, simplified: each query word prefixes a word of the name. */
-function prefixMatches(q: string, name: string): boolean {
+/** The lowercased words of an attribute's value: a string, an array of them, or absent. */
+function tokensOf(value: unknown): string[] {
+  const parts: unknown[] = Array.isArray(value) ? value : [value]
+  return parts
+    .filter((v): v is string => typeof v === 'string')
+    .flatMap((v) => v.toLowerCase().split(/[^a-z0-9]+/))
+    .filter(Boolean)
+}
+
+/**
+ * Meilisearch's default matching and ranking, simplified. A document matches
+ * when each query word prefixes a word of one of the index's searchable
+ * attributes (SEARCHABLE_ATTRIBUTES, from config/scout.php). Its rank is the
+ * attribute rule's: for each query word, the position in that list of the
+ * first attribute it matches, summed, so a name match outranks a tag or an
+ * ingredient match. Lower ranks first; equal ranks keep index order. The
+ * typo, proximity, word-position and exactness rules are not modelled.
+ * Undefined when the document does not match.
+ */
+function attributeRank(q: string, doc: Record<string, unknown>, attributes: readonly string[]): number | undefined {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)
-  const tokens = name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
-  return words.every((w) => tokens.some((t) => t.startsWith(w)))
+  const tokens = attributes.map((a) => tokensOf(doc[a]))
+  let rank = 0
+  for (const w of words) {
+    const at = tokens.findIndex((ts) => ts.some((t) => t.startsWith(w)))
+    if (at === -1) return undefined
+    rank += at
+  }
+  return rank
 }
 
 /** CocktailService::getSimilarCocktails: drop the last non-optional ingredient

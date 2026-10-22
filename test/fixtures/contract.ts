@@ -9,7 +9,13 @@ import type {
   RecommendedIngredient,
   ShoppingListItem,
 } from '../../src/api/types'
-import { BarModel, cocktailIngredientResource, cocktailResource, ingredientResource } from './upstream'
+import {
+  BarModel,
+  cocktailIngredientResource,
+  cocktailResource,
+  ingredientResource,
+  shoppingListResource,
+} from './upstream'
 import { C, I, defaultWorld } from './world'
 
 export function contract(m = new BarModel(defaultWorld())) {
@@ -21,7 +27,8 @@ export function contract(m = new BarModel(defaultWorld())) {
   const entryShow: CocktailIngredientEntry = cocktailIngredientResource(m, line, 1, 'show')
   const shelfRow: Ingredient = ingredientResource(m, I.laphroaig10, 'index')
   const detail: IngredientDetail = ingredientResource(m, I.laphroaig10, 'show')
-  const listItem: ShoppingListItem = { ingredient: m.basic(I.campari), quantity: 1 }
+  // The rows GET /users/{id}/shopping-list serves, as the fake serves them.
+  const list: ShoppingListItem[] = shoppingListResource(m)
   const recommended: RecommendedIngredient[] = m.recommendFor(m.shelf)
-  return [index, show, entryIndex, entryShow, shelfRow, detail, listItem, recommended] as const
+  return [index, show, entryIndex, entryShow, shelfRow, detail, list, recommended] as const
 }

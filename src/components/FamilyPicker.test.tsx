@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/preact'
 import { LocationProvider } from 'preact-iso'
 import type { Tag } from '../api/types'
+import { orderByName } from '../../test/fixtures/upstream'
 import { T, defaultWorld } from '../../test/fixtures/world'
 import { FamilyPicker, useActiveFamily } from './FamilyPicker'
 
@@ -37,16 +38,14 @@ const WITHOUT_TIKI = ['ALL', 'SOUR', 'SPIRIT-FORWARD', 'HIGHBALL', 'DESSERT']
 const world = defaultWorld()
 const FAMILY_TAGS = world.tags.filter((t) => t.name.startsWith('family:')).map((t) => t.name)
 
-/** GET /tags as TagController::index answers it: the bar's tags by name, with cocktails_count. */
+/** GET /tags as TagController::index answers it: the bar's tags in SQL name
+ *  order (orderByName), with cocktails_count. */
 function tagsWithout(...names: string[]): Tag[] {
-  return world.tags
-    .filter((t) => !names.includes(t.name))
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((t) => ({
-      id: t.id,
-      name: t.name,
-      cocktails_count: world.cocktails.filter((c) => c.tagIds?.includes(t.id)).length,
-    }))
+  return orderByName(world.tags.filter((t) => !names.includes(t.name))).map((t) => ({
+    id: t.id,
+    name: t.name,
+    cocktails_count: world.cocktails.filter((c) => c.tagIds?.includes(t.id)).length,
+  }))
 }
 
 const loading = (): TagsQuery => ({ status: 'pending', data: undefined, isError: false })

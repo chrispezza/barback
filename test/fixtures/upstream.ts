@@ -418,11 +418,40 @@ const PHP_NUMERIC = /^[ \t\n\r\v\f]*[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?[ \t\
 const utf8 = new TextEncoder()
 
 /**
+ * SQLite's BINARY collation, the one `ORDER BY name` uses upstream: memcmp
+ * over the UTF-8 bytes, then the shorter string first
+ * (https://www.sqlite.org/datatype3.html#collation). The image runs on
+ * SQLite (resources/docker/dist/init.sh:19-24) and no migration or config
+ * declares a collation. GET /tags is Tag::orderBy('name')
+ * (app/Http/Controllers/TagController.php:29); GET /ingredients and GET
+ * /cocktails defaultSort('name') (app/Http/Filters/IngredientQueryFilter.php:82,
+ * app/Http/Filters/CocktailQueryFilter.php:190). Every capital sorts before
+ * every lowercase letter, an accented letter after both, and numerals compare
+ * as text: '151' before '43'. Equal names are left in seed order; SQLite
+ * promises no order between them.
+ */
+export function sqliteBinaryCompare(a: string, b: string): number {
+  const x = utf8.encode(a)
+  const y = utf8.encode(b)
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0)
+    if (d !== 0) return Math.sign(d)
+  }
+  return Math.sign(x.length - y.length)
+}
+
+/** Sort rows the way SQL `ORDER BY name` returns them (sqliteBinaryCompare). */
+export function orderByName<T extends { name: string }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => sqliteBinaryCompare(a.name, b.name))
+}
+
+/**
  * PHP 8's comparison of two strings, the one asort applies with SORT_REGULAR
  * (zend_compare → zendi_smart_strcmp): as numbers when both strings are
  * numeric, otherwise byte by byte over the UTF-8 (zend_binary_strcmp: memcmp,
- * then the shorter first). Not a collation: every capital sorts before every
- * lowercase letter, and an accented letter after both.
+ * then the shorter first — the same order as sqliteBinaryCompare). Not a
+ * collation: every capital sorts before every lowercase letter, and an
+ * accented letter after both.
  *
  * Two cases are out of scope because no ingredient name looks like either:
  * - Numeric names that a double cannot tell apart, such as integers past 2^53
@@ -435,13 +464,7 @@ const utf8 = new TextEncoder()
  */
 export function phpCompare(a: string, b: string): number {
   if (PHP_NUMERIC.test(a) && PHP_NUMERIC.test(b)) return Math.sign(Number(a) - Number(b))
-  const x = utf8.encode(a)
-  const y = utf8.encode(b)
-  for (let i = 0; i < Math.min(x.length, y.length); i++) {
-    const d = (x[i] ?? 0) - (y[i] ?? 0)
-    if (d !== 0) return Math.sign(d)
-  }
-  return Math.sign(x.length - y.length)
+  return sqliteBinaryCompare(a, b)
 }
 
 /**
@@ -457,6 +480,19 @@ export function shoppingListResource(m: BarModel) {
     .map(([id, quantity]) => ({ ingredient: m.basic(id), quantity }))
     .sort((a, b) => phpCompare(a.ingredient.name, b.ingredient.name))
 }
+
+/**
+ * The attributes each Meilisearch index searches, in rank order: the
+ * searchableAttributes of config/scout.php (139-145, 150-155), which the
+ * image applies on boot (scout:sync-index-settings,
+ * resources/docker/dist/init.sh:38). `date` and `origin` are listed but no
+ * document carries them (Cocktail::toSearchableArray,
+ * Ingredient::toSearchableArray), so they never match.
+ */
+export const SEARCHABLE_ATTRIBUTES = {
+  cocktails: ['name', 'tags', 'description', 'date', 'short_ingredients'],
+  ingredients: ['name', 'description', 'category', 'origin'],
+} as const
 
 /** Meilisearch documents (Cocktail::toSearchableArray, Ingredient::toSearchableArray). */
 export function cocktailDocument(m: BarModel, c: CocktailSeed) {
