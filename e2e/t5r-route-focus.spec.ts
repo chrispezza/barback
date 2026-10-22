@@ -11,6 +11,8 @@ import { expect, test } from './support/test'
 // its heading (src/app.tsx RouteEffects). A recipe the client has not read has
 // no heading until the bar answers: the card that was tapped is gone, and
 // focus must still land on the drink's name once it renders, never on <body>.
+// If the read fails, the error view's heading names the screen ("Recipe",
+// frontend-spec §1), as the not-found view's does, and focus lands there.
 // It lands once, for the route change alone: a reader who has moved on, or a
 // later render, keeps focus where it is.
 //
@@ -84,6 +86,22 @@ test.describe('focus lands on the recipe’s heading once it is read (ADR-003, �
     await expect(h1(page, 'Negroni')).toBeFocused()
   })
 
+  test('into a read that fails, focus lands on the screen’s heading beside the error line', async ({
+    page,
+    bar,
+  }) => {
+    const daiquiri = await openIndex(page)
+    // The read and the app's one retry (src/api/queries.ts useCocktail).
+    bar.fail(/^\/cocktails\/daiquiri-1$/, { method: 'GET', times: 2 })
+    await daiquiri.focus()
+    await page.keyboard.press('Enter')
+
+    await expect(page).toHaveURL(/\/drinks\/daiquiri-1$/)
+    await expect(errorLine(page)).toContainText('The bar didn’t answer — try again.')
+    await expect(h1(page, 'Recipe')).toBeFocused()
+    expect(bar.calls('GET', /^\/cocktails\/daiquiri-1$/)).toHaveLength(2)
+  })
+
   test('once landed, a later render does not take focus back', async ({ page, bar }) => {
     const daiquiri = await openIndex(page)
     bar.slowDown(SLOW)
@@ -150,6 +168,15 @@ test.describe('focus lands on the recipe’s heading once it is read (ADR-003, �
 
     await expect(h1(page, 'Daiquiri')).toBeFocused()
     await expect(similarSection(page)).toBeVisible()
+    expect((await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations).toEqual([])
+  })
+
+  test('in error, the recipe passes the automated accessibility checks', async ({ page, bar }) => {
+    const daiquiri = await openIndex(page)
+    bar.fail(/^\/cocktails\/daiquiri-1$/, { method: 'GET', times: 2 })
+    await daiquiri.click()
+
+    await expect(errorLine(page)).toContainText('The bar didn’t answer — try again.')
     expect((await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations).toEqual([])
   })
 })
