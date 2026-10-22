@@ -210,7 +210,7 @@ test.describe('a favourite made on the Classics (§1; ADR-003)', () => {
     await expect(choose).toHaveText('Choose')
     await expect(choose).toBeEnabled()
     await choose.click()
-    await expect(choose).toHaveText('✓ Chosen')
+    await expect(choose).toHaveText('✓ Choose')
     expect(bar.model.favorites.has(C.negroni)).toBe(true)
 
     await backToGimlet(page)
