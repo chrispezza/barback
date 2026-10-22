@@ -337,6 +337,7 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
     await expect(entry(page, 'Paloma')).toContainText('One bottle away: Tequila')
     // Hold every list read from here on: the read-back after Margarita's write.
     const reread = await hold(page, isListRead)
+    const mark = bar.calls().length
 
     await chooseButton(page, 'Margarita').click()
     await reread.arrived
@@ -358,6 +359,21 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
     await expect(toast(page)).toHaveText('Paloma — favorited.', { timeout: 10_000 })
     expect(bar.calls('POST', /\/shopping-list\/batch-store$/)).toHaveLength(1)
     expect(bar.model.favorites.has(90)).toBe(true)
+    // One list read for Margarita's write: the read-back that frees Choose. No
+    // second read follows it before Choose is free. Paloma's Choose finds the
+    // tequila listed, so it writes nothing and reads nothing. The fake records
+    // a call when it answers it.
+    const sent = bar
+      .calls()
+      .slice(mark)
+      .map((r) => `${r.method} ${r.path}`)
+      .filter((call) => call.startsWith('POST') || call === 'GET /users/1/shopping-list')
+    expect(sent).toEqual([
+      `POST /cocktails/${C.margarita}/toggle-favorite`,
+      'POST /users/1/shopping-list/batch-store',
+      'GET /users/1/shopping-list',
+      'POST /cocktails/90/toggle-favorite',
+    ])
   })
 
   test('a read under way leaves a focused Choose as it is, and Enter waits for that read to decide', async ({
