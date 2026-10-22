@@ -1,8 +1,8 @@
 import type { Page, Route } from '@playwright/test'
 import { describe, expect, it } from 'vitest'
-import { FakeBar, ISSUED_TOKEN } from '../../e2e/support/fake-bar'
+import { FakeBar, ISSUED_TOKEN, SEARCH_TOKEN } from '../../e2e/support/fake-bar'
 import { BarModel, cocktailIngredientResource, cocktailResource, ingredientResource, slugify } from './upstream'
-import { C, I, defaultWorld } from './world'
+import { C, I, defaultWorld, type CocktailSeed } from './world'
 
 // The fake is a model of Bar Assistant v5.15.3 (ADR-011); these pin the model
 // to the upstream behaviour it cites, so a journey cannot pass against a fake
@@ -11,12 +11,20 @@ import { C, I, defaultWorld } from './world'
 const model = () => new BarModel(defaultWorld())
 
 /**
- * What the fake answers a signed-in GET, through the route handler it installs
- * on a page (FakeBar.install), with the issued token and the bar header the
- * client sends. No browser: the handler is called with a stand-in route.
+ * What the fake answers a signed-in request, through the route handler it
+ * installs on a page (FakeBar.install). A path under /search/ goes to
+ * Meilisearch with the scoped key; any other is under /bar/api, with the
+ * issued token and the bar header the client sends. No browser: the handler
+ * is called with a stand-in route. GET unless `init` says otherwise.
  */
-async function served(bar: FakeBar, path: string): Promise<{ status: number; body: unknown }> {
+async function served(
+  bar: FakeBar,
+  path: string,
+  init: { method?: string; body?: unknown } = {},
+): Promise<{ status: number; body: unknown }> {
   const origin = 'http://127.0.0.1:4173'
+  const method = init.method ?? 'GET'
+  const search = path.startsWith('/search/')
   let handler: ((route: Route) => Promise<void>) | undefined
   const page = {
     route: async (_url: string, h: (route: Route) => Promise<void>) => {
@@ -27,13 +35,16 @@ async function served(bar: FakeBar, path: string): Promise<{ status: number; bod
   let answer: { status: number; body: string } | undefined
   const route = {
     request: () => ({
-      url: () => `${origin}/bar/api${path}`,
-      method: () => 'GET',
-      headers: () => ({
-        authorization: `Bearer ${ISSUED_TOKEN}`,
-        'bar-assistant-bar-id': String(bar.model.world.barId),
-      }),
-      postData: () => null,
+      url: () => (search ? `${origin}${path}` : `${origin}/bar/api${path}`),
+      method: () => method,
+      headers: (): Record<string, string> =>
+        search
+          ? { authorization: `Bearer ${SEARCH_TOKEN}` }
+          : {
+              authorization: `Bearer ${ISSUED_TOKEN}`,
+              'bar-assistant-bar-id': String(bar.model.world.barId),
+            },
+      postData: () => (init.body === undefined ? null : JSON.stringify(init.body)),
     }),
     fulfill: async (a: { status: number; body: string }) => {
       answer = a
@@ -41,13 +52,28 @@ async function served(bar: FakeBar, path: string): Promise<{ status: number; bod
   }
   if (!handler) throw new Error('the fake installed no route handler')
   await handler(route as unknown as Route)
-  if (!answer) throw new Error(`the fake did not answer GET ${path}`)
-  return { status: answer.status, body: JSON.parse(answer.body) as unknown }
+  if (!answer) throw new Error(`the fake did not answer ${method} ${path}`)
+  return { status: answer.status, body: answer.body === '' ? null : (JSON.parse(answer.body) as unknown) }
 }
 
 /** The ingredient names of a shopping-list response, in the order served. */
 function listNames(body: unknown): string[] {
   return (body as { data: { ingredient: { name: string } }[] }).data.map((row) => row.ingredient.name)
+}
+
+/** The names of a `data` array (tags, ingredients, cocktails), in the order served. */
+function dataNames(body: unknown): string[] {
+  return (body as { data: { name: string }[] }).data.map((row) => row.name)
+}
+
+/** The names of a Meilisearch response's hits, in rank order. */
+function hitNames(body: unknown): string[] {
+  return (body as { hits: { name: string }[] }).hits.map((hit) => hit.name)
+}
+
+/** A drink with one gin line, named for an ordering case. */
+function drink(id: number, name: string): CocktailSeed {
+  return { id, name, instructions: '', lines: [{ ingredientId: I.gin, amount: 50, units: 'ml' }] }
 }
 
 describe('materialized_path', () => {
@@ -211,6 +237,127 @@ describe('shopping list (ShoppingListController::index)', () => {
     bar.model.world.ingredients.push({ id: 90, name: '151', parentId: I.rum }, { id: 91, name: '43', parentId: I.liqueurs })
     for (const id of [90, 91]) bar.model.list.set(id, 1)
     expect(listNames((await served(bar, '/users/1/shopping-list')).body)).toEqual(['43', '151'])
+  })
+})
+
+describe('name order on /tags, /ingredients and /cocktails (SQLite ORDER BY name)', () => {
+  // TagController::index is Tag::orderBy('name') (TagController.php:29); the
+  // ingredient and cocktail indexes defaultSort('name')
+  // (IngredientQueryFilter.php:82, CocktailQueryFilter.php:190). The image
+  // runs on SQLite (resources/docker/dist/init.sh:19-24) and no migration or
+  // config declares a collation, so ORDER BY name uses SQLite's BINARY
+  // collation: memcmp over the UTF-8 bytes, then the shorter first. Every
+  // capital before every lowercase letter, an accented letter after both, and
+  // numerals compared as text, not as numbers (unlike the shopping list's PHP
+  // sort above).
+  const fake = () => new FakeBar(defaultWorld())
+
+  it('GET /tags orders names byte-wise', async () => {
+    const bar = fake()
+    bar.model.world.tags.push(
+      { id: 120, name: 'after dinner' },
+      { id: 121, name: 'Été' },
+      { id: 122, name: '43' },
+      { id: 123, name: '151' },
+    )
+    const { status, body } = await served(bar, '/tags')
+    expect(status).toBe(200)
+    expect(dataNames(body)).toEqual([
+      '151',
+      '43',
+      'Classic',
+      'after dinner',
+      'family:dessert',
+      'family:highball',
+      'family:sour',
+      'family:spirit-forward',
+      'family:tiki',
+      'Été',
+    ])
+  })
+
+  it('GET /ingredients orders names byte-wise', async () => {
+    const bar = fake()
+    bar.model.world.ingredients.push(
+      { id: 90, name: 'lime cordial', parentId: I.juices },
+      { id: 91, name: 'Élixir végétal', parentId: I.liqueurs },
+      { id: 92, name: '43', parentId: I.liqueurs },
+      { id: 93, name: '151', parentId: I.rum },
+    )
+    bar.model.shelf.clear()
+    for (const id of [90, 91, 92, 93, I.campari]) bar.model.shelf.add(id)
+    const { status, body } = await served(bar, '/ingredients?filter[on_shelf]=true&per_page=200')
+    expect(status).toBe(200)
+    expect(dataNames(body)).toEqual(['151', '43', 'Campari', 'lime cordial', 'Élixir végétal'])
+  })
+
+  it('GET /cocktails orders names byte-wise', async () => {
+    const bar = fake()
+    bar.model.world.cocktails.push(
+      drink(90, 'aperitivo spritz'),
+      drink(91, 'Été sour'),
+      drink(92, '43'),
+      drink(93, '151'),
+      drink(94, 'Zombie'),
+    )
+    const { status, body } = await served(bar, `/cocktails?filter[id]=90,91,92,93,94,${C.daiquiri}`)
+    expect(status).toBe(200)
+    expect(dataNames(body)).toEqual(['151', '43', 'Daiquiri', 'Zombie', 'aperitivo spritz', 'Été sour'])
+  })
+})
+
+describe('POST /cocktails/{id}/toggle-favorite (CocktailController::toggleFavorite)', () => {
+  const fake = () => new FakeBar(defaultWorld())
+
+  it('toggles a drink the bar has and answers which way it went', async () => {
+    const bar = fake()
+    const on = await served(bar, `/cocktails/${C.negroni}/toggle-favorite`, { method: 'POST' })
+    expect(on).toEqual({ status: 200, body: { data: { id: C.negroni, is_favorited: true } } })
+    const off = await served(bar, `/cocktails/${C.negroni}/toggle-favorite`, { method: 'POST' })
+    expect(off).toEqual({ status: 200, body: { data: { id: C.negroni, is_favorited: false } } })
+  })
+
+  it('answers 404 for a drink the bar does not have, and favourites nothing', async () => {
+    // CocktailService::toggleFavorite starts with Cocktail::findOrFail
+    // (app/Services/CocktailService.php:228); the ModelNotFoundException
+    // renders as NotFoundHttpException (app/Exceptions/Handler.php:64-67).
+    const bar = fake()
+    const { status, body } = await served(bar, '/cocktails/999/toggle-favorite', { method: 'POST' })
+    expect(status).toBe(404)
+    expect(body).toEqual({ type: 'api_error', message: 'Resource not found.' })
+    expect(bar.model.favorites.has(999)).toBe(false)
+  })
+})
+
+describe('Meilisearch search (config/scout.php index-settings)', () => {
+  // The image applies config/scout.php's index settings on boot
+  // (scout:sync-index-settings, resources/docker/dist/init.sh:38), which list
+  // the searchable attributes in rank order: cocktails name, tags,
+  // description, date, short_ingredients (config/scout.php:139-145);
+  // ingredients name, description, category, origin (150-155). A query
+  // matches any of them, and under Meilisearch's default ranking rules, which
+  // upstream leaves alone, a match in an earlier attribute ranks first, the
+  // rules before it tied; equal ranks keep index order.
+  const fake = () => new FakeBar(defaultWorld())
+  const search = (bar: FakeBar, index: 'cocktails' | 'ingredients', q: string) =>
+    served(bar, `/search/indexes/${index}/search`, { method: 'POST', body: { q, limit: 12 } })
+
+  it('finds a drink by an ingredient it pours (short_ingredients)', async () => {
+    const { status, body } = await search(fake(), 'cocktails', 'campari')
+    expect(status).toBe(200)
+    expect(hitNames(body)).toEqual(['Negroni'])
+  })
+
+  it('finds a drink by its tags, ranking a name match above them', async () => {
+    const { body } = await search(fake(), 'cocktails', 'sour')
+    expect(hitNames(body)).toEqual(['Whiskey Sour', 'Daiquiri', 'Margarita', 'Gimlet', 'Penicillin'])
+    expect(body).toMatchObject({ estimatedTotalHits: 5 })
+  })
+
+  it('finds an ingredient by its category, the names of its ancestors', async () => {
+    const { status, body } = await search(fake(), 'ingredients', 'beverages')
+    expect(status).toBe(200)
+    expect(hitNames(body)).toEqual(['Beverages', 'Club soda', 'Tonic', 'Ginger beer'])
   })
 })
 
