@@ -1,8 +1,32 @@
+import type { DefaultOptions } from '@tanstack/react-query';
 import { clearToken, getToken, isDoor, navigateOutsideTree } from '../auth';
 
 // ADR-005: multi-origin only until the reverse proxy lands — keep the base
 // swappable and never bake absolute URLs deeper than this module.
 const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+
+/**
+ * How every read and write asks the bar; src/app.tsx builds its QueryClient
+ * from these. A read that fails is asked once more, then shows its error.
+ *
+ * Every call goes out however the device looks (networkMode 'always').
+ * TanStack's default ('online') holds a call while the browser says it is
+ * offline: a read waits, neither loading nor in error, so no screen reaches
+ * its error line and Tonight never shows its snapshot; a write waits and is
+ * sent when the device reconnects, an outbox nobody can see or take back.
+ * ADR-007: the snapshot shows "when the API is unreachable", screens that need
+ * the API "say so in the error voice", and "mutations require connectivity"
+ * (no outbox). With no network the fetch rejects, a read fails as it does with
+ * the bar out of reach, and a write fails with its own toast.
+ *
+ * When the device reconnects, a read that failed or went stale is asked again,
+ * as it was before; a write never is. Under 'always' TanStack turns that
+ * refetch off unless asked (QueryClient.defaultQueryOptions), so it is asked.
+ */
+export const queryDefaults: DefaultOptions = {
+  queries: { retry: 1, networkMode: 'always', refetchOnReconnect: true },
+  mutations: { networkMode: 'always' },
+};
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';

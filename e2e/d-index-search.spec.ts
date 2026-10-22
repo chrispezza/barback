@@ -22,14 +22,15 @@ import { expect, test } from './support/test'
 // type-ahead does while Meilisearch is down is chrispezza/barback#76, not this
 // spec's.
 //
-// Every failed read below fails its first try and its one retry (src/app.tsx,
-// retry: 1).
+// Every failed read below fails its first try and its one retry
+// (src/api/client.ts queryDefaults, retry: 1).
 //
 // The store aisle (ADR-007) is the device offline, not only the bar out of
-// reach: the browser reports navigator.onLine false, and TanStack Query's
-// default networkMode pauses a read asked for then instead of failing it
-// (chrispezza/barback#107). A paused search has no answer either, and says so
-// the same way; it goes out again by itself when the device reconnects.
+// reach: the browser reports navigator.onLine false. A search asked for then
+// is tried and fails, as it does with the bar out of reach, and says so the
+// same way: never held until the device reconnects (src/api/client.ts
+// queryDefaults; chrispezza/barback#107). It is asked again by itself when the
+// device reconnects.
 
 const ERROR = 'The bar didn’t answer — try again.'
 
@@ -169,20 +170,50 @@ test.describe('the device is offline', () => {
     await expect(cards(page)).toHaveCount(0)
   })
 
-  test('the paused search goes out on reconnect, and the matches take the error line’s place', async ({
+  test('a search made offline fails, is asked again on reconnect, and the matches take the error line’s place', async ({
     page,
     bar,
     context,
   }) => {
     await openIndex(page)
+    // Route interception still answers while the context is offline, so this
+    // handler, asked before the fake, drops what the page asks of the bar and
+    // of search while the device is offline, as the network would. It keeps
+    // each one as "METHOD /path?query", with the body when there is one: the
+    // Index's own list is also GET /bar/api/cocktails, so the path alone cannot
+    // tell the search's REST fallback from it. Unlike takeApiDown and
+    // takeSearchDown, it can be lifted.
+    let online = true
+    const dropped: string[] = []
+    await page.route(
+      (url) => url.pathname.startsWith('/bar/') || url.pathname.startsWith('/search/'),
+      (route) => {
+        if (online) return route.fallback()
+        const req = route.request()
+        const { pathname, search } = new URL(req.url())
+        const body = req.postData()
+        dropped.push(`${req.method()} ${pathname}${search}${body ? ` ${body}` : ''}`)
+        return route.abort('internetdisconnected')
+      },
+    )
+    online = false
     await context.setOffline(true)
     const asked = bar.requests.length
 
     await searchBox(page).fill('daiq')
     await expectSearchErrorLine(page)
-    // Paused, not failed: nothing was sent while the device was offline.
+    // Failed, not held: the search for "daiq" was asked of Meilisearch and
+    // then of the REST name filter (ADR-004; src/api/search.ts), and the
+    // network dropped both.
+    expect(dropped).toContain('POST /search/indexes/cocktails/search {"q":"daiq","limit":12}')
+    expect(dropped).toContain('GET /bar/api/cocktails?filter[name]=daiq&per_page=12')
+    // The original journey's line, kept. It now holds by construction while
+    // the route above matches every /bar/ and /search/ path: it checks that
+    // this journey's dropped network took every request ahead of the fake, not
+    // anything the app did.
     expect(bar.requests.slice(asked)).toEqual([])
 
+    online = true
     await context.setOffline(false)
 
     await expect(sectionHeading(page, 'Matches · 1')).toBeVisible()

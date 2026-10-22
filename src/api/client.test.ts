@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, isApiError } from './client'
+import { MutationObserver, QueryClient, QueryObserver, onlineManager } from '@tanstack/react-query'
+import { api, isApiError, queryDefaults } from './client'
 
 // api() errors carry what the bar answered (status, upstream `message`) so a
 // screen can say why, while the Error message callers already see is unchanged.
@@ -111,5 +112,84 @@ describe('api() answers', () => {
     await expect(api('/profile')).resolves.toEqual({ data: { id: 1 } })
     vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })))
     await expect(api('/users/1/ingredients/batch-store', { method: 'POST', body: {} })).resolves.toBeUndefined()
+  })
+})
+
+// The app's QueryClient defaults (src/app.tsx) with the device offline: the
+// browser has said so, and fetch rejects as it does with no network. ADR-007:
+// screens that need the API "say so in the error voice", and "mutations
+// require connectivity" with no outbox. TanStack's default networkMode holds
+// both instead. The screens are driven in e2e/x-offline-device.spec.ts.
+describe('with the device offline, the app’s calls', () => {
+  let client: QueryClient | undefined
+
+  afterEach(() => {
+    client?.unmount()
+    client?.clear()
+    client = undefined
+    onlineManager.setOnline(true)
+  })
+
+  /** The app's client, mounted so it hears the device come back online. */
+  function appClient(): QueryClient {
+    client = new QueryClient({ defaultOptions: queryDefaults })
+    client.mount()
+    return client
+  }
+
+  /** No network: every fetch rejects as the browser's does. */
+  function noNetwork() {
+    const fetch = vi.fn(async () => Promise.reject(new TypeError('Failed to fetch')))
+    vi.stubGlobal('fetch', fetch)
+    onlineManager.setOnline(false)
+    return fetch
+  }
+
+  it('fail a read after its one retry, never hold it, and ask it again on reconnect', async () => {
+    const fetch = noNetwork()
+    const observer = new QueryObserver(appClient(), {
+      queryKey: ['shopping-list', 1],
+      queryFn: () => api('/users/1/shopping-list', { barId: 1 }),
+    })
+    const seen: string[] = []
+    const unsubscribe = observer.subscribe((r) => seen.push(r.fetchStatus))
+
+    await vi.waitFor(() => expect(observer.getCurrentResult().status).toBe('error'), { timeout: 3000 })
+    // Asked, and asked once more: the error line's read, not a held one.
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(seen).not.toContain('paused')
+
+    // The device comes back: the read that failed is asked again by itself.
+    const answer = respond(200, JSON.stringify({ data: [] }))
+    vi.stubGlobal('fetch', answer)
+    onlineManager.setOnline(true)
+    await vi.waitFor(() => expect(observer.getCurrentResult().status).toBe('success'))
+    expect(answer).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
+  it('try a write once, fail it to its own onError, and send nothing on reconnect', async () => {
+    const fetch = noNetwork()
+    const queryClient = appClient()
+    const onError = vi.fn()
+    const observer = new MutationObserver(queryClient, {
+      mutationFn: ({ id }: { id: number }) =>
+        api('/users/1/shopping-list/batch-delete', { method: 'POST', barId: 1, body: { ingredients: [{ id }] } }),
+      onError,
+    })
+
+    const done = observer.mutate({ id: 3 }).then(
+      () => 'taken',
+      () => 'refused',
+    )
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1), { timeout: 1000 })
+    expect(await done).toBe('refused')
+    expect(onError).toHaveBeenCalledTimes(1)
+
+    // The device comes back: nothing was held, so nothing goes out.
+    onlineManager.setOnline(true)
+    await queryClient.resumePausedMutations()
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(queryClient.getMutationCache().getAll().some((m) => m.state.isPaused)).toBe(false)
   })
 })
