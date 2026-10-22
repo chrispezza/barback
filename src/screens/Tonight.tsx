@@ -82,6 +82,23 @@ function BuyNextCard({
   );
 }
 
+/**
+ * Which empty state the pour section shows, if any. Bare is decided by the
+ * shelf alone (`shelfTotal`); the others wait until the shelf and both counts
+ * are known, and say only what those counts support.
+ */
+function pourEmptyState(
+  shelfTotal: number | undefined,
+  canMakeTotal: number | undefined,
+  nearMissTotal: number | undefined,
+  familyActive: boolean,
+): 'bare' | 'near' | 'family' | 'bar' | undefined {
+  if (shelfTotal === 0) return 'bare';
+  if (shelfTotal === undefined || canMakeTotal !== 0 || nearMissTotal === undefined) return undefined;
+  if (nearMissTotal > 0) return 'near';
+  return familyActive ? 'family' : 'bar';
+}
+
 /** One restock suggestion: live "unlocks N" (same voice as the shopping list). */
 function RestockRow({
   suggestion,
@@ -139,7 +156,6 @@ export function Tonight() {
 
   const canMakeTotal = canMake.data?.meta?.total;
   const pourCards = canMake.data?.data ?? [];
-  const shelfIsBare = canMakeTotal === 0 && nearMiss.data?.meta?.total === 0;
 
   const listItems = shoppingList.data?.data ?? [];
   // A list Tonight cannot read, whichever read failed, is shown as the stamped
@@ -172,6 +188,20 @@ export function Tonight() {
   // GET /cocktails carries no variant flags: the cards and the favourites gaps
   // read a held child brand off the shelf (chrispezza/barback#20).
   const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
+
+  // What the pour section says when nothing pours (frontend-spec §5 "Empty
+  // states are directive", §6 family-aware empty states). A bare shelf is a
+  // fact about the shelf, never about the counts under a family: the family
+  // only refines Tonight's stock axis (§6), so a stocked shelf with nothing in
+  // the family within reach is pointed at the family, not told to stock up.
+  // A count still on screen from the previous family (placeholderData, while
+  // the new family's read is under way) says nothing about this one.
+  const pourEmpty = pourEmptyState(
+    shelf.data ? (shelf.data.meta?.total ?? shelf.data.data.length) : undefined,
+    canMake.isPlaceholderData ? undefined : canMakeTotal,
+    nearMiss.isPlaceholderData ? undefined : nearMiss.data?.meta?.total,
+    scope !== undefined,
+  );
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const ownedOrListed = new Set([
     ...listItems.map((item) => item.ingredient.id),
@@ -284,7 +314,7 @@ export function Tonight() {
         <section class="tonight-pour" id="pour" tabIndex={-1}>
           <MatchHeader label={scope ? `${scope} you can pour` : 'You can pour'} count={canMakeTotal} />
           {(canMake.isError || barsFailed) && <ErrorLine onRetry={() => retry(canMake)} />}
-          {canMakeTotal === 0 && !shelfIsBare && (
+          {pourEmpty === 'near' && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
           )}
           <ul class={showAllPour ? 'card-list' : 'card-list card-list--capped'}>
@@ -307,9 +337,29 @@ export function Tonight() {
               </Button>
             </p>
           )}
-          {shelfIsBare && (
+          {pourEmpty === 'family' && family !== undefined && scope !== undefined && (
             <EmptyState
-              title="The shelf is bare"
+              title={`No ${scope} pour yet`}
+              body="None is one bottle away either — browse them to see what they call for."
+              action={
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => route(`/drinks?family=${family.def.tag.replace('family:', '')}`)}
+                  >
+                    {`Browse ${scope}`}
+                  </Button>{' '}
+                  <Button variant="ghost" size="sm" onClick={() => route('/tonight')}>
+                    Show all families
+                  </Button>
+                </>
+              }
+            />
+          )}
+          {(pourEmpty === 'bare' || pourEmpty === 'bar') && (
+            <EmptyState
+              title={pourEmpty === 'bare' ? 'The shelf is bare' : 'Nothing pours yet'}
               body={
                 suggestions.length > 0
                   ? `Start with ${suggestions
