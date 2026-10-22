@@ -41,6 +41,10 @@ const canPourMarks = (page: Page) => main(page).getByText(/Can pour$/)
 /** The rail's standing line ("11 bottles · 5 pourable"); desktop only. */
 const standing = (page: Page) => page.getByRole('navigation', { name: 'Main' }).getByText(/ bottles? · \d+ pourable$/)
 
+/** Tonight's whole-bar status line, and what it says of the default world. */
+const status = (page: Page) => page.locator('.bar-status')
+const STATUS = 'You can pour 5 · 7 one bottle away · 0 to buy'
+
 const pour = (page: Page) => page.locator('#pour')
 const near = (page: Page) => page.locator('#near')
 const rail = (page: Page) => page.locator('#buy')
@@ -115,6 +119,7 @@ test.describe('the desktop rail after its reads fail (chrispezza/barback#103)', 
   }) => {
     await page.goto('/tonight')
     await expect(standing(page)).toHaveText('11 bottles · 5 pourable')
+    await expect(status(page)).toHaveText(STATUS)
 
     await goTo(page, 'Shelf', 'Shelf')
     const { lift } = await outage(page, () => true)
@@ -124,12 +129,21 @@ test.describe('the desktop rail after its reads fail (chrispezza/barback#103)', 
     await expectOneErrorLine(pour(page))
     await expect(standing(page)).toHaveCount(0)
     await expect(page.locator('.rail-standing')).toHaveCount(0)
+    await expect(status(page)).toHaveCount(0)
     // Log out stays: it needs no read.
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Log out' })).toBeVisible()
 
+    // On the same screen, through the pour section's Retry: the standing and
+    // the status line have no error line of their own, and share the pour
+    // section's whole-bar read and its shelf.
     lift()
-    await goTo(page, 'Shelf', 'Shelf')
+    await pour(page).getByRole('alert').getByRole('button', { name: 'Retry' }).click()
+    await expect(pour(page).getByRole('alert')).toHaveCount(0)
     await expect(standing(page)).toHaveText('11 bottles · 5 pourable')
+    await expect(status(page)).toHaveText(STATUS)
+
+    await near(page).getByRole('alert').getByRole('button', { name: 'Retry' }).click()
+    await expect(page.getByRole('alert')).toHaveCount(0)
   })
 })
 
