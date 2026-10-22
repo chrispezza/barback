@@ -793,11 +793,7 @@ export function Tonight() {
                       ingredientId={item.ingredient.id}
                       name={item.ingredient.name}
                       isStaple={stapleIds.has(item.ingredient.id)}
-                      onCheckOff={() => {
-                        if (!checkOff.isPending) {
-                          checkOff.mutate({ ingredientId: item.ingredient.id });
-                        }
-                      }}
+                      onCheckOff={() => checkOff(item.ingredient.id)}
                       onDrop={() => {
                         if (!shoppingMutation.isPending) dropFromList(item.ingredient.id);
                       }}

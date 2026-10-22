@@ -8,7 +8,8 @@ import { expect, test } from './support/test'
 // (chrispezza/barback#142). A To buy row on Tonight checks its bottle off
 // (frontend-spec §5: shelf batch-store first, list batch-delete only on
 // success), and a second tap while that check-off is out is a double tap, not a
-// second decision: Tonight drops it (the row's guard, checkOff.isPending). The
+// second decision: Tonight drops it (useCheckOff, which asks whether that
+// bottle's check-off is pending; every other row stays live). The
 // two writes answering do not end the check-off. The row leaves the rail only
 // when the list read the check-off starts has landed (§4: shelf and list
 // mutations invalidate ['shopping-list']; §6 journey 3, "Check-off moves the

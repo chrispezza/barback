@@ -792,6 +792,8 @@ async function undoCheckOff(
   }
 }
 
+const checkOffKey = (barId: number | undefined) => ['check-off', barId];
+
 /**
  * Check-off (frontend-spec §5): shelf batch-store FIRST, list batch-delete
  * only on success — a failure may leave the item in both places (visible,
@@ -801,18 +803,20 @@ async function undoCheckOff(
  *
  * The check-off is pending until the list has been read back, not only until
  * its writes have answered: the row leaves the rail only when that read lands,
- * and until then it takes a tap, which Tonight drops only while the check-off
- * is pending (its guard is checkOff.isPending). Freed on the writes' answer
- * alone, a second tap in that round trip sends a second check-off and leaves
- * a second "Moved to the shelf." with its own Undo (chrispezza/barback#142).
- * TanStack awaits onSettled before it settles the mutation, so returning the
- * wait is what holds it. It waits while any list read is under way, so a read
- * that cancels this one and starts its own (an Undo's read-back, or a list
- * write's) holds it too, until that one lands. It never rejects: a read that
- * fails frees it and is not reported as the check-off failing, and a read that
- * pauses (a retry while the tab is hidden) frees it. Only the list is waited
- * on; the other read-backs move counts, not the row. The shelf toggle reads
- * back as before, once its last toggle settles (shelfToggleOptions).
+ * and until then it takes a tap, which useCheckOff drops only while that
+ * bottle's check-off is pending (isCheckOffPending). Freed on the writes'
+ * answer alone, a second tap in that round trip sends a second check-off and
+ * leaves a second "Moved to the shelf." with its own Undo
+ * (chrispezza/barback#142). The hold is the bottle's own: every other row
+ * stays live meanwhile. TanStack awaits onSettled before it settles the
+ * mutation, so returning the wait is what holds it. It waits while any list
+ * read is under way, so a read that cancels this one and starts its own (an
+ * Undo's read-back, another bottle's check-off, or a list write's) holds it
+ * too, until that one lands. It never rejects: a read that fails frees it and
+ * is not reported as the check-off failing, and a read that pauses (a retry
+ * while the tab is hidden) frees it. Only the list is waited on; the other
+ * read-backs move counts, not the row. The shelf toggle reads back as before,
+ * once its last toggle settles (shelfToggleOptions).
  */
 export function checkOffOptions(
   queryClient: QueryClient,
@@ -820,6 +824,7 @@ export function checkOffOptions(
   userId: number | undefined,
 ): UseMutationOptions<void, Error, CheckOff> {
   return {
+    mutationKey: checkOffKey(barId),
     mutationFn: async ({ ingredientId }) => {
       await api(`/users/${userId}/ingredients/batch-store`, {
         method: 'POST',
@@ -863,13 +868,38 @@ export function checkOffOptions(
   };
 }
 
-/** The check-off for shopping-list rows (checkOffOptions). */
+/** True while this bottle's check-off is out, its list read-back included. */
+export function isCheckOffPending(
+  queryClient: QueryClient,
+  barId: number | undefined,
+  ingredientId: number,
+): boolean {
+  return (
+    queryClient.isMutating({
+      mutationKey: checkOffKey(barId),
+      predicate: (m) => (m.state.variables as CheckOff | undefined)?.ingredientId === ingredientId,
+    }) > 0
+  );
+}
+
+/**
+ * The check-off for shopping-list rows (checkOffOptions): call it with the
+ * row's bottle. A press on a row whose own check-off is still out is a double
+ * tap, not a second decision, and is dropped. A press on any other row is
+ * sent, so bottles can be ticked off one after another while an earlier one
+ * is read back; as toggleShelf does for a chip, the hold is per bottle. It
+ * asks the mutation cache at the press, not what the last render saw.
+ */
 export function useCheckOff(
   barId: number | undefined,
   userId: number | undefined,
-) {
+): (ingredientId: number) => void {
   const queryClient = useQueryClient();
-  return useMutation(checkOffOptions(queryClient, barId, userId));
+  const { mutate } = useMutation(checkOffOptions(queryClient, barId, userId));
+  return (ingredientId) => {
+    if (isCheckOffPending(queryClient, barId, ingredientId)) return;
+    mutate({ ingredientId });
+  };
 }
 
 /** One shelf toggle: the bottle as the chip or ledger row knows it, and which way. */

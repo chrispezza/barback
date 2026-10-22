@@ -12,6 +12,7 @@ import { isPlaced } from '../data/hierarchy'
 import {
   checkOffOptions,
   ingredientNamesOptions,
+  isCheckOffPending,
   isShelfTogglePending,
   shelfToggleOptions,
   toggleShelf,
@@ -433,7 +434,7 @@ describe('a check-off', () => {
         () => 'refused',
       )
     const readBack = () => invalidate.mock.calls.map(([filters]) => filters?.queryKey)
-    /** What Tonight's row guard reads (checkOff.isPending). */
+    /** Whether the check-off is held: useCheckOff drops a press on its row while it is. */
     const pending = () => observer.getCurrentResult().isPending
     return { client, checkOff, readBack, pending }
   }
@@ -529,8 +530,9 @@ describe('a check-off', () => {
 
   // chrispezza/barback#142: the row leaves the rail only when the list read the
   // check-off starts has landed, and until then it takes a tap. The check-off
-  // holds the row (Tonight's guard is checkOff.isPending) until that read has
-  // landed, not only until its writes have answered. The screen is driven in
+  // holds the row (useCheckOff drops a press on it while isCheckOffPending)
+  // until that read has landed, not only until its writes have answered. The
+  // hold is that bottle's alone. The screen is driven in
   // e2e/t5t-checkoff-double-tap.spec.ts.
   describe('while its list is read back', () => {
     it('stays pending until the list read it started has landed', async () => {
@@ -552,6 +554,45 @@ describe('a check-off', () => {
       read.answer()
       expect(await done).toBe('taken')
       expect(s.pending()).toBe(false)
+    })
+
+    it('holds only its own bottle, and another bottle checked off meanwhile holds its own', async () => {
+      const s = checkOffSetup()
+      const reads = await shownList(s.client)
+      /** Whether a press on Campari's row, then Scotch whisky's, would be dropped. */
+      const held = () => [I.campari, I.scotch].map((id) => isCheckOffPending(s.client, BAR_ID, id))
+      const campari = s.checkOff(I.campari)
+      ;(await written(1)).answer(204)
+      ;(await written(2)).answer(204)
+      const own = await listRead(reads, 1)
+      await quiet()
+      expect(held()).toEqual([true, false])
+
+      // Scotch whisky's row, pressed while Campari's list is read back, is a
+      // check-off of its own, through the same hook.
+      const scotch = s.checkOff(I.scotch)
+      const store = await written(3)
+      expect(held()).toEqual([true, true])
+
+      own.answer()
+      expect(await campari).toBe('taken')
+      expect(held()).toEqual([false, true])
+
+      store.answer(204)
+      ;(await written(4)).answer(204)
+      const next = await listRead(reads, 2)
+      await quiet()
+      expect(held()).toEqual([false, true])
+
+      next.answer()
+      expect(await scotch).toBe('taken')
+      expect(held()).toEqual([false, false])
+      expect(writes.map((w) => [w.path, w.body])).toEqual([
+        [`/api/users/${USER_ID}/ingredients/batch-store`, { ingredients: [I.campari] }],
+        [`/api/users/${USER_ID}/shopping-list/batch-delete`, { ingredients: [{ id: I.campari }] }],
+        [`/api/users/${USER_ID}/ingredients/batch-store`, { ingredients: [I.scotch] }],
+        [`/api/users/${USER_ID}/shopping-list/batch-delete`, { ingredients: [{ id: I.scotch }] }],
+      ])
     })
 
     it('stays pending through list reads that replaced its own, until the last one lands', async () => {
