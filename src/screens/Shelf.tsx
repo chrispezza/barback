@@ -1,4 +1,5 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@ds/core/Button';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { ShelfRow } from '@ds/inventory/ShelfRow';
@@ -6,6 +7,7 @@ import { EmptyState } from '@ds/feedback/EmptyState';
 import { IngredientChip } from '@ds/inventory/IngredientChip';
 import { SearchField } from '@ds/forms/SearchField';
 import {
+  isShelfTogglePending,
   useBarId,
   useBars,
   useIngredientsByIds,
@@ -15,13 +17,72 @@ import {
 } from '../api/queries';
 import { useIngredientSearch } from '../api/search';
 import type { Ingredient } from '../api/types';
+import { unlessFailed } from '../api/unlocks';
 import { useLogout } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
 import { isPlaced, ledgerGroups, rootIdOf, rootIdsOf } from '../data/hierarchy';
 import { useDebounced } from '../hooks';
 
+/** A run of ledger rows: a root's group, or the whole ledger while it is flat. */
+export interface LedgerRun {
+  /** The group's header label; none while the ledger is flat. */
+  label?: string;
+  rows: readonly { id: number }[];
+}
+
+/** Where the focus goes when Remove takes a bottle's row off the ledger. */
+export type FocusAfterRemove =
+  | { to: 'remove'; id: number }
+  | { to: 'group'; label: string }
+  | { to: 'screen' };
+
+/**
+ * Remove takes its row off the ledger, and the focused button with it, which
+ * would leave a keyboard user on the page body (ADR-003 Consequences:
+ * focus management handled deliberately). The focus goes to the next bottle's
+ * Remove in the same group, or the one before it when the bottle was the
+ * group's last. A group that empties is dropped, and the focus goes to the
+ * heading of the group now in its place, or of the one before it when it was
+ * the last: a heading says the group has gone before the next Enter could
+ * remove a bottle from another group. When the shelf empties, the screen's
+ * heading. Null when the bottle is not on the ledger.
+ */
+export function focusAfterRemove(ledger: readonly LedgerRun[], id: number): FocusAfterRemove | null {
+  const at = ledger.findIndex((run) => run.rows.some((row) => row.id === id));
+  const run = ledger[at];
+  if (run === undefined) return null;
+  const index = run.rows.findIndex((row) => row.id === id);
+  const neighbour = run.rows[index + 1] ?? run.rows[index - 1];
+  if (neighbour !== undefined) return { to: 'remove', id: neighbour.id };
+  const label = (ledger[at + 1] ?? ledger[at - 1])?.label;
+  return label === undefined ? { to: 'screen' } : { to: 'group', label };
+}
+
+/**
+ * The element a FocusAfterRemove names inside the screen, found by the data
+ * attributes Shelf puts on its own wrappers. A heading is made focusable for
+ * the purpose (tabIndex -1: never a Tab stop), as RouteEffects does for the
+ * screen's h1 (src/app.tsx); MatchHeader renders each group's heading as its
+ * h2.
+ */
+function focusTarget(screen: HTMLElement, target: FocusAfterRemove): HTMLElement | null {
+  if (target.to === 'remove') {
+    return screen.querySelector<HTMLElement>(`[data-ingredient-id="${target.id}"] button`);
+  }
+  const heading =
+    target.to === 'screen'
+      ? screen.querySelector<HTMLElement>('h1')
+      : ([...screen.querySelectorAll<HTMLElement>('[data-group]')]
+          .find((group) => group.dataset['group'] === target.label)
+          ?.querySelector<HTMLElement>('h2') ?? null);
+  if (heading) heading.tabIndex = -1;
+  return heading;
+}
+
 export function Shelf() {
   const barId = useBarId();
+  const queryClient = useQueryClient();
+  const screen = useRef<HTMLElement>(null);
   const profileQuery = useProfile();
   const profile = profileQuery.data;
   const shelf = useShelf(barId);
@@ -54,7 +115,21 @@ export function Shelf() {
   // A paused search goes out again by itself on reconnect.
   const searchUnanswered = results.isError || results.isPaused;
   const hits = searchUnanswered ? undefined : results.data;
-  const shelfIds = new Set(shelf.data?.data.map((i) => i.id) ?? []);
+  // What the chips are marked against, and what decides the write a tap
+  // sends: the shelf as last read, or nothing — before its first answer, and
+  // once a read of it has failed (a refetch that fails keeps its last answer
+  // beside the error; unlessFailed). A chip marked from a stale shelf would
+  // send batch-delete for a bottle no longer there, or batch-store for one
+  // already on it (ADR-007 Consequences, "No stock answer is ever served
+  // stale"; chrispezza/barback#105). With the shelf unknown, a chip claims no
+  // state (no "have" mark, no aria-pressed either way) and is held: a tap
+  // sends nothing, and the page's error line says why. Held is aria-disabled,
+  // never disabled, so a chip keeps the focus a keyboard gave it when a read
+  // fails under it (Chromium blurs a focused button that gains `disabled`).
+  // A read under way with an answer in hand is not unknown: the toggle cancels
+  // it (shelfToggleOptions).
+  const shelfRead = unlessFailed(shelf);
+  const shelfIds = shelfRead && new Set(shelfRead.data.map((i) => i.id));
 
   const rows = shelf.data?.data ?? [];
   const bottleCount = shelf.data?.meta?.total ?? rows.length;
@@ -73,13 +148,21 @@ export function Shelf() {
   const groups = ledgerGroups(ledgerRows, rootNames.data);
 
   function removeRow(ingredient: Ingredient) {
+    // A second press on a row whose toggle is still out is dropped by
+    // toggleShelf, and the row stays: so does the focus.
+    if (!isShelfTogglePending(queryClient, barId, ingredient.id)) {
+      // Moved before the row goes, while every target is still on the page;
+      // the rows and groups that stay are keyed, so the target stays with them.
+      const target = focusAfterRemove(groups ?? [{ rows: ledgerRows }], ingredient.id);
+      if (target && screen.current) focusTarget(screen.current, target)?.focus();
+    }
     mutation.toggle({ ingredient, action: 'remove' });
   }
 
   // The remove action is always visible (touch-reachable) but quiet at rest;
   // the destructive treatment appears on hover/focus — see index.css.
   const shelfRowLine = (i: Ingredient) => (
-    <div class="shelf-row-line" key={i.id}>
+    <div class="shelf-row-line" key={i.id} data-ingredient-id={i.id}>
       <div class="shelf-row-main">
         <ShelfRow name={i.name} />
       </div>
@@ -95,7 +178,7 @@ export function Shelf() {
   );
 
   return (
-    <main class="screen screen--narrow">
+    <main class="screen screen--narrow" ref={screen}>
       <h1>Shelf</h1>
 
       <SearchField
@@ -115,6 +198,18 @@ export function Shelf() {
             />
           )}
           {hits?.map((hit) => {
+            if (shelfIds === undefined) {
+              // Held, claiming no state: the chip's rest props reach its
+              // button, after the aria-pressed it would otherwise set.
+              return (
+                <IngredientChip
+                  key={hit.id}
+                  label={hit.name}
+                  aria-pressed={undefined}
+                  aria-disabled="true"
+                />
+              );
+            }
             const isOnShelf = shelfIds.has(hit.id);
             return (
               <IngredientChip
@@ -149,7 +244,7 @@ export function Shelf() {
 
       {groups ? (
         groups.map(({ label, rows: groupRows }) => (
-          <section key={label}>
+          <section key={label} class="shelf-group" data-group={label}>
             <MatchHeader label={label} count={groupRows.length} align="left" />
             {groupRows.map(shelfRowLine)}
           </section>
