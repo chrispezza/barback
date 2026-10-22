@@ -102,6 +102,10 @@ test.describe('focus lands on the recipeâ€™s heading once it is read (ADR-003, Â
     expect(bar.calls('GET', /^\/cocktails\/daiquiri-1$/)).toHaveLength(2)
   })
 
+  // The wait ends two ways here: the heading taking focus disconnects the
+  // observer, and the reader's Tab would end it anyway (any focusin, keydown
+  // or pointerdown does). So this guards the behaviour a reader sees, not
+  // the disconnect by itself.
   test('once landed, a later render does not take focus back', async ({ page, bar }) => {
     const daiquiri = await openIndex(page)
     bar.slowDown(SLOW)
@@ -232,6 +236,11 @@ test.describe('the tab names the screen while the recipe is read (#108)', () => 
     expect(bar.calls('GET', /^\/cocktails\/daiquiri-1$/)).toHaveLength(2)
   })
 
+  // This encodes today's behaviour, pending chrispezza/barback#127 (decision):
+  // a failed refetch replaces a recipe already read with the whole-screen
+  // error, so its h1 goes and the tab names the screen. Under #127's option
+  // (a) the recipe text and its h1 would stay; this test changes with that
+  // decision, in the PR that implements it.
   test('when a recipe already read fails to read again, the tab names the screen, not the drink', async ({
     page,
     bar,
