@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import type { Locator, Page } from '@playwright/test'
+import type { Locator, Page, Response } from '@playwright/test'
 import { C, I, T, defaultWorld, type CocktailSeed, type WorldSeed } from '../test/fixtures/world'
 import type { FakeBar } from './support/fake-bar'
 import { expect, test } from './support/test'
@@ -82,6 +82,37 @@ const focused = (page: Page) =>
     document.activeElement === document.body ? 'BODY' : (document.activeElement?.outerHTML ?? 'NONE'),
   )
 
+/** Where the focus has been, as traceFocus records it in the page. */
+type FocusTrace = { focusTrace: string[] }
+
+/**
+ * Record where the focus is every time the screen's markup changes, and on
+ * every frame, until the page is closed: "BODY" when nothing has focus. A
+ * mutation observer's callback runs once the render that made the change has
+ * finished, and before the browser paints, so the record holds what a reader
+ * could be told at each change, and what each frame shows.
+ */
+async function traceFocus(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const trace: string[] = []
+    const record = () => {
+      const at = document.activeElement
+      trace.push(at === null || at === document.body ? 'BODY' : `${at.tagName} ${at.textContent ?? ''}`)
+    }
+    const screen = document.querySelector('main')
+    if (screen !== null) new MutationObserver(record).observe(screen, { childList: true, subtree: true })
+    const frame = () => {
+      record()
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+    ;(window as unknown as FocusTrace).focusTrace = trace
+  })
+}
+
+const focusTrace = (page: Page): Promise<string[]> =>
+  page.evaluate(() => (window as unknown as FocusTrace).focusTrace)
+
 /** GET /cocktails/{slug} reads made so far: the recipe's own. */
 const recipeReads = (bar: FakeBar, slug: string): number =>
   bar.calls('GET', new RegExp(`^/cocktails/${slug}$`)).length
@@ -158,6 +189,9 @@ const isShelfRead = (url: URL) =>
 const isSimilarRead = (url: URL) => /^\/bar\/api\/cocktails\/\d+\/similar$/.test(url.pathname)
 
 const isListWrite = (url: string) => /\/bar\/api\/users\/\d+\/shopping-list\/batch-store$/.test(url)
+
+/** The list read (useShoppingList): GET /users/{id}/shopping-list. */
+const isListRead = (url: URL) => /^\/bar\/api\/users\/\d+\/shopping-list$/.test(url.pathname)
 
 /**
  * Let the page act on what it has just been told, and the browser run its
@@ -259,6 +293,52 @@ test.describe('the focus after a list write (ADR-003, §7)', () => {
     await expect(lineAction(page, 'Honey syrup')).toBeEnabled()
     await expect(lineAction(page, 'Honey syrup')).toBeFocused()
     await expect(listedMark(page, 'Honey syrup')).toHaveCount(0)
+  })
+
+  // The landing is made as the action is replaced, not a frame later: in
+  // between, the focus would sit on <body>, and a screen reader can announce
+  // the document there.
+  test('on its way to Listed, the focus never rests on <body>, not even for a frame', async ({ page }) => {
+    await openRecipe(page, 'espresso-martini-1', 'Espresso Martini')
+    await favorite(page).focus()
+    await page.keyboard.press('Tab')
+    await expect(lineAction(page, 'Vodka')).toBeFocused()
+
+    await traceFocus(page)
+    await page.keyboard.press('Enter')
+    await expect(listedMark(page, 'Vodka')).toBeFocused()
+    expect(await focusTrace(page)).not.toContain('BODY')
+  })
+
+  // A write the bar took, whose list read-back failed, leaves the action
+  // standing: nothing replaced it, so nothing will land. A list read long
+  // after that shows the line Listed must not pull the focus to it.
+  test('a write whose list read-back failed lands nowhere when the list is read later', async ({ page, bar }) => {
+    await openRecipe(page, 'espresso-martini-1', 'Espresso Martini')
+    await favorite(page).focus()
+    await page.keyboard.press('Tab')
+    await expect(lineAction(page, 'Vodka')).toBeFocused()
+
+    // The bar takes the write; the list cannot be read back after it (the
+    // read and its one retry both fail).
+    const { lift } = await outage(page, isListRead)
+    await page.keyboard.press('Enter')
+    await expect(lineAction(page, 'Vodka')).toBeDisabled()
+    await expect.poll(() => bar.model.list.has(I.vodka)).toBe(true)
+    // The write has settled with the action standing: free again, and focused.
+    await expect(lineAction(page, 'Vodka')).toBeEnabled({ timeout: 10_000 })
+    await expect(lineAction(page, 'Vodka')).toBeFocused()
+
+    // The reader leaves it (a tap on the page's text puts the focus on
+    // <body>). Later the list is read again, as when the tab comes back into
+    // view (TanStack's focusManager listens for visibilitychange).
+    await lineAction(page, 'Vodka').blur()
+    expect(await focused(page)).toBe('BODY')
+    lift()
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+    await expect(listedMark(page, 'Vodka')).toBeVisible()
+    await settled(page)
+    expect(await focused(page)).toBe('BODY')
   })
 
   // Guards: what already held, and must go on holding.
@@ -473,6 +553,72 @@ test.describe('a shelf change made with the recipe open reads its lines back (AD
       await expect.poll(() => bar.model.favorites.has(C.negroni)).toBe(true)
       await expect(favorite(page)).toHaveAttribute('aria-pressed', 'true')
       await expect(missingLine(page)).toHaveText('One bottle away: Campari')
+    })
+
+    // A read of the recipe already out when the shelf changes carries the
+    // lines as the bar had them before the change: here, the read the
+    // favourite starts once the bar has answered it (useToggleFavorite's
+    // onSuccess). It reaches the bar before the Undo's writes, and answers
+    // after the read-back has landed. Its answer must not put the old lines back.
+    test('a recipe read already out when the shelf changes does not put the old lines back', async ({ page, bar }) => {
+      const recipeAnswers: Response[] = []
+      page.on('response', (r) => {
+        if (r.request().method() === 'GET' && new URL(r.url()).pathname === '/bar/api/cocktails/negroni-1') {
+          recipeAnswers.push(r)
+        }
+      })
+      await checkOffThenNegroni(page, bar)
+      // The recipe as the bar last answered it: Campari on the shelf.
+      const last = recipeAnswers.at(-1)
+      if (last === undefined) throw new Error('the Negroni was never read')
+      const before = (await last.json()) as { data: Record<string, unknown> }
+
+      // The next read of the recipe is the favourite's. It reaches the bar
+      // now, with Campari on the shelf and the drink favourited, and its
+      // answer is held on the way back until released.
+      let reached = () => {}
+      const out = new Promise<void>((resolve) => {
+        reached = resolve
+      })
+      let release = () => {}
+      const released = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let answered = () => {}
+      const delivered = new Promise<void>((resolve) => {
+        answered = resolve
+      })
+      let holding = true
+      await page.route(
+        (url) => url.pathname === '/bar/api/cocktails/negroni-1',
+        async (route) => {
+          if (route.request().method() !== 'GET' || !holding) return route.fallback()
+          holding = false
+          reached()
+          await released
+          await route.fulfill({ json: { ...before, data: { ...before.data, is_favorited: true } } })
+          answered()
+        },
+      )
+      await favorite(page).click()
+      await out
+      await expect.poll(() => bar.model.favorites.has(C.negroni)).toBe(true)
+      await expect(favorite(page)).toHaveAttribute('aria-pressed', 'true')
+
+      // The Undo, tapped on the recipe: its read-back lands first.
+      await checkOffUndo(page).click()
+      await expect.poll(() => [bar.model.shelf.has(I.campari), bar.model.list.has(I.campari)]).toEqual([false, true])
+      await expect(missingLine(page)).toHaveText('One bottle away: Campari')
+
+      // Then the favourite's read answers, with the shelf as it stood before the Undo.
+      release()
+      await delivered
+      await settled(page)
+      await settled(page)
+      await expect(missingLine(page)).toHaveText('One bottle away: Campari')
+      await expectGap(line(page, 'Campari'))
+      await expect(listedMark(page, 'Campari')).toBeVisible()
+      await expect(favorite(page)).toHaveAttribute('aria-pressed', 'true')
     })
 
     // What a recipe whose read-back failed should say is chrispezza/barback#127's
