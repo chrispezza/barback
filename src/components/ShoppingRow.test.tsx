@@ -140,7 +140,7 @@ describe('ShoppingRow detail line', () => {
     // Campari completes the Negroni, a spirit-forward drink, against the default shelf.
     barWithout(I.campari)
     const { container } = renderRow({ ingredientId: I.campari, name: 'Campari' })
-    expect(meta(container)).toBe('Unlocks 1·\u200A1 spirit-forward drink')
+    expect(meta(container)).toBe('Unlocks 1·\u200A1\u00A0spirit-forward\u00A0drink')
     expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
   })
 
@@ -185,7 +185,7 @@ describe('ShoppingRow families', () => {
     // Scotch whisky opens the Rob Roy (spirit-forward) and the Bobby Burns (no family tag).
     barWithout(I.scotch)
     const { container } = renderRow({ ingredientId: I.scotch, name: 'Scotch whisky' })
-    expect(meta(container)).toBe('Unlocks 2·\u200A1 spirit-forward drink')
+    expect(meta(container)).toBe('Unlocks 2·\u200A1\u00A0spirit-forward\u00A0drink')
   })
 
   it('states the count alone until the tags of its drinks are read', () => {
@@ -209,7 +209,8 @@ describe('ShoppingRow families', () => {
     const { container } = renderRow({ ingredientId: I.espresso, name: 'Espresso' })
     // The Espresso Martini still wants vodka, so it is not among them.
     expect(meta(container)).toBe(
-      'Unlocks 5·\u200A1 sour · 1 spirit-forward drink · 1 highball · 1 tiki drink · 1 dessert drink',
+      'Unlocks 5·\u200A1\u00A0sour\u00A0· 1\u00A0spirit-forward\u00A0drink\u00A0· 1\u00A0highball\u00A0· ' +
+        '1\u00A0tiki\u00A0drink\u00A0· 1\u00A0dessert\u00A0drink',
     )
   })
 
@@ -221,7 +222,8 @@ describe('ShoppingRow families', () => {
     m.world.cocktails.push(espressoDrink(300, T.tiki))
     const { container } = renderRow({ ingredientId: I.espresso, name: 'Espresso' })
     expect(meta(container)).toBe(
-      'Unlocks 11·\u200A3 tiki drinks · 2 sours · 2 spirit-forward drinks · 2 highballs · 2 dessert drinks',
+      'Unlocks 11·\u200A3\u00A0tiki\u00A0drinks\u00A0· 2\u00A0sours\u00A0· 2\u00A0spirit-forward\u00A0drinks\u00A0· ' +
+        '2\u00A0highballs\u00A0· 2\u00A0dessert\u00A0drinks',
     )
   })
 
@@ -230,7 +232,7 @@ describe('ShoppingRow families', () => {
     barWithout(I.scotch)
     const { container, unmount } = renderRow({ ingredientId: I.scotch, name: 'Scotch whisky' })
     const detail = container.querySelector('.bb-shop__meta > span:last-child')?.textContent
-    expect(detail).toBe('\u200A1 spirit-forward drink')
+    expect(detail).toBe('\u200A1\u00A0spirit-forward\u00A0drink')
     unmount()
 
     // No count, no separator: the reach line and a lone staple stand as they are.
@@ -245,7 +247,7 @@ describe('ShoppingRow families', () => {
     // Lime juice opens the Daiquiri and the Gimlet, both sours.
     barWithout(I.limeJuice)
     const { container } = renderRow({ ingredientId: I.limeJuice, name: 'Lime juice', isStaple: true })
-    expect(meta(container)).toBe('Unlocks 2·\u200A2 sours · Staple')
+    expect(meta(container)).toBe('Unlocks 2·\u200A2\u00A0sours\u00A0· Staple')
     expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
   })
 })
@@ -257,7 +259,28 @@ describe('familiesDetail', () => {
 
   it('names every declared family by its own plural', () => {
     for (const family of FAMILIES) {
-      expect(familiesDetail([{ family, count: 2 }])).toBe(`2 ${family.plural}`)
+      expect(familiesDetail([{ family, count: 2 }])).toBe(`2\u00A0${family.plural.split(' ').join('\u00A0')}`)
     }
+  })
+
+  // A wrapped line breaks only where it may: never inside a family's phrase,
+  // never before a "·" (e2e/b-unlocks-family.spec.ts lays one out).
+  it('holds each phrase together: its count to its family, the family’s words to each other', () => {
+    for (const family of FAMILIES) {
+      for (const count of [1, 2, 12, 100]) {
+        const phrase = familiesDetail([{ family, count }]) ?? ''
+        expect(phrase.startsWith(`${count}\u00A0`), phrase).toBe(true)
+        // No breakable space at all: the only spaces in it are no-break ones.
+        expect(phrase.replace(/\u00A0/g, ''), phrase).not.toMatch(/\s/)
+      }
+    }
+  })
+
+  it('holds each "·" to the phrase before it, the space after it the only one a line may break at', () => {
+    const every = FAMILIES.map((family) => ({ family, count: 2 }))
+    const detail = familiesDetail(every) ?? ''
+    expect(detail.split('\u00A0· ')).toEqual(every.map((f) => familiesDetail([f])))
+    const breakable = [...detail.matchAll(/[^\S\u00A0]/g)].map((m) => detail.slice(m.index - 2, m.index + 1))
+    expect(breakable).toEqual(every.slice(1).map(() => '\u00A0· '))
   })
 })
