@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MutationObserver as ShelfToggleObserver, QueryClient, onlineManager } from '@tanstack/react-query'
+import { MutationObserver as QueryMutationObserver, QueryClient, onlineManager } from '@tanstack/react-query'
 import { BarModel, ingredientResource } from '../../test/fixtures/upstream'
 import { BAR_ID, I, USER_ID, defaultWorld } from '../../test/fixtures/world'
 import type { ToastMessage } from '../components/toasts'
 import { isPlaced } from '../data/hierarchy'
-import { isShelfTogglePending, shelfToggleOptions, toggleShelf, type ShelfToggle } from './queries'
+import {
+  checkOffOptions,
+  isShelfTogglePending,
+  shelfToggleOptions,
+  toggleShelf,
+  type ShelfToggle,
+} from './queries'
 import type { Ingredient, ListResponse } from './types'
 
 // The shelf toggle (frontend-spec §5: "flip UI state immediately, fire
@@ -70,7 +76,7 @@ function setup(opts: { loaded?: boolean } = {}) {
   const client = new QueryClient()
   const before = shelfList(m)
   if (opts.loaded !== false) client.setQueryData(SHELF_KEY, before)
-  const observer = new ShelfToggleObserver(client, shelfToggleOptions(client, BAR_ID, USER_ID))
+  const observer = new QueryMutationObserver(client, shelfToggleOptions(client, BAR_ID, USER_ID))
   /** Fire a toggle as the chip does; resolves 'taken' or 'refused'. */
   const toggle = (id: number, action: ShelfToggle['action']) =>
     observer.mutate({ ingredient: m.basic(id), action }).then(
@@ -378,5 +384,146 @@ describe('toggleShelf', () => {
     const wAgain = await written(3)
     expect(wAgain.path).toBe(`/api/users/${USER_ID}/ingredients/batch-delete`)
     wAgain.answer(204)
+  })
+})
+
+// Check-off (frontend-spec §5): "run batch-store first, and on success
+// batch-delete from the list … Never the reverse order (item vanishing
+// entirely is data loss from the user's view)". Its Undo is the reverse move
+// and keeps the same rule: the list takes the bottle back before the shelf
+// gives it up. Upstream's shelf batch-delete leaves the list alone
+// (ShelfController::batchDelete at v5.15.3), so a refused second step leaves
+// the bottle in both places. Both read back the same queries, the unlock and
+// reach lines included (§6 journey 3, "refreshes all counts"). The screen is
+// driven end to end in e2e/a-checkoff-undo.spec.ts.
+describe('a check-off', () => {
+  const READ_BACK = [
+    ['shelf'],
+    ['shopping-list'],
+    ['cocktails'],
+    ['ingredient-extra'],
+    ['ingredient-reach'],
+    ['recommend'],
+    ['staples'],
+  ]
+
+  function checkOffSetup() {
+    const client = new QueryClient()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const observer = new QueryMutationObserver(client, checkOffOptions(client, BAR_ID, USER_ID))
+    /** Check a bottle off as its list row does; resolves 'taken' or 'refused'. */
+    const checkOff = (id: number) =>
+      observer.mutate({ ingredientId: id }).then(
+        () => 'taken',
+        () => 'refused',
+      )
+    const readBack = () => invalidate.mock.calls.map(([filters]) => filters?.queryKey)
+    return { checkOff, readBack }
+  }
+
+  /** Let any write that would follow go out, so its absence means something. */
+  const quiet = () => new Promise((resolve) => setTimeout(resolve, 20))
+
+  /** Check Campari off, let both writes take, and return the toast's Undo. */
+  async function checkOffCampari(s: ReturnType<typeof checkOffSetup>) {
+    const done = s.checkOff(I.campari)
+    ;(await written(1)).answer(204)
+    ;(await written(2)).answer(204)
+    expect(await done).toBe('taken')
+    const toast = toasts.shown[0]
+    expect([toast?.message, toast?.actionLabel]).toEqual(['Moved to the shelf.', 'Undo'])
+    return () => toast?.onAction?.()
+  }
+
+  it('shelves the bottle first, and takes it off the list only once the shelf has it', async () => {
+    const s = checkOffSetup()
+    const done = s.checkOff(I.campari)
+    const store = await written(1)
+    expect([store.path, store.body]).toEqual([
+      `/api/users/${USER_ID}/ingredients/batch-store`,
+      { ingredients: [I.campari] },
+    ])
+    await quiet()
+    expect(writes).toHaveLength(1)
+
+    store.answer(204)
+    const remove = await written(2)
+    expect([remove.path, remove.body]).toEqual([
+      `/api/users/${USER_ID}/shopping-list/batch-delete`,
+      { ingredients: [{ id: I.campari }] },
+    ])
+    remove.answer(204)
+    expect(await done).toBe('taken')
+    expect(s.readBack()).toEqual(READ_BACK)
+  })
+
+  it('never takes the bottle off the list when the shelf refuses it, and says so', async () => {
+    const s = checkOffSetup()
+    const done = s.checkOff(I.campari)
+    ;(await written(1)).answer(500)
+
+    expect(await done).toBe('refused')
+    await quiet()
+    expect(writes).toHaveLength(1)
+    expect(toasts.shown.map((t) => t.message)).toEqual([
+      'That didn’t move — the bottle is still on the list.',
+    ])
+    expect(s.readBack()).toEqual(READ_BACK)
+  })
+
+  describe('its Undo', () => {
+    it('puts the bottle back on the list before it takes it off the shelf, then reads back what the check-off did', async () => {
+      const s = checkOffSetup()
+      const undo = await checkOffCampari(s)
+      const afterCheckOff = s.readBack()
+
+      undo()
+      const store = await written(3)
+      expect([store.path, store.body]).toEqual([
+        `/api/users/${USER_ID}/shopping-list/batch-store`,
+        { ingredients: [{ id: I.campari }] },
+      ])
+      await quiet()
+      expect(writes).toHaveLength(3)
+      expect(s.readBack()).toEqual(afterCheckOff)
+
+      store.answer(204)
+      const remove = await written(4)
+      expect([remove.path, remove.body]).toEqual([
+        `/api/users/${USER_ID}/ingredients/batch-delete`,
+        { ingredients: [I.campari] },
+      ])
+      remove.answer(204)
+      await vi.waitFor(() => expect(s.readBack()).toEqual([...READ_BACK, ...READ_BACK]))
+      // Taken back, nothing more to say.
+      expect(toasts.shown).toHaveLength(1)
+    })
+
+    it('leaves the shelf alone when the list refuses the bottle, and says it is still on the shelf', async () => {
+      const s = checkOffSetup()
+      const undo = await checkOffCampari(s)
+
+      undo()
+      ;(await written(3)).drop()
+      await vi.waitFor(() => expect(toasts.shown).toHaveLength(2))
+      expect(toasts.shown[1]?.message).toBe('The undo didn’t take — the bottle is still on the shelf.')
+      await quiet()
+      expect(writes).toHaveLength(3)
+      expect(s.readBack()).toEqual([...READ_BACK, ...READ_BACK])
+    })
+
+    it('says the bottle is in both places when the shelf refuses to give it up', async () => {
+      const s = checkOffSetup()
+      const undo = await checkOffCampari(s)
+
+      undo()
+      ;(await written(3)).answer(204)
+      ;(await written(4)).answer(500)
+      await vi.waitFor(() => expect(toasts.shown).toHaveLength(2))
+      expect(toasts.shown[1]?.message).toBe(
+        'The undo didn’t take — the bottle is on the list and still on the shelf.',
+      )
+      expect(s.readBack()).toEqual([...READ_BACK, ...READ_BACK])
+    })
   })
 })
