@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { I, defaultWorld, type WorldSeed } from '../test/fixtures/world'
+import { I, T, defaultWorld, type WorldSeed } from '../test/fixtures/world'
 import { expect, test } from './support/test'
 
 // Tonight on the warm path (chrispezza/barback#61): it has read the bar once,
@@ -139,6 +139,89 @@ test.describe('Tonight read the bar, then the API went away', () => {
     await expect(page.getByText('No tiki drinks pour yet')).toHaveCount(0)
     await expect(page.getByText('None is one bottle away either')).toHaveCount(0)
     await expect(status(page)).toHaveCount(0)
+  })
+})
+
+/** What #pour and #near showed at one change: heading as the DOM holds it, card names, alerts. */
+interface SwitchFrame {
+  pour: { heading: string; cards: string[]; alerts: number }
+  near: { heading: string; cards: string[]; alerts: number }
+}
+
+/**
+ * Record what the pour and near sections show at every change from the click
+ * on the family segment `segment` on: the whole switch window, not one
+ * instant. Armed by the click itself (capture phase), as
+ * e2e/tonight-family-empty.spec.ts does, so the state rightly on screen before
+ * it is not recorded. The returned function reads the frames back.
+ */
+async function watchFamilySwitch(page: Page, segment: string): Promise<() => Promise<SwitchFrame[]>> {
+  await page.evaluate((segment) => {
+    const w = window as unknown as { __switchFrames: unknown[] }
+    w.__switchFrames = []
+    const pourEl = document.getElementById('pour')!
+    const nearEl = document.getElementById('near')!
+    const frame = (s: HTMLElement) => ({
+      heading: s.querySelector('h2')?.textContent ?? '',
+      cards: [...s.querySelectorAll('.card-list > li .bb-drink__name')].map((n) => n.textContent ?? ''),
+      alerts: s.querySelectorAll('[role="alert"]').length,
+    })
+    let armed = false
+    const button = [...document.querySelectorAll<HTMLButtonElement>('.bb-fam__btn')].find(
+      (b) => b.textContent === segment,
+    )!
+    button.addEventListener('click', () => (armed = true), { capture: true, once: true })
+    new MutationObserver(() => {
+      if (armed) w.__switchFrames.push({ pour: frame(pourEl), near: frame(nearEl) })
+    }).observe(document.querySelector('.tonight-grid')!, { childList: true, subtree: true, characterData: true })
+  }, segment)
+  return () => page.evaluate(() => (window as unknown as { __switchFrames: SwitchFrame[] }).__switchFrames)
+}
+
+test.describe('Tonight read the bar, the API went away, then the family changed', () => {
+  // chrispezza/barback#73 offline: the cocktail reads keep the last answer in
+  // hand as the new family's placeholder (keepPreviousData), and the last
+  // answer here is the unscoped read whose refetch failed. Under the new
+  // family's name it is stale twice over.
+  test.use({ world: listingCampari() })
+
+  test('the new family’s sections show no card or count from the read that failed before it', async ({
+    page,
+    bar,
+  }) => {
+    await loadWarm(page)
+    await goTo(page, 'Shelf', 'Shelf')
+    bar.takeApiDown()
+    await goTo(page, 'Tonight', 'Tonight')
+    await expectErrorLineAlone(pour(page))
+    await expectErrorLineAlone(near(page))
+
+    const frames = await watchFamilySwitch(page, 'SOUR')
+    await page.getByRole('group', { name: 'Drink family' }).getByRole('button', { name: 'SOUR', exact: true }).click()
+    await expect(page).toHaveURL(/\/tonight\?family=sour$/)
+    // The sour reads were asked for, and they fail too (first try and its one
+    // retry): each section ends on its error line alone, with no count.
+    await expect
+      .poll(() => bar.calls('GET', /^\/cocktails$/).filter((c) => c.query.get('filter[tag_id]') === String(T.sour)).length)
+      .toBeGreaterThan(0)
+    await expectErrorLineAlone(pour(page))
+    await expectErrorLineAlone(near(page))
+    await expect(sectionHeading(pour(page))).toHaveText('sours you can pour')
+    await expect(sectionHeading(near(page))).toHaveText('sours one bottle away')
+    await expect(status(page)).toHaveCount(0)
+
+    // And at no change in between: no card, no count, and one alert at most
+    // in each section (chrispezza/barback#67).
+    const seen = await frames()
+    expect(seen.length).toBeGreaterThan(0)
+    for (const f of seen) {
+      expect(f.pour.cards).toEqual([])
+      expect(f.near.cards).toEqual([])
+      expect(f.pour.heading).not.toMatch(/ · \d/)
+      expect(f.near.heading).not.toMatch(/ · \d/)
+      expect(f.pour.alerts).toBeLessThanOrEqual(1)
+      expect(f.near.alerts).toBeLessThanOrEqual(1)
+    }
   })
 })
 
