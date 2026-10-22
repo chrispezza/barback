@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { shelfIndex, type Cocktail, type ShelfIndex } from '../api/types'
 import { BarModel, cocktailResource, ingredientResource, type Endpoint } from '../../test/fixtures/upstream'
 import { C, I, defaultWorld } from '../../test/fixtures/world'
-import { cardIngredients, matchState, type MatchState } from './match'
+import { cardIngredients, matchState, oneBottleAway, type MatchState } from './match'
 
 // Card match state (frontend-spec §2 "Per-ingredient stock color", §7
 // DrinkCard). Cocktails are built by the fixture builders in the shape Bar
@@ -407,5 +407,80 @@ describe('a list card for a drink the server pours, on the index shape', () => {
       have: false,
       optional: true,
     })
+  })
+})
+
+// The one bottle a near-miss card names (frontend-spec §6 Journey 1: "Near-miss
+// cards convert directly to the shopping list"). Tonight lists it from the card
+// on a tap, so it is exactly the bottle the card's missing-line names, "One
+// bottle away: Campari": the card's only required line not held as
+// cardIngredients paints it. A card that names none, a drink the server pours
+// and also counts one bottle away (chrispezza/barback#19), or that names more
+// than one, has no one bottle to list.
+
+describe('the one bottle a near-miss card names', () => {
+  it('is the bottle on its missing-line: the Negroni waits on Campari', () => {
+    const m = new BarModel(defaultWorld())
+    const negroni = drink(m, C.negroni, 'index')
+    // Guard: the server counts it one bottle away.
+    expect(m.missingIngredients(m.cocktail(C.negroni)!)).toBe(1)
+    expect(oneBottleAway(negroni, shelfOf(m))).toMatchObject({ id: I.campari, name: 'Campari' })
+  })
+
+  it('is the same before the shelf has been read', () => {
+    const m = new BarModel(defaultWorld())
+    expect(oneBottleAway(drink(m, C.negroni, 'index'))).toMatchObject({ id: I.campari, name: 'Campari' })
+  })
+
+  it('is none on a drink the server pours with an optional line off the shelf: the Whiskey Sour', () => {
+    const m = new BarModel(defaultWorld())
+    const sour = drink(m, C.whiskeySour, 'index')
+    // Guard: the server counts it both ways (chrispezza/barback#19).
+    expect(sour.in_shelf).toBe(true)
+    expect(m.missingIngredients(m.cocktail(C.whiskeySour)!)).toBe(1)
+    expect(oneBottleAway(sour, shelfOf(m))).toBeUndefined()
+    expect(oneBottleAway(sour)).toBeUndefined()
+  })
+
+  it('is none on a drink the server pours with a substitute standing in: the Mojito topped with Tonic', () => {
+    const m = mojitoOnTonic()
+    const mojito = drink(m, C.mojito, 'index')
+    expect(mojito.in_shelf).toBe(true)
+    expect(m.missingIngredients(m.cocktail(C.mojito)!)).toBe(1)
+    expect(oneBottleAway(mojito, shelfOf(m))).toBeUndefined()
+  })
+
+  it('is none when the card names two: the Margarita', () => {
+    const m = new BarModel(defaultWorld())
+    expect(oneBottleAway(drink(m, C.margarita, 'index'), shelfOf(m))).toBeUndefined()
+  })
+
+  it('never counts an optional line: the Whiskey Sour without its lemon juice waits on lemon juice alone', () => {
+    const m = new BarModel(defaultWorld())
+    m.shelf.delete(I.lemonJuice)
+    expect(oneBottleAway(drink(m, C.whiskeySour, 'index'), shelfOf(m))).toMatchObject({
+      id: I.lemonJuice,
+      name: 'Lemon juice',
+    })
+  })
+
+  const shelves: [string, number[]][] = [
+    ['the default shelf', defaultWorld().shelf],
+    ['the default shelf without Gin', defaultWorld().shelf.filter((id) => id !== I.gin)],
+    ['London dry gin in place of Gin', [...defaultWorld().shelf.filter((id) => id !== I.gin), I.londonDryGin]],
+  ]
+
+  it.each(shelves)('is what the card names, for every drink, on %s', (_name, held) => {
+    const world = defaultWorld()
+    world.shelf = [...held]
+    const m = new BarModel(world)
+    for (const shelf of [shelfOf(m), undefined]) {
+      for (const seed of m.world.cocktails) {
+        const card = drink(m, seed.id, 'index')
+        const named = cardIngredients(card, shelf).filter((i) => !i.have && !i.optional)
+        const line = named.length === 1 ? card.ingredients.find((e) => e.ingredient.name === named[0]?.name) : undefined
+        expect(oneBottleAway(card, shelf), seed.name).toEqual(line?.ingredient)
+      }
+    }
   })
 })

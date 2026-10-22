@@ -56,9 +56,32 @@ export function cardIngredients(cocktail: Cocktail, shelf?: ShelfIndex): CardIng
   }));
 }
 
-/** Required lines the shelf does not cover; optional lines never count. */
+/** Required lines the shelf does not cover, in recipe order; optional lines never count. */
+function missingRequiredLines(
+  cocktail: Cocktail,
+  shelf: ShelfIndex | undefined,
+): CocktailIngredientEntry[] {
+  return cocktail.ingredients.filter((i) => !lineHeld(cocktail, i, shelf) && !i.optional);
+}
+
 function missingRequired(cocktail: Cocktail, shelf: ShelfIndex | undefined): number {
-  return cocktail.ingredients.filter((i) => !lineHeld(cocktail, i, shelf) && !i.optional).length;
+  return missingRequiredLines(cocktail, shelf).length;
+}
+
+/**
+ * The one bottle a card names as missing ("One bottle away: Campari"), which
+ * Tonight lists from a near-miss card on a tap (frontend-spec §6 Journey 1).
+ * It is read by lineHeld, as cardIngredients paints the run the card's
+ * missing-line is drawn from, so the bottle listed is always the bottle named.
+ * Undefined when the card names none (a drink the server pours, which it also
+ * counts one bottle away: chrispezza/barback#19) or more than one.
+ */
+export function oneBottleAway(
+  cocktail: Cocktail,
+  shelf?: ShelfIndex,
+): CocktailIngredientEntry['ingredient'] | undefined {
+  const [only, ...others] = missingRequiredLines(cocktail, shelf);
+  return only !== undefined && others.length === 0 ? only.ingredient : undefined;
 }
 
 /**
