@@ -10,6 +10,7 @@ import {
   readListSnapshot,
   snapshotStamp,
   useBarId,
+  useBars,
   useCheckOff,
   useCocktails,
   useIngredientUnlocks,
@@ -115,18 +116,38 @@ export function Tonight() {
 
   const canMake = useCocktails(barId, { on_shelf: true, ...familyFilter });
   const nearMiss = useCocktails(barId, { missing_ingredients: 1, ...familyFilter });
-  const { data: profile } = useProfile();
+  const profileQuery = useProfile();
+  const profile = profileQuery.data;
   const shoppingList = useShoppingList(barId, profile?.id);
   const checkOff = useCheckOff(barId, profile?.id);
   const { route } = useLocation();
   const [showAllPour, setShowAllPour] = useState(false);
+
+  // A cold start with the API out of reach (ADR-007; chrispezza/barback#63):
+  // /bars and /profile fail first, and every read keyed on them stays
+  // disabled, so it never errors on its own. A section whose prerequisite
+  // failed says so in the error voice, as one whose own read failed does.
+  const bars = useBars();
+  const barsFailed = barId === undefined && bars.isError;
+  const profileFailed = profile?.id === undefined && profileQuery.isError;
+  /** Ask again for what failed: the bootstrap a section waits on, and its own read. */
+  function retry(own: { isError: boolean; refetch: () => Promise<unknown> }) {
+    if (barsFailed) void bars.refetch();
+    if (profileFailed) void profileQuery.refetch();
+    if (own.isError) void own.refetch();
+  }
 
   const canMakeTotal = canMake.data?.meta?.total;
   const pourCards = canMake.data?.data ?? [];
   const shelfIsBare = canMakeTotal === 0 && nearMiss.data?.meta?.total === 0;
 
   const listItems = shoppingList.data?.data ?? [];
-  const snapshot = shoppingList.isError ? readListSnapshot() : null;
+  // A list Tonight cannot read, whichever read failed, is shown as the stamped
+  // snapshot alone: read-only, and nothing else in the rail writes (ADR-007
+  // Decision and Consequences; chrispezza/barback#62). The cached rows a
+  // failed refetch leaves behind are not shown beside it.
+  const listUnavailable = shoppingList.isError || barsFailed || profileFailed;
+  const snapshot = listUnavailable ? readListSnapshot() : null;
 
   // Dashboard lead: whole-bar counts, deliberately unscoped by family — the
   // line is the bar's status; the scoped story is told by the sections below.
@@ -136,6 +157,10 @@ export function Tonight() {
     barCanMake.data?.meta !== undefined &&
     barNearMiss.data?.meta !== undefined &&
     shoppingList.data !== undefined;
+  // Once a read the line waits on has failed (the bootstrap included, through
+  // listUnavailable), the count is not under way: the line says nothing
+  // rather than "Counting the bar…" for good.
+  const statusFailed = listUnavailable || barCanMake.isError || barNearMiss.isError;
 
   // Restock (frontend-spec §2, §9; ADR-008): ranked by the server against the
   // user's shelf, the one Barback writes, so it already leaves out what that
@@ -188,9 +213,14 @@ export function Tonight() {
     forgetRestocked(staples.data);
     for (const s of staples.data) if (s.in_shelf) sentThisMount.current.delete(s.id);
   }, [staples.data]);
+  // Queue only against a list just read (ADR-008 with ADR-007). Not while the
+  // list cannot be read: the rail shows the snapshot alone. Nor while a read
+  // is under way: the rows in hand may be the stale ones a failing refetch
+  // leaves behind, and that failure is known only once its retry fails.
+  const listRead = shoppingList.isSuccess && !shoppingList.isFetching && !listUnavailable;
   useEffect(() => {
     if (profile?.id === undefined || staplesOut.length === 0) return;
-    if (shoppingList.data === undefined) return; // don't queue against a stale view
+    if (!listRead) return; // don't queue against a stale view
     const ids = staplesOut.map((s) => s.id);
     const queuedNames = staplesOut.map((s) => s.name).join(', ');
     rememberQueued(ids);
@@ -202,7 +232,7 @@ export function Tonight() {
       )
       // The promise settles after Tonight unmounts too; mutate's onError would not.
       .catch(() => forgetQueued(ids));
-  }, [staplesOut.map((s) => s.id).join(','), profile?.id, shoppingList.data === undefined]);
+  }, [staplesOut.map((s) => s.id).join(','), profile?.id, listRead]);
 
   // What the favorited drinks still need — aspiration outranks the generic
   // server ranking, so these pin above Restock next (data/buy-next.ts).
@@ -232,18 +262,20 @@ export function Tonight() {
       {/* The three numbers are also the way to their sections — on one column
           the list can sit a long way down. Plain hash links: preact-iso leaves
           them to the browser, which also moves focus to the target. */}
-      <p class="bar-status" aria-busy={!statusReady}>
-        {statusReady ? (
-          <>
-            You can pour{' '}
-            <a href="#pour"><strong>{barCanMake.data?.meta?.total}</strong></a> ·{' '}
-            <a href="#near"><strong>{barNearMiss.data?.meta?.total}</strong></a> one bottle away ·{' '}
-            <a href="#buy"><strong>{listItems.length}</strong></a> to buy
-          </>
-        ) : (
-          <span class="recipe-aside">Counting the bar…</span>
-        )}
-      </p>
+      {(statusReady || !statusFailed) && (
+        <p class="bar-status" aria-busy={!statusReady}>
+          {statusReady ? (
+            <>
+              You can pour{' '}
+              <a href="#pour"><strong>{barCanMake.data?.meta?.total}</strong></a> ·{' '}
+              <a href="#near"><strong>{barNearMiss.data?.meta?.total}</strong></a> one bottle away ·{' '}
+              <a href="#buy"><strong>{listItems.length}</strong></a> to buy
+            </>
+          ) : (
+            <span class="recipe-aside">Counting the bar…</span>
+          )}
+        </p>
+      )}
       <FamilyPicker />
 
       {/* Grid areas put the list ABOVE the near-miss stack on one column —
@@ -251,7 +283,7 @@ export function Tonight() {
       <div class="tonight-grid">
         <section class="tonight-pour" id="pour" tabIndex={-1}>
           <MatchHeader label={scope ? `${scope} you can pour` : 'You can pour'} count={canMakeTotal} />
-          {canMake.isError && <ErrorLine onRetry={() => void canMake.refetch()} />}
+          {(canMake.isError || barsFailed) && <ErrorLine onRetry={() => retry(canMake)} />}
           {canMakeTotal === 0 && !shelfIsBare && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
           )}
@@ -306,7 +338,7 @@ export function Tonight() {
             count={nearMiss.data?.meta?.total}
             tone="gap"
           />
-          {nearMiss.isError && <ErrorLine onRetry={() => void nearMiss.refetch()} />}
+          {(nearMiss.isError || barsFailed) && <ErrorLine onRetry={() => retry(nearMiss)} />}
           <ul class="card-list">
             {nearMiss.data?.data.map((c) => (
               <li key={c.id}>
@@ -323,7 +355,7 @@ export function Tonight() {
         </section>
 
         <aside class="tonight-rail" id="buy" tabIndex={-1}>
-          {buyNext && (
+          {!listUnavailable && buyNext && (
             <BuyNextCard
               id={buyNext.id}
               name={buyNext.name}
@@ -334,125 +366,129 @@ export function Tonight() {
           )}
           <MatchHeader
             label="To buy"
-            count={shoppingList.isError ? undefined : listItems.length}
+            count={listUnavailable ? undefined : listItems.length}
             tone="gap"
           />
-          {shoppingList.isError && snapshot && (
-            <div>
-              <p class="recipe-aside">
-                Offline — the list as it stood{' '}
-                {snapshotStamp(new Date(snapshot.at), new Date())}.
-              </p>
-              <ul class="snapshot-list">
-                {snapshot.names.map((n) => (
-                  <li key={n}>{n}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {shoppingList.isError && !snapshot && (
-            <ErrorLine onRetry={() => void shoppingList.refetch()} />
-          )}
-          <SearchField
-            value={listQuery}
-            label="Add to the list"
-            placeholder="Search ingredients"
-            onChange={setListQuery}
-            onClear={() => setListQuery('')}
-          />
-          {listQuery.trim().length >= 1 && (
-            <div class="chip-row">
-              {listResults.data?.map((hit) => {
-                const isListed = listedIds.has(hit.id);
-                return (
-                  <IngredientChip
-                    key={hit.id}
-                    label={hit.name}
-                    state={isListed ? 'have' : 'default'}
-                    disabled={shoppingMutation.isPending}
-                    onToggle={() =>
-                      shoppingMutation.mutate({
-                        ingredientIds: [hit.id],
-                        action: isListed ? 'remove' : 'add',
-                      })
-                    }
-                  />
-                );
-              })}
-              {listResults.data?.length === 0 && (
-                <p class="recipe-aside">Nothing by that name.</p>
-              )}
-            </div>
-          )}
-          {listItems.length === 0 ? (
-            <p class="recipe-aside">
-              Nothing to buy yet — a near miss puts its bottle here.
-            </p>
+          {listUnavailable ? (
+            snapshot ? (
+              <div>
+                <p class="recipe-aside">
+                  Offline — the list as it stood{' '}
+                  {snapshotStamp(new Date(snapshot.at), new Date())}.
+                </p>
+                <ul class="snapshot-list">
+                  {snapshot.names.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <ErrorLine onRetry={() => retry(shoppingList)} />
+            )
           ) : (
-            <div>
-              {listItems.map((item) => (
-                <ShoppingRow
-                  key={item.ingredient.id}
-                  ingredientId={item.ingredient.id}
-                  name={item.ingredient.name}
-                  isStaple={stapleIds.has(item.ingredient.id)}
-                  onCheckOff={() => {
-                    if (!checkOff.isPending) {
-                      checkOff.mutate({ ingredientId: item.ingredient.id });
-                    }
-                  }}
-                  onDrop={() => {
-                    if (!shoppingMutation.isPending) {
-                      shoppingMutation.mutate({
-                        ingredientIds: [item.ingredient.id],
-                        action: 'remove',
-                      });
-                    }
-                  }}
-                />
-              ))}
-              <p class="print-row">
-                <Button variant="ghost" size="sm" onClick={() => window.print()}>
-                  Print the list
-                </Button>
-              </p>
-            </div>
-          )}
-
-          {favoriteNeedsShown.length > 0 && (
-            <section class="restock-section">
-              <MatchHeader label="For your favorites" align="left" tone="gap" />
-              {favoriteNeedsShown.map((f) => (
-                <div class="restock-row" key={f.id}>
-                  <span class="restock-name">{f.name}</span>
-                  <span class="restock-unlocks">
-                    in {f.count} favorite{f.count === 1 ? '' : 's'}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={shoppingMutation.isPending}
-                    onClick={() => listIt(f.id, f.name)}
-                  >
-                    List it
-                  </Button>
+            <>
+              <SearchField
+                value={listQuery}
+                label="Add to the list"
+                placeholder="Search ingredients"
+                onChange={setListQuery}
+                onClear={() => setListQuery('')}
+              />
+              {listQuery.trim().length >= 1 && (
+                <div class="chip-row">
+                  {listResults.data?.map((hit) => {
+                    const isListed = listedIds.has(hit.id);
+                    return (
+                      <IngredientChip
+                        key={hit.id}
+                        label={hit.name}
+                        state={isListed ? 'have' : 'default'}
+                        disabled={shoppingMutation.isPending}
+                        onToggle={() =>
+                          shoppingMutation.mutate({
+                            ingredientIds: [hit.id],
+                            action: isListed ? 'remove' : 'add',
+                          })
+                        }
+                      />
+                    );
+                  })}
+                  {listResults.data?.length === 0 && (
+                    <p class="recipe-aside">Nothing by that name.</p>
+                  )}
                 </div>
-              ))}
-            </section>
-          )}
+              )}
+              {listItems.length === 0 ? (
+                <p class="recipe-aside">
+                  Nothing to buy yet — a near miss puts its bottle here.
+                </p>
+              ) : (
+                <div>
+                  {listItems.map((item) => (
+                    <ShoppingRow
+                      key={item.ingredient.id}
+                      ingredientId={item.ingredient.id}
+                      name={item.ingredient.name}
+                      isStaple={stapleIds.has(item.ingredient.id)}
+                      onCheckOff={() => {
+                        if (!checkOff.isPending) {
+                          checkOff.mutate({ ingredientId: item.ingredient.id });
+                        }
+                      }}
+                      onDrop={() => {
+                        if (!shoppingMutation.isPending) {
+                          shoppingMutation.mutate({
+                            ingredientIds: [item.ingredient.id],
+                            action: 'remove',
+                          });
+                        }
+                      }}
+                    />
+                  ))}
+                  <p class="print-row">
+                    <Button variant="ghost" size="sm" onClick={() => window.print()}>
+                      Print the list
+                    </Button>
+                  </p>
+                </div>
+              )}
 
-          {suggestionsShown.length > 0 && (
-            <section class="restock-section">
-              <MatchHeader label="Restock next" align="left" />
-              {suggestionsShown.map((s) => (
-                <RestockRow
-                  key={s.id}
-                  suggestion={s}
-                  disabled={shoppingMutation.isPending}
-                  onList={() => listIt(s.id, s.name)}
-                />
-              ))}
-            </section>
+              {favoriteNeedsShown.length > 0 && (
+                <section class="restock-section">
+                  <MatchHeader label="For your favorites" align="left" tone="gap" />
+                  {favoriteNeedsShown.map((f) => (
+                    <div class="restock-row" key={f.id}>
+                      <span class="restock-name">{f.name}</span>
+                      <span class="restock-unlocks">
+                        in {f.count} favorite{f.count === 1 ? '' : 's'}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={shoppingMutation.isPending}
+                        onClick={() => listIt(f.id, f.name)}
+                      >
+                        List it
+                      </Button>
+                    </div>
+                  ))}
+                </section>
+              )}
+
+              {suggestionsShown.length > 0 && (
+                <section class="restock-section">
+                  <MatchHeader label="Restock next" align="left" />
+                  {suggestionsShown.map((s) => (
+                    <RestockRow
+                      key={s.id}
+                      suggestion={s}
+                      disabled={shoppingMutation.isPending}
+                      onList={() => listIt(s.id, s.name)}
+                    />
+                  ))}
+                </section>
+              )}
+            </>
           )}
         </aside>
       </div>
