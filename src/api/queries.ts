@@ -581,23 +581,31 @@ function settleFavorite(
 
 /**
  * Favourite toggle (frontend-spec §2, §5; ADR-003 "reflects in UI in < 50 ms
- * (optimistic), reconciles with API in the background"): flip the recipe
- * before the write goes out, roll it back if the write is refused, and settle
- * every read that draws the drink to the bar's answer once it comes, then read
- * the recipe and the similar-drink cards that carry it back. A refusal reads
- * neither back: the rollback is the last answer, and a recipe re-read with the
- * bar gone would put the error line where the recipe stood.
+ * (optimistic), reconciles with API in the background"): flip the recipe and
+ * the Classics roster before the write goes out, roll them back if the write
+ * is refused, and settle every read that draws the drink to the bar's answer
+ * once it comes, then read the recipe and the similar-drink cards that carry
+ * it back. A refusal reads neither back: the rollback is the last answer, and
+ * a recipe re-read with the bar gone would put the error line where the
+ * recipe stood. The roster is read back either way (onSettled), one read per
+ * roster slug, and those land after the Choose is free, so until then the
+ * roster says what the flip, the bar's answer or the rollback put on it.
  */
 export function useToggleFavorite(barId: number | undefined) {
   const queryClient = useQueryClient();
+  const rosterKey = ['first-pours', barId];
   return useMutation({
     mutationFn: ({ cocktailId }: { cocktailId: number; slug: string }) =>
       api<ItemResponse<FavoriteAnswer>>(`/cocktails/${cocktailId}/toggle-favorite`, {
         method: 'POST',
         barId,
       }),
-    onMutate: async ({ slug }) => {
-      await queryClient.cancelQueries({ queryKey: ['cocktail', barId, slug] });
+    onMutate: async ({ cocktailId, slug }) => {
+      // A read already out would land on top of the flip.
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ['cocktail', barId, slug] }),
+        queryClient.cancelQueries({ queryKey: rosterKey }),
+      ]);
       const prev = queryClient.getQueryData<ItemResponse<Cocktail>>([
         'cocktail',
         barId,
@@ -608,10 +616,22 @@ export function useToggleFavorite(barId: number | undefined) {
           data: { ...prev.data, is_favorited: !prev.data.is_favorited },
         });
       }
-      return { prev };
+      // The roster entry as it stood, so a refusal puts back just this drink.
+      const roster = queryClient.getQueryData<Cocktail[]>(rosterKey);
+      const rosterWas = roster?.find((c) => c.id === cocktailId)?.is_favorited;
+      if (roster && rosterWas !== undefined) {
+        queryClient.setQueryData(rosterKey, withFavorite(roster, cocktailId, !rosterWas));
+      }
+      return { prev, rosterWas };
     },
-    onError: (_err, { slug }, ctx) => {
+    onError: (_err, { cocktailId, slug }, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(['cocktail', barId, slug], ctx.prev);
+      const rosterWas = ctx?.rosterWas;
+      if (rosterWas !== undefined) {
+        queryClient.setQueryData<Cocktail[]>(rosterKey, (list) =>
+          list && withFavorite(list, cocktailId, rosterWas),
+        );
+      }
       showToast({ message: 'The favorite didn’t take.' });
     },
     onSuccess: (answer, { cocktailId }) => {

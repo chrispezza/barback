@@ -126,17 +126,20 @@ export function FirstPours() {
       const listedIds = new Set(list.data.map((item) => item.ingredient.id));
       const missing = missingIds(cocktail);
       const unqueued = missing.filter((id) => !listedIds.has(id));
-      const anyListed = missing.some((id) => listedIds.has(id));
+      const listedCount = missing.filter((id) => listedIds.has(id)).length;
       const answer = await toggleFavorite.mutateAsync({
         cocktailId: cocktail.id,
         slug: cocktail.slug,
       });
       if (!favoritedAfter(answer, !cocktail.is_favorited)) {
-        showToast({
-          message: `${cocktail.name} — removed from favorites.${
-            anyListed ? ' Its bottles stay on the list.' : ''
-          }`,
-        });
+        // Counted flatly: one listed bottle is "Its bottle".
+        const stays =
+          listedCount === 0
+            ? ''
+            : listedCount === 1
+              ? ' Its bottle stays on the list.'
+              : ' Its bottles stay on the list.';
+        showToast({ message: `${cocktail.name} — removed from favorites.${stays}` });
         return;
       }
       // Favourited by a tap that meant to take it off: nothing was chosen,

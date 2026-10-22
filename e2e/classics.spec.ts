@@ -214,7 +214,7 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     await expect(button).toHaveAttribute('aria-pressed', 'true')
 
     await button.click()
-    await expect(toast(page)).toHaveText('Margarita — removed from favorites. Its bottles stay on the list.')
+    await expect(toast(page)).toHaveText('Margarita — removed from favorites. Its bottle stays on the list.')
     await expect(button).toHaveText('Choose')
     await expect(button).toHaveAttribute('aria-pressed', 'false')
     await expect(entry(page, 'Margarita').getByRole('img', { name: 'Favorited' })).toHaveCount(0)
