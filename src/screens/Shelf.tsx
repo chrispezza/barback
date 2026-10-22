@@ -49,6 +49,7 @@ export function Shelf() {
   const shelfIds = new Set(shelf.data?.data.map((i) => i.id) ?? []);
 
   const rows = shelf.data?.data ?? [];
+  const bottleCount = shelf.data?.meta?.total ?? rows.length;
 
   // Ledger grouping: bottles under their root ancestor (Spirits, Liqueurs…).
   // A bottle just tapped on has no place in the hierarchy until the shelf is
@@ -121,11 +122,11 @@ export function Shelf() {
       )}
       {/* "Counting the shelf…" only while the count is under way: a shelf
           that cannot be read, its own read or the bar's having failed, is
-          answered by the error line alone. */}
+          answered by the error line alone. One bottle is "1 bottle". */}
       {(shelf.data || !shelfFailed) && (
         <p class="recipe-aside shelf-count" aria-busy={!shelf.data}>
           {shelf.data
-            ? `${shelf.data.meta?.total ?? rows.length} bottles on the shelf.`
+            ? `${bottleCount} bottle${bottleCount === 1 ? '' : 's'} on the shelf.`
             : 'Counting the shelf…'}
         </p>
       )}
