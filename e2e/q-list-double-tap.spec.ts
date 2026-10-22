@@ -88,6 +88,10 @@ async function tapTwice(page: Page, bar: FakeBar, control: Locator): Promise<voi
   await readBack
   await settled(page)
   await control.click({ force: true })
+  // Off the controls at once: a receipt can appear under a pointer left where
+  // it tapped, and a pointer resting on the host pauses its toast, which would
+  // read as a second receipt.
+  await page.mouse.move(0, 0)
 }
 
 /**
@@ -95,7 +99,9 @@ async function tapTwice(page: Page, bar: FakeBar, control: Locator): Promise<voi
  * before navigating. Toasts queue (src/components/toasts.tsx), and a second
  * receipt with the same words changes nothing in the page: it only holds the
  * host for a second receipt's time. So receipts are counted by how long the
- * host stays up, not by what it says.
+ * host stays up (RECEIPT_MS each, src/components/toast-timing.ts), not by what
+ * it says. A pause only lengthens a stretch, so a miscount can fail a test but
+ * never pass one.
  */
 async function recordToastHost(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -133,6 +139,8 @@ test.describe('on the Recipe', () => {
     await expect(listedMark(honey)).toBeVisible({ timeout: 10_000 })
     await expect(addToList(page, 'Honey syrup')).toHaveCount(0)
     expect(listWrites(bar)).toEqual([{ ingredients: [{ id: I.honeySyrup }] }])
+    // A sanity check, not the discriminator: upstream resets the quantity to 1
+    // on a second write too, so only the writes above tell one tap from two.
     expect([...bar.model.list.entries()]).toEqual([[I.honeySyrup, 1]])
   })
 
