@@ -518,7 +518,11 @@ export function Tonight() {
             <EmptyState
               title={pourEmpty === 'bare' ? 'The shelf is bare' : 'Nothing pours yet'}
               body={
-                suggestions.length > 0
+                // The names are suggestions, decided against what is owned or
+                // listed: like Buy next and the groups, they wait for both
+                // reads (suggestionsReady), and a shelf that could not be read
+                // names none (chrispezza/barback#104). The counts still speak.
+                suggestionsReady && suggestions.length > 0
                   ? `Start with ${suggestions
                       .slice(0, 3)
                       .map((s) => s.name)
