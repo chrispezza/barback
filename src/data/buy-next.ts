@@ -7,13 +7,8 @@
 // everything else here is a suggestion, listed on a tap. Groups, highest
 // first: Buy next (one bottle), For your favorites, Restock next.
 
-import {
-  isStocked,
-  type Cocktail,
-  type Ingredient,
-  type RecommendedIngredient,
-  type ShelfIndex,
-} from '../api/types';
+import type { Cocktail, Ingredient, RecommendedIngredient, ShelfIndex } from '../api/types';
+import { lineHeld } from './match';
 
 /** How many bottles the favourites group and the restock group each hold. */
 export const GROUP_LIMIT = 5;
@@ -43,11 +38,13 @@ export interface BuyNextPick {
 
 /**
  * What the favourited drinks still need, in the order first met. A line is a
- * gap when the shelf does not cover it (isStocked, with the shelf so a held
- * child brand counts as the matcher counts it, chrispezza/barback#20), it is
- * not optional, and its bottle is neither owned nor already listed. A listed
- * bottle is set aside as already on its way, so a drink whose other gaps are
- * all listed is completed by the one bottle left.
+ * gap when it is not held as the card paints it (lineHeld: with the shelf, so
+ * a held child brand counts as the matcher counts it; and on a favourite the
+ * server pours, held whatever its flags say, so a substitute standing in
+ * leaves no gap; chrispezza/barback#20), it is not optional, and its bottle is
+ * neither owned nor already listed. A listed bottle is set aside as already on
+ * its way, so a drink whose other gaps are all listed is completed by the one
+ * bottle left.
  */
 export function favoriteGaps(
   favorites: readonly Cocktail[],
@@ -59,7 +56,7 @@ export function favoriteGaps(
     // This drink's gaps, one per bottle however many lines call it.
     const missing = new Map<number, string>();
     for (const e of c.ingredients) {
-      if (!isStocked(e, shelf) && !e.optional && !ownedOrListed.has(e.ingredient.id)) {
+      if (!lineHeld(c, e, shelf) && !e.optional && !ownedOrListed.has(e.ingredient.id)) {
         missing.set(e.ingredient.id, e.ingredient.name);
       }
     }

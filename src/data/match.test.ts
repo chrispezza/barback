@@ -333,3 +333,79 @@ describe('list cards with the shelf, on the index shape', () => {
     }
   })
 })
+
+// A list card for a drink the server pours (frontend-spec §2 "Per-ingredient
+// stock color", §7 DrinkCard; chrispezza/barback#20). The index shape carries
+// no substitute flag, and the shelf cannot stand in for one: a substitute
+// belongs to the recipe line, not to the bottle. But `in_shelf` is the
+// server's matcher (CocktailResource.php:133, CocktailService.php:255-311 at
+// v5.15.3), which counts a required line held exactly, through a substitute,
+// or through a child brand, and says the drink pours only when it has counted
+// every required line. So on a drink that pours no required line is missing,
+// whatever the line flags say; an optional line, which the matcher skips,
+// keeps its own stock. A drink that does not pour is painted from its lines
+// alone, as above: what wins where those disagree is #20's open decision.
+
+/** The Mojito topped with Tonic: its club soda line lists Tonic as a
+ *  substitute, and the shelf holds Tonic and Mint but no Club soda. */
+function mojitoOnTonic(): BarModel {
+  const m = new BarModel(defaultWorld())
+  m.shelf.delete(I.clubSoda)
+  m.shelf.add(I.mint)
+  return m
+}
+
+describe('a list card for a drink the server pours, on the index shape', () => {
+  it('names no missing bottle when a held substitute covers a line', () => {
+    const m = mojitoOnTonic()
+    const mojito = drink(m, C.mojito, 'index')
+    // Guard: the server pours it, and the index line alone cannot say how.
+    expect(mojito.in_shelf).toBe(true)
+    expect(mojito.ingredients.find((e) => e.ingredient.id === I.clubSoda)).toMatchObject({ in_shelf: false })
+    expect(mojito.ingredients.find((e) => e.ingredient.id === I.clubSoda)).not.toHaveProperty('in_shelf_as_substitute')
+    expect(cardIngredients(mojito, shelfOf(m))).toEqual([
+      { name: 'White rum', have: true, optional: false },
+      { name: 'Lime juice', have: true, optional: false },
+      { name: 'Simple syrup', have: true, optional: false },
+      { name: 'Mint', have: true, optional: false },
+      { name: 'Club soda', have: true, optional: false },
+    ])
+    expect(matchState(mojito, shelfOf(m))).toBe('full')
+  })
+
+  it('paints it as the Recipe screen does', () => {
+    const m = mojitoOnTonic()
+    expect(cardIngredients(drink(m, C.mojito, 'index'), shelfOf(m))).toEqual(
+      cardIngredients(drink(m, C.mojito, 'show'), shelfOf(m)),
+    )
+  })
+
+  // Tonight and the Index paint their cards before useShelf answers.
+  const penicillinOnLaphroaig = () => {
+    // Laphroaig 10 stands for the Penicillin's Islay Scotch.
+    const m = new BarModel(defaultWorld())
+    m.shelf.add(I.honeySyrup)
+    return m
+  }
+  it.each([
+    ['the Mojito topped with Tonic', C.mojito, mojitoOnTonic],
+    ['the Penicillin on Laphroaig 10', C.penicillin, penicillinOnLaphroaig],
+  ] as const)('names no missing bottle before the shelf has been read either: %s', (_name, cocktail, model) => {
+    const card = drink(model(), cocktail, 'index')
+    expect(card.in_shelf).toBe(true)
+    expect(cardIngredients(card).filter((i) => !i.have && !i.optional)).toEqual([])
+    expect(matchState(card)).toBe('full')
+  })
+
+  it('keeps an optional line its own stock: the matcher skips it', () => {
+    // The Whiskey Sour pours with its optional egg white off the shelf.
+    const m = new BarModel(defaultWorld())
+    const sour = drink(m, C.whiskeySour, 'index')
+    expect(sour.in_shelf).toBe(true)
+    expect(cardIngredients(sour, shelfOf(m)).find((i) => i.name === 'Egg white')).toEqual({
+      name: 'Egg white',
+      have: false,
+      optional: true,
+    })
+  })
+})

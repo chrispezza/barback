@@ -542,3 +542,53 @@ describe('the standing-order memory, for a staple listed before the session (chr
     expect(names(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
   })
 })
+
+describe('favourite gaps, for a favourite the server pours (chrispezza/barback#20)', () => {
+  // The favourites read is the index shape, which carries no substitute flag,
+  // so a line a held substitute covers arrives with in_shelf false. Its
+  // `in_shelf` is the server's matcher (CocktailResource.php:133,
+  // CocktailService.php:255-311 at v5.15.3): true only once every required
+  // line is held exactly, through a substitute or through a child brand. A
+  // favourite that pours needs no bottle, so no bottle "completes" it (ADR-008).
+
+  /** The Mojito topped with Tonic: its club soda line lists Tonic as a
+   *  substitute; the shelf holds Tonic and Mint but no Club soda. */
+  const mojitoOnTonic = (w: WorldSeed) => (w.shelf = [...without(w.shelf, I.clubSoda), I.mint])
+  /** A Manhattan whose rye line lists Bourbon whiskey as a substitute: the
+   *  default shelf holds Bourbon whiskey, not Rye whiskey. */
+  const bourbonForRye = (w: WorldSeed) => {
+    const rye = w.cocktails.find((c) => c.id === C.manhattan)?.lines.find((l) => l.ingredientId === I.rye)
+    if (rye) rye.substituteIds = [I.bourbon]
+  }
+
+  it.each([
+    ['the Mojito, Tonic for Club soda', C.mojito, mojitoOnTonic],
+    ['the Manhattan, Bourbon whiskey for Rye whiskey', C.manhattan, bourbonForRye],
+  ] as const)('offer no bottle for a favourite that pours with a substitute standing in: %s', (_name, cocktail, change) => {
+    const w = world((x) => {
+      change(x)
+      x.favorites = [cocktail]
+    })
+    // Guard: the server pours it, and its index lines alone miss one bottle.
+    const [favorite] = inputs(w).favorites
+    expect(favorite?.in_shelf).toBe(true)
+    expect(favorite?.ingredients.filter((e) => !e.in_shelf && !e.optional)).toHaveLength(1)
+    const d = decide(w)
+    expect(d.gaps).toEqual([])
+    // Buy next is left to the server's pick.
+    expect(d.pick).toEqual({ id: I.scotch, name: 'Scotch whisky', reason: undefined })
+    expect(d.forFavorites).toEqual([])
+  })
+
+  it('still offer what a favourite that does not pour misses', () => {
+    const d = decide(world((w) => (mojitoOnTonic(w), (w.favorites = [C.mojito, C.negroni]))))
+    expect(names(d.gaps)).toEqual(['Campari'])
+    expect(d.pick).toEqual({ id: I.campari, name: 'Campari', reason: 'completes 1 favorite' })
+  })
+
+  it('leave the standing order alone: a staple off the shelf still queues itself', () => {
+    // Club soda is a staple (src/data/staples.ts), a rule the user wrote.
+    const d = decide(world((w) => (mojitoOnTonic(w), (w.favorites = [C.mojito]))))
+    expect(names(d.queue)).toEqual(['Club soda'])
+  })
+})
