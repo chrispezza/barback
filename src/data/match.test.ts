@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Cocktail } from '../api/types'
-import { BarModel, cocktailResource, type Endpoint } from '../../test/fixtures/upstream'
+import { shelfIndex, type Cocktail, type ShelfIndex } from '../api/types'
+import { BarModel, cocktailResource, ingredientResource, type Endpoint } from '../../test/fixtures/upstream'
 import { C, I, defaultWorld } from '../../test/fixtures/world'
 import { cardIngredients, matchState, type MatchState } from './match'
 
@@ -10,11 +10,11 @@ import { cardIngredients, matchState, type MatchState } from './match'
 // (Tonight, Index, "In the same vein"), 'show' is GET /cocktails/{id} (the
 // Recipe, and the Classics roster, which reads each drink by slug).
 //
-// Deliberately not pinned here, because it is a known bug with its own
-// failing-first PR: the index shape carries no in_shelf_as_* flags, so a line a
-// child brand or a substitute covers reads as missing on list cards
-// (chrispezza/barback#20). The card state below never depends on that: where
-// in_shelf and the line flags disagree, the server's in_shelf decides.
+// The index shape carries no in_shelf_as_* flags, so without the shelf a line
+// a child brand or a substitute covers reads as missing on list cards
+// (chrispezza/barback#20). The cases up to "list cards with the shelf" are
+// read without it; where in_shelf and the line flags disagree, the server's
+// in_shelf decides. "list cards with the shelf" pins what the screens paint.
 
 const ENDPOINTS: Endpoint[] = ['index', 'show']
 
@@ -248,5 +248,88 @@ describe('one match state per drink, on every screen', () => {
     const cocktail = drink(sameDrinkModel(c), c.cocktail, c.endpoint)
     expect(cocktail.in_shelf).toBe(c.inShelf)
     expect(matchState(cocktail)).toBe(c.expected)
+  })
+})
+
+// List cards with the shelf (chrispezza/barback#20). Every list card is painted
+// from the index shape (GET /cocktails, /similar), which carries the exact
+// in_shelf only, so the screens hand cardIngredients and matchState the shelf
+// as useShelf reads it. A line a held brand covers by the upstream matcher's
+// rule (its direct parent or its root, CocktailService.php 281-288) then reads
+// as held, as it does on the Recipe screen.
+
+/** The shelf as useShelf receives it: GET /ingredients?filter[on_shelf]=true. */
+function shelfOf(m: BarModel): ShelfIndex {
+  return shelfIndex([...m.shelf].map((id) => ingredientResource(m, id, 'index')))
+}
+
+describe('list cards with the shelf, on the index shape', () => {
+  it('paint a parent-called line a held brand covers as had', () => {
+    // Penicillin calls Islay Scotch; the default shelf holds Laphroaig 10.
+    const m = new BarModel(defaultWorld())
+    expect(cardIngredients(drink(m, C.penicillin, 'index'), shelfOf(m))).toEqual([
+      { name: 'Islay Scotch', have: true, optional: false },
+      { name: 'Lemon juice', have: true, optional: false },
+      { name: 'Honey syrup', have: false, optional: false },
+    ])
+  })
+
+  it('name no missing bottle on a drink the server pours', () => {
+    const m = new BarModel(defaultWorld())
+    m.shelf.add(I.honeySyrup)
+    const penicillin = drink(m, C.penicillin, 'index')
+    expect(penicillin.in_shelf).toBe(true)
+    expect(matchState(penicillin, shelfOf(m))).toBe('full')
+    expect(cardIngredients(penicillin, shelfOf(m)).filter((i) => !i.have && !i.optional)).toEqual([])
+  })
+
+  it('count only the real gap, so a drink one bottle away reads near', () => {
+    // Honey syrup is the one bottle the Penicillin lacks.
+    const m = new BarModel(defaultWorld())
+    const penicillin = drink(m, C.penicillin, 'index')
+    expect(penicillin.in_shelf).toBe(false)
+    expect(matchState(penicillin, shelfOf(m))).toBe('near')
+  })
+
+  it('count a child brand of every parent a drink calls', () => {
+    // London dry gin in place of Gin: Gimlet, Negroni, Gin Tonic and Martini
+    // call Gin, its direct parent.
+    const world = defaultWorld()
+    world.shelf = [...world.shelf.filter((id) => id !== I.gin), I.londonDryGin]
+    const m = new BarModel(world)
+    const shelf = shelfOf(m)
+    expect(matchState(drink(m, C.gimlet, 'index'), shelf)).toBe('full')
+    expect(matchState(drink(m, C.ginTonic, 'index'), shelf)).toBe('full')
+    expect(cardIngredients(drink(m, C.negroni, 'index'), shelf)).toEqual([
+      { name: 'Gin', have: true, optional: false },
+      { name: 'Campari', have: false, optional: false },
+      { name: 'Sweet vermouth', have: true, optional: false },
+    ])
+    expect(matchState(drink(m, C.negroni, 'index'), shelf)).toBe('near')
+  })
+
+  // The list card and the Recipe screen paint a drink the same way wherever the
+  // matcher and the show shape's any-depth variant flag agree. They disagree on
+  // a line calling an intermediate ancestor of a held brand (Rob Roy and Bobby
+  // Burns call Scotch whisky, two levels above Laphroaig 10): which one wins is
+  // the open decision in chrispezza/barback#20, so those two are left out.
+  const undecided = new Set<number>([C.robRoy, C.bobbyBurns])
+  const shelves: [string, number[]][] = [
+    ['the default shelf', defaultWorld().shelf],
+    ['the default shelf and honey syrup', [...defaultWorld().shelf, I.honeySyrup]],
+    ['London dry gin in place of Gin', [...defaultWorld().shelf.filter((id) => id !== I.gin), I.londonDryGin]],
+  ]
+
+  it.each(shelves)('paint every drink as the Recipe screen does, on %s', (_name, held) => {
+    const world = defaultWorld()
+    world.shelf = [...held]
+    const m = new BarModel(world)
+    const shelf = shelfOf(m)
+    for (const seed of m.world.cocktails.filter((c) => !undecided.has(c.id))) {
+      const index = drink(m, seed.id, 'index')
+      const show = drink(m, seed.id, 'show')
+      expect(cardIngredients(index, shelf), seed.name).toEqual(cardIngredients(show, shelf))
+      expect(matchState(index, shelf), seed.name).toBe(matchState(show, shelf))
+    }
   })
 })

@@ -19,7 +19,7 @@ import {
   useShoppingMutation,
   useStaples,
 } from '../api/queries';
-import { isStocked, type RecommendedIngredient } from '../api/types';
+import { isStocked, shelfIndex, type RecommendedIngredient } from '../api/types';
 import { useIngredientSearch } from '../api/search';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ErrorLine } from '../components/ErrorLine';
@@ -130,6 +130,9 @@ export function Tonight() {
   // client-side filter, never an upstream patch).
   const recommendations = useRecommendations(barId);
   const shelf = useShelf(barId);
+  // GET /cocktails carries no variant flags: the cards and the favourites gaps
+  // read a held child brand off the shelf (chrispezza/barback#20).
+  const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const ownedOrListed = new Set([
     ...listItems.map((item) => item.ingredient.id),
@@ -180,7 +183,7 @@ export function Tonight() {
   const favoriteGaps = new Map<number, { name: string; count: number }>();
   for (const c of favorites.data?.data ?? []) {
     for (const e of c.ingredients) {
-      if (!isStocked(e) && !e.optional && !ownedOrListed.has(e.ingredient.id)) {
+      if (!isStocked(e, shelfIdx) && !e.optional && !ownedOrListed.has(e.ingredient.id)) {
         const gap = favoriteGaps.get(e.ingredient.id) ?? {
           name: e.ingredient.name,
           count: 0,
@@ -259,7 +262,7 @@ export function Tonight() {
                   name={c.name}
                   favorited={c.is_favorited}
                   href={`/drinks/${c.slug}`}
-                  ingredients={cardIngredients(c)}
+                  ingredients={cardIngredients(c, shelfIdx)}
                   match="full"
                 />
               </li>
@@ -311,7 +314,7 @@ export function Tonight() {
                   name={c.name}
                   favorited={c.is_favorited}
                   href={`/drinks/${c.slug}`}
-                  ingredients={cardIngredients(c)}
+                  ingredients={cardIngredients(c, shelfIdx)}
                   match="near"
                 />
               </li>

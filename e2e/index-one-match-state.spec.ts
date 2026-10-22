@@ -9,7 +9,9 @@ import { expect, test } from './support/test'
 // sets (§2) and paint full and near by section.
 //
 // Only data-match is asserted on a card here. What the missing line says on
-// an index-shaped card a child brand covers is chrispezza/barback#20.
+// an index-shaped card a child brand covers is pinned in
+// index-child-brands.spec.ts and tonight-child-brands.spec.ts
+// (chrispezza/barback#20).
 
 function card(page: Page, name: string, within?: Locator) {
   return (within ?? page).locator('a.bb-drink', {

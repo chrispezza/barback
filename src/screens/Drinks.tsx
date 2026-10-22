@@ -6,9 +6,9 @@ import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
 import { EmptyState } from '@ds/feedback/EmptyState';
 import { SearchField } from '@ds/forms/SearchField';
-import { useBarId, useCocktails } from '../api/queries';
+import { useBarId, useCocktails, useShelf } from '../api/queries';
 import { useCocktailSearch } from '../api/search';
-import type { Cocktail } from '../api/types';
+import { shelfIndex, type Cocktail } from '../api/types';
 import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { cardIngredients, matchState } from '../data/match';
@@ -88,14 +88,19 @@ export function Drinks() {
 
   const lastPage = cocktails.data?.meta?.last_page ?? 1;
 
+  // GET /cocktails carries no variant flags: a card reads a held child brand
+  // off the shelf (chrispezza/barback#20).
+  const shelf = useShelf(barId);
+  const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
+
   const card = (c: Cocktail) => (
     <li key={c.id}>
       <DrinkCard
         name={c.name}
         favorited={c.is_favorited}
         href={`/drinks/${c.slug}`}
-        ingredients={cardIngredients(c)}
-        match={matchState(c)}
+        ingredients={cardIngredients(c, shelfIdx)}
+        match={matchState(c, shelfIdx)}
       />
     </li>
   );

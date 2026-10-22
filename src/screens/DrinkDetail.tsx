@@ -9,12 +9,13 @@ import {
   useBarId,
   useCocktail,
   useProfile,
+  useShelf,
   useShoppingList,
   useShoppingMutation,
   useSimilarCocktails,
   useToggleFavorite,
 } from '../api/queries';
-import { isStocked, type CocktailIngredientEntry } from '../api/types';
+import { isStocked, shelfIndex, type CocktailIngredientEntry } from '../api/types';
 import { setScreenTitle } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
 import { cardIngredients, matchState } from '../data/match';
@@ -37,6 +38,10 @@ export function DrinkDetail({ slug }: { slug: string }) {
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const similar = useSimilarCocktails(barId, cocktail?.id);
+  // /similar carries no variant flags: its cards read a held child brand off
+  // the shelf (chrispezza/barback#20). The recipe's own lines (show) have them.
+  const shelf = useShelf(barId);
+  const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
   const toggleFavorite = useToggleFavorite(barId);
 
   useEffect(() => {
@@ -198,8 +203,8 @@ export function DrinkDetail({ slug }: { slug: string }) {
                   name={c.name}
                   favorited={c.is_favorited}
                   href={`/drinks/${c.slug}`}
-                  ingredients={cardIngredients(c)}
-                  match={matchState(c)}
+                  ingredients={cardIngredients(c, shelfIdx)}
+                  match={matchState(c, shelfIdx)}
                 />
               </li>
             ))}
