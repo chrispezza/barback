@@ -4,7 +4,7 @@ import { DrinkCard } from '@ds/drinks/DrinkCard'
 import type { Cocktail } from '../api/types'
 import { BarModel, cocktailResource } from '../../test/fixtures/upstream'
 import { C, defaultWorld } from '../../test/fixtures/world'
-import { cardIngredients, indexMatchState } from './match'
+import { cardIngredients, matchState } from './match'
 
 // The DS DrinkCard as the screens feed it (frontend-spec §7): the ingredient
 // run and match state come from src/data/match.ts, the cocktail from the
@@ -24,7 +24,7 @@ function card(id: number) {
       name={c.name}
       href={`/drinks/${c.slug}`}
       ingredients={cardIngredients(c)}
-      match={indexMatchState(c)}
+      match={matchState(c)}
     />,
   )
   return screen.getByRole('link')

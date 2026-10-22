@@ -17,7 +17,7 @@ import {
 import { isStocked, type CocktailIngredientEntry } from '../api/types';
 import { setScreenTitle } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
-import { cardIngredients, rosterMatchState } from '../data/match';
+import { cardIngredients, matchState } from '../data/match';
 import { deriveRatio, fractionGlyph, ratioForSlug } from '../data/ratios';
 
 /** The measure only — the row already prints the name above it. Dashes,
@@ -199,7 +199,7 @@ export function DrinkDetail({ slug }: { slug: string }) {
                   favorited={c.is_favorited}
                   href={`/drinks/${c.slug}`}
                   ingredients={cardIngredients(c)}
-                  match={rosterMatchState(c)}
+                  match={matchState(c)}
                 />
               </li>
             ))}
