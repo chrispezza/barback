@@ -41,8 +41,6 @@ function tonightWorld(change?: (w: WorldSeed) => void): WorldSeed {
 const main = (page: Page) => page.getByRole('main')
 const rail = (page: Page) => page.locator('#buy')
 const heading = (page: Page, name: string) => page.getByRole('heading', { name, exact: true })
-const addToList = (scope: Locator | Page, bottle: string) =>
-  scope.getByRole('button', { name: `Add ${bottle} to the list`, exact: true })
 /** A per-bottle List it (a recipe line, or a near-miss card on Tonight), named for its bottle after those words. */
 const listIt = (scope: Locator | Page, bottle: string) =>
   scope.getByRole('button', { name: `List it: ${bottle}`, exact: true })
