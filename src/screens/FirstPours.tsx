@@ -6,6 +6,7 @@ import { MatchHeader } from '@ds/drinks/MatchHeader';
 import {
   shoppingListOptions,
   useBarId,
+  useBars,
   useFirstPours,
   useProfile,
   useShoppingList,
@@ -76,16 +77,23 @@ export function FirstPours() {
   const choosing = useRef(false);
   const [isChoosing, setIsChoosing] = useState(false);
 
-  // The list cannot be read: its own read failed, or the profile it is keyed on did.
+  // A cold start with the API out of reach (ADR-007; chrispezza/barback#68):
+  // without /bars there is no bar id, and the roster and the list keyed on it
+  // stay disabled and never error on their own.
+  const bars = useBars();
+  const barsFailed = barId === undefined && bars.isError;
+  // The list cannot be read: its own read failed, or the bar or the profile it
+  // is keyed on did.
   const profileFailed = profile?.id === undefined && profileQuery.isError;
-  const listFailed = shoppingList.isError || profileFailed;
+  const listFailed = shoppingList.isError || barsFailed || profileFailed;
   // Choose is held until the list has been read, and after a read failed. Not
   // for a read under way while rows from one that succeeded are in hand:
   // choose() waits for that read instead.
   const listHeld = !shoppingList.isSuccess || listFailed;
 
-  /** Ask again for what failed: the roster, the list, or the profile it waits on. */
+  /** Ask again for what failed: the roster, the list, or the bar and profile they wait on. */
   function retry() {
+    if (barsFailed) void bars.refetch();
     if (pours.isError) void pours.refetch();
     if (profileFailed) void profileQuery.refetch();
     if (shoppingList.isError) void shoppingList.refetch();
