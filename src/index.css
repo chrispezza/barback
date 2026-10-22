@@ -261,12 +261,23 @@ a {
   }
 
   /* Taller than the viewport, the stuck rail would clip its own tail
-     (later rows, restock, print) — so it scrolls internally instead. */
+     (later rows, restock, print) — so it scrolls internally instead.
+     A scrolling box clips at its padding box on every side (overflow-y: auto
+     makes overflow-x auto too), and a row's Remove, its check-off control,
+     Print the list and Restock next's List it sit on the rail's edges. The
+     padding is the focus ring's reach (2px offset + 2px width), so no ring
+     loses a side: the ring is never removed (Visual foundations, "Focus").
+     The negative margin gives it back, and the sticky inset and height take
+     it into account, so the rail's content keeps its 320px column and its
+     place, 24px from the viewport's top and bottom once stuck. */
   .tonight-rail {
+    --ring-reach: calc(var(--focus-width) + var(--focus-offset));
     position: sticky;
-    top: 24px;
-    max-height: calc(100vh - 48px);
+    top: calc(24px - var(--ring-reach));
+    max-height: calc(100vh - 48px + 2 * var(--ring-reach));
     overflow-y: auto;
+    padding: var(--ring-reach);
+    margin: calc(-1 * var(--ring-reach));
   }
 }
 
@@ -455,7 +466,9 @@ a {
   color: var(--cream-400);
 }
 
-/* List rows: DS item plus a quiet drop action (mistakes, changed minds) */
+/* List rows: DS item plus a quiet drop action (mistakes, changed minds).
+   The action is the word REMOVE, so it keeps the system's compact padding;
+   the floor stays at the 44px target whatever the word. */
 .shopping-row-line {
   display: flex;
   align-items: center;
@@ -464,7 +477,6 @@ a {
 
 .shopping-row-line > .bb-btn {
   min-width: var(--tap-min);
-  padding: 0;
 }
 
 .shopping-row-main {
@@ -646,6 +658,19 @@ a {
 
 .bar-status .recipe-aside {
   font-size: var(--body-1);
+}
+
+/* Offline line over the list snapshot ("Offline — the list as it stood
+   Wednesday 7 October, 5:40 PM."): a status line about the data, mostly
+   numerals, so the interface caption, never italic Caslon, which marks
+   ingredient names and editorial asides only and never numbers (Content
+   fundamentals). cream-400 on the app background is 8.2:1. */
+.offline-status {
+  font-family: var(--font-body);
+  font-style: normal;
+  font-size: var(--caption);
+  line-height: var(--caption-lh);
+  color: var(--cream-400);
 }
 
 /* The Shelf's count, in the interface face (Content fundamentals: italic

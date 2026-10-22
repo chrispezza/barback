@@ -20,9 +20,10 @@ const NBSP = '\u00A0';
 /**
  * What the row's one line puts between two facts: a "·" held to the fact
  * before it by a no-break space, then an ordinary space, where a line that
- * wraps breaks. The desktop rail's line is 208px wide, the 390px phone's
- * 238px, and the line of a bottle that opens three families runs past both: it
- * wraps after a "·", never with one opening the next line.
+ * wraps breaks. Beside the row's Remove, the desktop rail's line is 171px
+ * wide, the 390px phone's 201px, and the line of a bottle that opens three
+ * families runs past both: it wraps after a "·", never with one opening the
+ * next line.
  */
 const SEPARATOR = `${NBSP}· `;
 
@@ -32,8 +33,8 @@ const SEPARATOR = `${NBSP}· `;
  * name's words to each other. The hyphen of "spirit-forward" stays the one
  * break within a phrase: a non-breaking hyphen (U+2011) would make
  * "2 spirit-forward drinks ·" 177px that cannot break, and at a 320px viewport,
- * the width WCAG 1.4.10 reflows to, the line is 168px wide, so the phrase
- * would overflow it into the row's remove button. A string cannot let a phrase
+ * the width WCAG 1.4.10 reflows to, the line is 131px wide, so the phrase
+ * would overflow it into the row's Remove. A string cannot let a phrase
  * break only when it must; the DS line could (chrispezza/barback#91).
  */
 function phrase(count: number, noun: string): string {
@@ -65,7 +66,7 @@ export function familiesDetail(families: readonly FamilyUnlocks[]): string | und
  * adds under 2 px beside the separator. A line may break after it, as after
  * every other "·". A no-break space here (U+202F) would hold "Unlocks N ·" to
  * the first family, and where the two do not fit one line the break would
- * fall inside the DS's own "Unlocks N" instead: on the 208px rail,
+ * fall inside the DS's own "Unlocks N" instead: on the 171px rail,
  * "Unlocks 12 · 12 dessert drinks ·" is 211px.
  */
 const PART = '\u200A';
@@ -113,9 +114,12 @@ export function ShoppingRow({
           onToggle={onCheckOff}
         />
       </div>
+      {/* The word, not a glyph: affordances are words in the caps utility
+          voice, and the only marks are ◆, ✓ and · (the design system's
+          "Iconography"). Named for the bottle, the word first (WCAG 2.5.3). */}
       {onDrop && (
         <Button variant="ghost" size="sm" onClick={onDrop} aria-label={`Remove ${name} from the list`}>
-          ✕
+          Remove
         </Button>
       )}
     </div>

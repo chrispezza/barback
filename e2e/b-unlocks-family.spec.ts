@@ -26,8 +26,9 @@ import { expect, test } from './support/test'
 // "Unlocks 2·\u200A1 spirit-forward drink", and the row is named
 // "Scotch whisky Unlocks 2 1 spirit-forward drink", never "Unlocks 21 …".
 //
-// A line too long for its row (the desktop rail's is 208px wide, the 390px
-// phone's 238px) wraps only after a separator, never inside a family's phrase:
+// A line too long for its row (beside the row's Remove, the desktop rail's is
+// 171px wide, the 390px phone's 201px) wraps only after a separator, never
+// inside a family's phrase:
 // the count is held to its family's name, and the name's words to each other,
 // by no-break spaces (U+00A0), and each "·" to the phrase before it, so no line
 // opens with one: "2\u00A0sours\u00A0· 2\u00A0tiki\u00A0drinks". The hair

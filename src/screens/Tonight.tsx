@@ -342,6 +342,13 @@ export function Tonight() {
     pourEmpty === 'family' && scope !== undefined
       ? familyEmptyBody(shelfIdx ?? 'failed', familyDrinks, scope)
       : undefined;
+  // A family read to hold no drinks has nothing to browse: the Index under it
+  // says only that (data/match.ts familyHoldsNoDrinks), so its empty state
+  // offers the one action that helps, the way to the other families (the
+  // design system's "Content fundamentals": empty states name the next
+  // action). Until its drinks are read, or when they could not be, Browse
+  // stays: the family may hold some.
+  const familyBrowsable = typeof familyDrinks === 'string' || familyDrinks.length > 0;
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   // What is owned or listed, as far as the reads answer: a shelf read that
   // failed adds nothing (chrispezza/barback#104).
@@ -567,14 +574,23 @@ export function Tonight() {
               body={familyBody}
               action={
                 <>
+                  {familyBrowsable && (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => route(`/drinks?family=${family.def.tag.replace('family:', '')}`)}
+                      >
+                        {`Browse ${scope}`}
+                      </Button>{' '}
+                    </>
+                  )}
+                  {/* The state's lead action wears the outline; beside Browse it is the quiet one. */}
                   <Button
-                    variant="secondary"
+                    variant={familyBrowsable ? 'ghost' : 'secondary'}
                     size="sm"
-                    onClick={() => route(`/drinks?family=${family.def.tag.replace('family:', '')}`)}
+                    onClick={() => route('/tonight')}
                   >
-                    {`Browse ${scope}`}
-                  </Button>{' '}
-                  <Button variant="ghost" size="sm" onClick={() => route('/tonight')}>
                     Show all families
                   </Button>
                 </>
@@ -590,11 +606,19 @@ export function Tonight() {
                 // claim: like Restock next, they wait for every one of those
                 // reads (restockReady), and one that failed names none
                 // (chrispezza/barback#104). The counts still speak.
+                // The line says what that ranking counts: the recipes that
+                // call a bottle at all (potential_cocktails,
+                // IngredientService::getIngredientsForPossibleCocktails at
+                // v5.15.3), not the drinks it would open. On a bare shelf a
+                // gin alone opens none. It says how the names were ranked,
+                // never that they lead it: the staples and the favourites'
+                // bottles set aside before them may be called for by more
+                // recipes, and the third may tie the next.
                 restockReady && suggestions.length > 0
                   ? `Start with ${suggestions
                       .slice(0, 3)
                       .map((s) => s.name)
-                      .join(', ')} — they open the most drinks.`
+                      .join(', ')} — ranked by how many recipes call for them.`
                   : pourEmpty === 'bare'
                     ? 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
                     : // A stocked shelf may hold all three already: say only what the counts do.
@@ -648,7 +672,11 @@ export function Tonight() {
                   />
                   {/* Its own block, so the action keeps its width and sits at
                       the left under the card's missing-line: nothing is
-                      centred but empty states and the ratio device. */}
+                      centred but empty states and the ratio device. It says
+                      what every list action on Tonight says, in words (the
+                      design system's "Iconography": affordances are words,
+                      not marks), and its name starts with them before naming
+                      the bottle, so the label is in the name (WCAG 2.5.3). */}
                   {listKnown && bottle !== undefined && (
                     <div>
                       {listedIds.has(bottle.id) ? (
@@ -658,10 +686,10 @@ export function Tonight() {
                           variant="ghost"
                           size="sm"
                           disabled={shoppingMutation.isPending}
-                          aria-label={`Add ${bottle.name} to the list`}
+                          aria-label={`List it: ${bottle.name}`}
                           onClick={() => listIt(bottle.id, bottle.name)}
                         >
-                          + List
+                          List it
                         </Button>
                       )}
                     </div>
@@ -690,7 +718,13 @@ export function Tonight() {
           {listUnavailable ? (
             snapshot ? (
               <div>
-                <p class="recipe-aside">
+                {/* A status line about the data, mostly numerals: the
+                    interface face, never italic Caslon, which marks
+                    ingredient names and editorial asides and never numbers
+                    (the design system's "Content fundamentals"). The names
+                    under it are ingredients and keep it
+                    (chrispezza/barback#66). */}
+                <p class="offline-status">
                   Offline — the list as it stood{' '}
                   {snapshotStamp(new Date(snapshot.at), new Date())}.
                 </p>

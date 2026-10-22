@@ -168,7 +168,7 @@ test.describe('To buy on Tonight', () => {
       .locator('#near')
       .getByRole('listitem')
       .filter({ has: page.getByRole('link', { name: /^Manhattan/ }) })
-    await manhattan.getByRole('button', { name: 'Add Rye whiskey to the list', exact: true }).click()
+    await manhattan.getByRole('button', { name: 'List it: Rye whiskey', exact: true }).click()
     await expect(page.getByText('Rye whiskey — listed.')).toBeVisible()
     await expect(heading(page, 'To buy · 7')).toBeVisible()
     expect(bar.model.list.has(I.rye)).toBe(true)

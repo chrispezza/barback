@@ -345,7 +345,7 @@ test.describe('Tonight after the shelf read fails and the drinks still answer (c
     // The card reads its lines off its own flags, not off the shelf that was
     // last read: the Islay Scotch is missing, and it is the bottle listed.
     await expect(penicillin).toContainText('One bottle away: Islay Scotch')
-    await expect(penicillin.getByRole('button', { name: 'Add Islay Scotch to the list' })).toBeVisible()
+    await expect(penicillin.getByRole('button', { name: 'List it: Islay Scotch' })).toBeVisible()
     // Nothing is offered against a shelf that could not be read.
     await expect(rail(page).getByRole('heading', { name: /^(Buy next|For your favorites|Restock next)$/ })).toHaveCount(0)
   })
@@ -361,9 +361,9 @@ test.describe('Tonight’s empty state after the shelf read fails (chrispezza/ba
     // The names are suggestions, decided against what is owned or listed, as
     // Buy next and Restock next are: with neither the shelf nor its held
     // brands known, a bottle the shelf holds or covers could be named.
-    const startWith = pour(page).getByText(/^Start with .+ — they open the most drinks\.$/)
+    const startWith = pour(page).getByText(/^Start with .+ — ranked by how many recipes call for them\.$/)
     await page.goto('/tonight')
-    await expect(startWith).toHaveText('Start with Gin, Sweet vermouth, White rum — they open the most drinks.')
+    await expect(startWith).toHaveText('Start with Gin, Sweet vermouth, White rum — ranked by how many recipes call for them.')
 
     await goTo(page, 'Shelf', 'Shelf')
     await outage(page, isShelfRead)

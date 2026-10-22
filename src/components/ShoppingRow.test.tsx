@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/preact'
+import { cleanup, fireEvent, render, screen } from '@testing-library/preact'
 import { BarModel } from '../../test/fixtures/upstream'
 import { C, I, T, defaultWorld, type CocktailSeed } from '../../test/fixtures/world'
 import { FAMILIES } from '../data/families'
@@ -288,6 +288,28 @@ describe('ShoppingRow families', () => {
     const { container } = renderRow({ ingredientId: I.limeJuice, name: 'Lime juice', isStaple: true })
     expect(meta(container)).toBe('Unlocks 2· \u200A2\u00A0sours\u00A0· Staple')
     expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
+  })
+})
+
+// Affordances are words in the utility caps voice, not glyphs: the only marks
+// are ◆, ✓ and · (the design system's "Iconography"). The drop action is the
+// word, still named for the bottle it takes off the list, with the word first
+// (WCAG 2.5.3 Label in Name).
+describe('ShoppingRow drop action', () => {
+  it('is the word Remove, named for the bottle it takes off the list', () => {
+    barWithout(I.campari)
+    const onDrop = vi.fn()
+    render(<ShoppingRow ingredientId={I.campari} name="Campari" onCheckOff={() => {}} onDrop={onDrop} />)
+    const drop = screen.getByRole('button', { name: 'Remove Campari from the list' })
+    expect(drop.textContent).toBe('Remove')
+    fireEvent.click(drop)
+    expect(onDrop).toHaveBeenCalledTimes(1)
+  })
+
+  it('is not offered without a way to drop', () => {
+    barWithout(I.campari)
+    renderRow({ ingredientId: I.campari, name: 'Campari' })
+    expect(screen.queryByRole('button', { name: /^Remove/ })).toBeNull()
   })
 })
 
