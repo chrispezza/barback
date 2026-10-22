@@ -1,4 +1,6 @@
+import type { Page, Route } from '@playwright/test'
 import { describe, expect, it } from 'vitest'
+import { FakeBar, ISSUED_TOKEN } from '../../e2e/support/fake-bar'
 import { BarModel, cocktailIngredientResource, cocktailResource, ingredientResource, slugify } from './upstream'
 import { C, I, defaultWorld } from './world'
 
@@ -7,6 +9,46 @@ import { C, I, defaultWorld } from './world'
 // that has quietly become kinder than the API.
 
 const model = () => new BarModel(defaultWorld())
+
+/**
+ * What the fake answers a signed-in GET, through the route handler it installs
+ * on a page (FakeBar.install), with the issued token and the bar header the
+ * client sends. No browser: the handler is called with a stand-in route.
+ */
+async function served(bar: FakeBar, path: string): Promise<{ status: number; body: unknown }> {
+  const origin = 'http://127.0.0.1:4173'
+  let handler: ((route: Route) => Promise<void>) | undefined
+  const page = {
+    route: async (_url: string, h: (route: Route) => Promise<void>) => {
+      handler = h
+    },
+  }
+  await bar.install(page as unknown as Page, origin)
+  let answer: { status: number; body: string } | undefined
+  const route = {
+    request: () => ({
+      url: () => `${origin}/bar/api${path}`,
+      method: () => 'GET',
+      headers: () => ({
+        authorization: `Bearer ${ISSUED_TOKEN}`,
+        'bar-assistant-bar-id': String(bar.model.world.barId),
+      }),
+      postData: () => null,
+    }),
+    fulfill: async (a: { status: number; body: string }) => {
+      answer = a
+    },
+  }
+  if (!handler) throw new Error('the fake installed no route handler')
+  await handler(route as unknown as Route)
+  if (!answer) throw new Error(`the fake did not answer GET ${path}`)
+  return { status: answer.status, body: JSON.parse(answer.body) as unknown }
+}
+
+/** The ingredient names of a shopping-list response, in the order served. */
+function listNames(body: unknown): string[] {
+  return (body as { data: { ingredient: { name: string } }[] }).data.map((row) => row.ingredient.name)
+}
 
 describe('materialized_path', () => {
   it('is ancestor ids, root first, slash-joined with a trailing slash; null for a root', () => {
@@ -111,6 +153,19 @@ describe('resource shapes', () => {
     expect(cocktailResource(m, gimlet, 'index').garnish).toBe('')
   })
 
+  it('builds variants_in_shelf from the bar shelf, which Barback never writes, so it is empty', () => {
+    // CocktailIngredientResource.php:58 emits it, on show only, from
+    // Ingredient::barShelfVariants (Ingredient.php:398-404): descendants on the
+    // BAR shelf. in_shelf_as_variant (66-69) reads the user shelf instead.
+    const m = model()
+    // Penicillin calls Islay Scotch; the user shelf holds Laphroaig 10, its child.
+    const line = m.cocktail(C.penicillin)!.lines[0]!
+    const show = cocktailIngredientResource(m, line, 1, 'show')
+    expect(show).toMatchObject({ in_shelf_as_variant: true, in_bar_shelf_as_variant: false })
+    expect(show).toHaveProperty('variants_in_shelf', [])
+    expect('variants_in_shelf' in cocktailIngredientResource(m, line, 1, 'index')).toBe(false)
+  })
+
   it('carries parent_ingredient only on the ingredient show endpoint', () => {
     const m = model()
     expect('parent_ingredient' in ingredientResource(m, I.laphroaig10, 'index').hierarchy).toBe(false)
@@ -133,6 +188,29 @@ describe('resource shapes', () => {
     const m = model()
     const lime = m.cocktail(C.margarita)!.lines[1]!
     expect(cocktailIngredientResource(m, lime, 2, 'index').formatted.oz.amount).toBe(0.8333)
+  })
+})
+
+describe('shopping list (ShoppingListController::index)', () => {
+  // ShoppingListController.php:38 is Collection::sortBy('ingredient.name'):
+  // asort with SORT_REGULAR, so PHP's own string comparison, not a collation.
+  const fake = () => new FakeBar(defaultWorld())
+
+  it('sorts by name byte-wise: capitals before any lowercase letter, accented letters after both', async () => {
+    const bar = fake()
+    bar.model.ingredient(I.limeJuice)!.name = 'lime juice' // as a member typed it
+    bar.model.world.ingredients.push({ id: 90, name: 'Élixir végétal', parentId: I.liqueurs })
+    for (const id of [I.limeJuice, I.tonic, 90, I.campari]) bar.model.list.set(id, 1)
+    const { status, body } = await served(bar, '/users/1/shopping-list')
+    expect(status).toBe(200)
+    expect(listNames(body)).toEqual(['Campari', 'Tonic', 'lime juice', 'Élixir végétal'])
+  })
+
+  it('compares two numeric names as numbers', async () => {
+    const bar = fake()
+    bar.model.world.ingredients.push({ id: 90, name: '151', parentId: I.rum }, { id: 91, name: '43', parentId: I.liqueurs })
+    for (const id of [90, 91]) bar.model.list.set(id, 1)
+    expect(listNames((await served(bar, '/users/1/shopping-list')).body)).toEqual(['43', '151'])
   })
 })
 
