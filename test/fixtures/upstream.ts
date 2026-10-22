@@ -194,21 +194,45 @@ export class BarModel {
   }
 }
 
-/** AmountFormats + recipe-utils: ml → oz is ÷30, ml → cl ÷10, a dash is
- *  0.3125 ml; converted values are rounded to 4 places. Units the converter
- *  does not know ("leaves") pass through unconverted. */
-function formatted(line: CocktailLineSeed, name: string) {
+/**
+ * A recipe line that may be authored as a range ("22.5–30 ml"). Upstream keeps
+ * the upper bound beside the amount, nullable
+ * (database/migrations/2023_10_01_000001_v3.php:159-160), and emits it on every
+ * endpoint (app/Http/Resources/CocktailIngredientResource.php:53). The default
+ * world authors no range; a spec that needs one pushes a seed whose line
+ * carries `amountMax`.
+ */
+export interface RangedLineSeed extends CocktailLineSeed {
+  amountMax?: number
+}
+
+/** PHP's (string) of a float, which sprintf('%s') applies: `precision`
+ *  significant digits, 14 by default. */
+const phpFloatString = (n: number) => String(Number(n.toPrecision(14)))
+
+/** AmountFormats (app/Http/Resources/AmountFormats.php:49-57) + recipe-utils:
+ *  ml → oz is ÷30, ml → cl ÷10, a dash is 0.3125 ml; converted values are
+ *  rounded to 4 places. Units the converter does not know ("leaves") pass
+ *  through unconverted, upper bound and all
+ *  (app/Models/ValueObjects/AmountValueObject.php:25-27). A converted upper
+ *  bound is converted only when it is set and not zero, and is NOT rounded
+ *  (:30-35). full_text is AmountValueObject::__toString (:38-50) through
+ *  CocktailIngredientFormatter::format: "min units - max units name". */
+function formatted(line: RangedLineSeed, name: string) {
   const toMl: Record<string, number> = { ml: 1, cl: 10, oz: 30, dash: 0.3125, barspoon: 5 }
   const perMl = toMl[line.units]
   const round4 = (n: number) => Math.round(n * 10000) / 10000
   const fmt = (units: 'ml' | 'oz' | 'cl', div: number) => {
     const amount = perMl === undefined ? line.amount : round4((line.amount * perMl) / div)
+    const amountMax =
+      perMl === undefined ? (line.amountMax ?? null) : line.amountMax ? (line.amountMax * perMl) / div : null
     const u = perMl === undefined ? line.units : units
+    const upTo = amountMax ? ` - ${phpFloatString(amountMax)} ${u}` : ''
     return {
       amount,
-      amount_max: null,
+      amount_max: amountMax,
       units: u,
-      full_text: `${amount} ${u} ${name}${line.optional ? ' (optional)' : ''}`,
+      full_text: `${amount} ${u}${upTo} ${name}${line.optional ? ' (optional)' : ''}`,
     }
   }
   return { ml: fmt('ml', 1), oz: fmt('oz', 30), cl: fmt('cl', 10) }
@@ -224,7 +248,7 @@ function formatted(line: CocktailLineSeed, name: string) {
  */
 export function cocktailIngredientResource(
   m: BarModel,
-  line: CocktailLineSeed,
+  line: RangedLineSeed,
   sort: number,
   endpoint: Endpoint,
 ) {
@@ -232,7 +256,7 @@ export function cocktailIngredientResource(
   const base = {
     sort,
     amount: line.amount,
-    amount_max: null,
+    amount_max: line.amountMax ?? null,
     units: line.units,
     optional: line.optional === true,
     ingredient: ing,
