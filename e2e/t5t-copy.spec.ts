@@ -220,6 +220,122 @@ test.describe('the names a bare shelf starts with', () => {
   }
 })
 
+test.describe('a focused control in the To buy rail', () => {
+  // The design system's focus ring is 2px solid brass at a 2px offset, and it
+  // is "never removed" (Visual foundations, "Focus"). On desktop the rail
+  // scrolls inside itself (overflow-y: auto, which makes overflow-x auto too),
+  // so it clips whatever reaches past its padding box. A row's Remove sits
+  // flush with the rail's right edge and its check-off control with the left,
+  // as do Print the list and Restock next's List it: each ring would lose a
+  // side. So would a heading the rail's ErrorLine lends focus to after a Retry
+  // (chrispezza/barback#71). ADR-003: focus is handled deliberately.
+  test.use({ world: tonightWorld((w) => (w.list = [I.campari, I.cointreau])) })
+
+  /**
+   * The focused element inside #buy, if any, with the sides of its ring an
+   * ancestor cuts off. The ring is the border box grown by the outline's width
+   * and offset; an ancestor whose overflow is not visible clips at its padding
+   * box (its scrollbar excluded). A side along which the ancestor scrolls is
+   * scrolled to, not cut, so it counts only where the ancestor has nothing to
+   * scroll that way. The root and body scroll the page, and are left out.
+   */
+  async function focusedRing(page: Page): Promise<{ name: string; ring: boolean; cut: string[] } | null> {
+    return page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null
+      if (!el || !el.closest('#buy')) return null
+      const name = el.getAttribute('aria-label') ?? (el.textContent ?? '').trim()
+      const style = getComputedStyle(el)
+      if (style.outlineStyle === 'none') return { name, ring: false, cut: [] }
+      const grow = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset)
+      const r = el.getBoundingClientRect()
+      const ring = { left: r.left - grow, top: r.top - grow, right: r.right + grow, bottom: r.bottom + grow }
+      const cut: string[] = []
+      for (let a = el.parentElement; a && a !== document.body && a !== document.documentElement; a = a.parentElement) {
+        const s = getComputedStyle(a)
+        const b = a.getBoundingClientRect()
+        const left = b.left + a.clientLeft
+        const top = b.top + a.clientTop
+        const box = { left, top, right: left + a.clientWidth, bottom: top + a.clientHeight }
+        const by = (n: number) => `${n.toFixed(1)}px`
+        if (s.overflowX !== 'visible' && a.scrollWidth <= a.clientWidth) {
+          if (ring.left < box.left - 0.5) cut.push(`left by ${by(box.left - ring.left)} (${a.className || a.tagName})`)
+          if (ring.right > box.right + 0.5) cut.push(`right by ${by(ring.right - box.right)} (${a.className || a.tagName})`)
+        }
+        if (s.overflowY !== 'visible' && a.scrollHeight <= a.clientHeight) {
+          if (ring.top < box.top - 0.5) cut.push(`top by ${by(box.top - ring.top)} (${a.className || a.tagName})`)
+          if (ring.bottom > box.bottom + 0.5) cut.push(`bottom by ${by(ring.bottom - box.bottom)} (${a.className || a.tagName})`)
+        }
+      }
+      return { name, ring: true, cut }
+    })
+  }
+
+  // At the project's own height, and at a height where the desktop rail is
+  // taller than the viewport and scrolls inside itself, its scrollbar taking
+  // part of its width.
+  for (const { when, height } of [
+    { when: 'at the project’s height', height: undefined },
+    { when: 'while the rail scrolls inside itself', height: 480 },
+  ]) {
+    test(`shows its whole ring, never cut by the rail that holds it, ${when}`, async ({ page }) => {
+      if (height !== undefined) await page.setViewportSize({ width: page.viewportSize()?.width ?? 0, height })
+      await page.goto('/tonight')
+      await expect(heading(page, 'To buy · 2')).toBeVisible()
+      await expect(rail(page).getByRole('heading', { name: 'Restock next', exact: true })).toBeVisible()
+      await expect(listRow(page, 'Campari')).toContainText('Unlocks')
+      if (height !== undefined) {
+        // Where the rail is a scrolling box (desktop), it does scroll here.
+        const scrolls = await rail(page).evaluate((el) =>
+          getComputedStyle(el).overflowY === 'visible' ? null : el.scrollHeight > el.clientHeight,
+        )
+        expect(scrolls).not.toBe(false)
+      }
+
+      // Every control the keyboard reaches in the rail, in order.
+      const cut: string[] = []
+      const ringed: string[] = []
+      await rail(page).focus()
+      for (let i = 0; i < 40; i++) {
+        await page.keyboard.press('Tab')
+        const focused = await focusedRing(page)
+        if (!focused) break
+        if (focused.ring) ringed.push(focused.name)
+        cut.push(...focused.cut.map((c) => `${focused.name}: ${c}`))
+      }
+      // The walk reached the controls on both of the rail's edges.
+      expect(ringed).toEqual(
+        expect.arrayContaining([
+          'Remove Campari from the list',
+          'Remove Cointreau from the list',
+          'Print the list',
+          'List it',
+        ]),
+      )
+      expect(ringed.filter((n) => n.startsWith('Campari') || n.startsWith('Cointreau'))).toHaveLength(2)
+
+      // A heading the rail's ErrorLine lends focus to after a Retry
+      // (tabindex="-1" while it holds it). It is lent here as ErrorLine lends
+      // it; the last focus came from the keyboard, so the ring shows.
+      for (const h of await rail(page).getByRole('heading', { level: 2 }).all()) {
+        await h.evaluate((el) => {
+          el.setAttribute('tabindex', '-1')
+          el.focus()
+        })
+        const focused = await focusedRing(page)
+        expect(focused?.ring, `${focused?.name}: the system's ring shows`).toBe(true)
+        cut.push(...(focused?.cut ?? []).map((c) => `${focused?.name}: ${c}`))
+        await h.evaluate((el) => el.removeAttribute('tabindex'))
+      }
+
+      expect(cut).toEqual([])
+      // Room for the ring is not taken from the page: nothing scrolls sideways.
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+      ).toBe(true)
+    })
+  }
+})
+
 test.describe('the offline line', () => {
   // As e2e/offline-snapshot.spec.ts "the stamp": served Wednesday 7 October
   // 2026, 5:40 PM in New York, and read two weeks later with the API gone.
