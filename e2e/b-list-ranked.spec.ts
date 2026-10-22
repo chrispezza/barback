@@ -176,37 +176,44 @@ test.describe('To buy on Tonight', () => {
 
   test('a count that cannot be read leaves the rows in name order', async ({ page, bar }) => {
     // Every attempt the client makes at Scotch whisky's count fails (retry: 1).
-    bar.fail(/^\/ingredients\/6\/extra$/, { method: 'GET', status: 500, times: 2 })
+    const scotchCount = new RegExp(`^/ingredients/${I.scotch}/extra$`)
+    bar.fail(scotchCount, { method: 'GET', status: 500, times: 2 })
     await page.goto('/tonight')
 
     await expect(rowLine(page, 'Campari')).toHaveText('Unlocks 1')
     await expect(rowLine(page, 'Tequila')).toHaveText('In 1 drink')
-    await expect.poll(() => bar.calls('GET', /^\/ingredients\/6\/extra$/).length, { timeout: 10_000 }).toBe(2)
+    await expect.poll(() => bar.calls('GET', scotchCount).length, { timeout: 10_000 }).toBe(2)
     await expect(rowLine(page, 'Scotch whisky')).toHaveCount(0)
     await expect(rowNames(page)).toHaveText(BY_NAME)
     // No third attempt answered behind the assertion.
-    expect(bar.calls('GET', /^\/ingredients\/6\/extra$/)).toHaveLength(2)
+    expect(bar.calls('GET', scotchCount)).toHaveLength(2)
   })
 })
 
 test.describe('To buy after a check-off', () => {
-  // Campari opens the Negroni and Mint the Mojito; Cointreau and Tequila open
-  // nothing alone. Once Tequila is on the shelf, Cointreau opens the Margarita.
-  test.use({ world: tonightWorld((w) => (w.list = [I.campari, I.cointreau, I.mint, I.tequila])) })
+  // Campari opens the Negroni and Mint the Mojito; Coffee liqueur, Cointreau
+  // and Tequila open nothing alone. Once Tequila is on the shelf, Cointreau
+  // opens the Margarita and rises above Coffee liqueur, which comes before it
+  // by name and still opens nothing, so the order after is neither the order
+  // before nor name order: only the refreshed counts give it.
+  test.use({
+    world: tonightWorld((w) => (w.list = [I.campari, I.coffeeLiqueur, I.cointreau, I.mint, I.tequila])),
+  })
 
   test('re-ranks the rows on the counts the check-off refreshes', async ({ page, bar }) => {
     await page.goto('/tonight')
-    await expect(rowNames(page)).toHaveText(['Campari', 'Mint', 'Cointreau', 'Tequila'])
+    await expect(rowNames(page)).toHaveText(['Campari', 'Mint', 'Coffee liqueur', 'Cointreau', 'Tequila'])
 
     await listItem(page, 'Tequila').click()
     await expect(page.getByText('Moved to the shelf.')).toBeVisible()
     expect(bar.model.shelf.has(I.tequila)).toBe(true)
 
-    await expect(rowNames(page)).toHaveText(['Campari', 'Cointreau', 'Mint'])
+    await expect(rowNames(page)).toHaveText(['Campari', 'Cointreau', 'Mint', 'Coffee liqueur'])
     await expect(rail(page).locator('.shopping-row-line .bb-shop__meta')).toHaveText([
       'Unlocks 1',
       'Unlocks 1',
       'Unlocks 1',
+      'In 1 drink',
     ])
   })
 })
