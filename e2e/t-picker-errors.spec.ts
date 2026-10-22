@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test'
+import type { BrowserContext, Locator, Page } from '@playwright/test'
 import type { FakeBar } from './support/fake-bar'
 import { expect, test } from './support/test'
 
@@ -12,10 +12,14 @@ import { expect, test } from './support/test'
 // need the API say so in the error voice rather than showing cached matches."
 // This is the Index search's rule (e2e/d-index-search.spec.ts).
 //
-// The store aisle is the device offline, not only the bar out of reach: a
-// search asked for then waits paused for the network (TanStack Query's default
-// networkMode; chrispezza/barback#107). It has no answer either, and says so
-// the same way; it goes out again by itself when the device reconnects.
+// The store aisle is the device offline, not only the bar out of reach: the
+// browser reports navigator.onLine false, and nothing it asks of the bar or of
+// search arrives. A search asked for then has no answer either, and says so the
+// same way; it is asked again by itself when the device reconnects. Whether
+// that search waits paused for the network (TanStack Query's default
+// networkMode) or is tried and fails (chrispezza/barback#136) is
+// chrispezza/barback#107's open question, not this spec's: the offline
+// journeys hold either way.
 //
 // What the type-ahead does while Meilisearch alone is down is
 // chrispezza/barback#76, not this spec's: the REST name filter answers there
@@ -56,6 +60,55 @@ async function settled(bar: FakeBar, quietMs = 500): Promise<void> {
       { intervals: [50], timeout: 10_000 },
     )
     .toBe(true)
+}
+
+/**
+ * The device's network, as the page sees it and as the bar does (the pattern
+ * of e2e/x-offline-device.spec.ts on chrispezza/barback#136). Route
+ * interception still answers while the context is offline
+ * (chrispezza/barback#107), so off also drops every request to the bar or to
+ * search before the fake sees it, as the network would, and keeps each one as
+ * "METHOD /path?query", with the body when there is one. On lifts the drop
+ * before the browser reports itself online again. Registered after the fake,
+ * so it is asked first.
+ */
+async function deviceNetwork(page: Page, context: BrowserContext) {
+  let online = true
+  const dropped: string[] = []
+  await page.route(
+    (url) => url.pathname.startsWith('/bar/') || url.pathname.startsWith('/search/'),
+    (route) => {
+      if (online) return route.fallback()
+      const req = route.request()
+      const { pathname, search } = new URL(req.url())
+      const body = req.postData()
+      dropped.push(`${req.method()} ${pathname}${search}${body ? ` ${body}` : ''}`)
+      return route.abort('internetdisconnected')
+    },
+  )
+  return {
+    /** Every request dropped while the device was offline. */
+    dropped: (): string[] => [...dropped],
+    off: async () => {
+      online = false
+      await context.setOffline(true)
+    },
+    on: async () => {
+      online = true
+      await context.setOffline(false)
+    },
+  }
+}
+
+/**
+ * The picker's own search for `name`, as the network sees it: Meilisearch,
+ * then the REST name filter (ADR-004; src/api/search.ts).
+ */
+function isPickerSearch(request: string, name: string): boolean {
+  return (
+    request.startsWith(`POST /search/indexes/ingredients/search {"q":${JSON.stringify(name)},`) ||
+    request.startsWith(`GET /bar/api/ingredients?filter[name]=${encodeURIComponent(name)}&`)
+  )
 }
 
 const PICKERS: Picker[] = [
@@ -169,7 +222,8 @@ for (const picker of PICKERS) {
   test.describe(`${picker.screen}’s "${picker.label}" picker, with the device offline`, () => {
     test('says so in the error voice in its chip row, not an empty row', async ({ page, bar, context }) => {
       await picker.open(page, bar)
-      await context.setOffline(true)
+      const network = await deviceNetwork(page, context)
+      await network.off()
       const asked = bar.requests.length
 
       await searchBox(page).fill('tequila')
@@ -177,8 +231,11 @@ for (const picker of PICKERS) {
       await expectPickerErrorLine(page)
       await expect(chips(page)).toHaveCount(0)
       await expect(page.getByText(NOTHING)).toHaveCount(0)
-      // Paused, not failed: nothing was sent while the device was offline.
+      // Nothing reached the bar while the device was offline. Whatever the
+      // network dropped was the picker's search for "tequila" and nothing
+      // else: none if the search waits paused, its tries if it fails.
       expect(bar.requests.slice(asked)).toEqual([])
+      expect(network.dropped().filter((d) => !isPickerSearch(d, 'tequila'))).toEqual([])
     })
 
     test('a search after one that answered shows the error line, not the last query’s chips', async ({
@@ -187,27 +244,29 @@ for (const picker of PICKERS) {
       context,
     }) => {
       await picker.open(page, bar)
+      const network = await deviceNetwork(page, context)
       await searchBox(page).fill('gin')
       await expect(chip(page, 'Gin')).toBeVisible()
 
-      await context.setOffline(true)
+      await network.off()
       await searchBox(page).fill('tequila')
 
       await expectPickerErrorLine(page)
       await expect(chips(page)).toHaveCount(0)
     })
 
-    test('the paused search goes out on reconnect, and the chips take the error line’s place', async ({
+    test('the search is asked again on reconnect, and the chips take the error line’s place', async ({
       page,
       bar,
       context,
     }) => {
       await picker.open(page, bar)
-      await context.setOffline(true)
+      const network = await deviceNetwork(page, context)
+      await network.off()
       await searchBox(page).fill('tequila')
       await expectPickerErrorLine(page)
 
-      await context.setOffline(false)
+      await network.on()
 
       await expect(chip(page, 'Tequila')).toBeVisible()
       await expect(page.getByRole('alert')).toHaveCount(0)
