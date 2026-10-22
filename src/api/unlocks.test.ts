@@ -1,8 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
-import { BarModel } from '../../test/fixtures/upstream'
-import { BAR_ID, I, defaultWorld } from '../../test/fixtures/world'
-import { answeredCounts, unlocksOptions, type ExtraCocktail } from './unlocks'
+import { BarModel, cocktailResource } from '../../test/fixtures/upstream'
+import { BAR_ID, C, I, T, defaultWorld } from '../../test/fixtures/world'
+import { familyByTag } from '../data/families'
+import {
+  answeredCounts,
+  drinkTagsOptions,
+  unlockFamilies,
+  unlockedDrinksOptions,
+  unlocksByFamily,
+  unlocksOptions,
+  type ExtraCocktail,
+  type TaggedDrink,
+} from './unlocks'
 import type { ListResponse } from './types'
 
 // The read To buy is ranked on (frontend-spec §6 Journey 3; §2 Tonight,
@@ -177,5 +187,182 @@ describe('the counts To buy is ordered on (answeredCounts)', () => {
     await vi.waitFor(() => expect(campari.getCurrentResult().isError).toBe(true))
     expect(campari.getCurrentResult().fetchStatus).toBe('idle')
     expect(counts([I.campari, I.scotch], [campari, scotch])).toEqual(new Map([[I.campari, 1]]))
+  })
+})
+
+/** The index's answer for these drinks with include=tags (CocktailResource.php:106-111). */
+function tagged(ids: number[]): TaggedDrink[] {
+  return ids.flatMap((id) => {
+    const seed = m.cocktail(id)
+    return seed ? [cocktailResource(m, seed, 'index', { includeTags: true })] : []
+  })
+}
+
+const family = (tag: string) => {
+  const f = familyByTag(tag)
+  if (!f) throw new Error(`families.ts declares no ${tag}`)
+  return f
+}
+
+describe('the drinks a bottle unlocks, by family (unlocksByFamily)', () => {
+  it('counts each family tag, the family with the most first, ties in declared order', () => {
+    const ids = [C.daiquiri, C.ginTonic, C.negroni, C.gimlet, C.martini, C.bobbyBurns]
+    expect(unlocksByFamily(ids, tagged(ids))).toEqual([
+      { family: family('family:sour'), count: 2 },
+      { family: family('family:spirit-forward'), count: 2 },
+      { family: family('family:highball'), count: 1 },
+    ])
+  })
+
+  it('puts more drinks ahead of declared order', () => {
+    const ids = [C.daiquiri, C.ginTonic, C.mojito]
+    expect(unlocksByFamily(ids, tagged(ids))).toEqual([
+      { family: family('family:highball'), count: 2 },
+      { family: family('family:sour'), count: 1 },
+    ])
+  })
+
+  it('names no family for a drink whose only tag is no family, or one families.ts does not declare', () => {
+    // The Bobby Burns carries no tag; the Daiquiri is a sour and a Classic.
+    m.world.tags.push({ id: 120, name: 'family:fizz' })
+    const robRoy = m.cocktail(C.robRoy)
+    if (robRoy) robRoy.tagIds = [T.classic, 120]
+    const ids = [C.daiquiri, C.robRoy, C.bobbyBurns]
+    expect(unlocksByFamily(ids, tagged(ids))).toEqual([{ family: family('family:sour'), count: 1 }])
+  })
+
+  it('counts a drink carrying two families once, under the first declared', () => {
+    const daiquiri = m.cocktail(C.daiquiri)
+    if (daiquiri) daiquiri.tagIds = [T.tiki, T.classic, T.sour]
+    const ids = [C.daiquiri]
+    expect(unlocksByFamily(ids, tagged(ids))).toEqual([{ family: family('family:sour'), count: 1 }])
+  })
+
+  it('names no family for a drink the answer leaves out, and counts a drink named twice once', () => {
+    expect(unlocksByFamily([C.daiquiri, C.daiquiri, C.gimlet], tagged([C.daiquiri]))).toEqual([
+      { family: family('family:sour'), count: 1 },
+    ])
+  })
+})
+
+describe('what a row can say of its drinks’ families (unlockFamilies)', () => {
+  it('is unknown until /extra has answered', () => {
+    expect(unlockFamilies(undefined, undefined)).toBeUndefined()
+    expect(unlockFamilies(undefined, tagged([C.daiquiri]))).toBeUndefined()
+  })
+
+  it('names none for a bottle that opens nothing, with no tags to wait for', () => {
+    expect(unlockFamilies([], undefined)).toEqual([])
+  })
+
+  it('is unknown until the tags of those drinks are read, then groups them', () => {
+    const ids = [C.robRoy, C.bobbyBurns]
+    expect(unlockFamilies(ids, undefined)).toBeUndefined()
+    expect(unlockFamilies(ids, tagged(ids))).toEqual([{ family: family('family:spirit-forward'), count: 1 }])
+  })
+})
+
+describe('the tags of the drinks a bottle unlocks (drinkTagsOptions)', () => {
+  /**
+   * GET /cocktails as the index answers it (CocktailController::index): exact
+   * filter[id] over a comma list (CocktailQueryFilter.php:28), `tags` only
+   * with include=tags, paged at per_page; never the network (ADR-011).
+   */
+  function serveIndex() {
+    const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
+      const u = new URL(url)
+      if (u.pathname !== '/api/cocktails') throw new Error(`unexpected ${u.pathname}`)
+      const ids = new Set((u.searchParams.get('filter[id]') ?? '').split(',').map(Number))
+      const includeTags = (u.searchParams.get('include') ?? '').split(',').includes('tags')
+      const perPage = Number(u.searchParams.get('per_page') ?? 25)
+      const data = m.world.cocktails
+        .filter((c) => ids.has(c.id))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, perPage)
+        .map((c) => cocktailResource(m, c, 'index', { includeTags }))
+      return new Response(JSON.stringify({ data }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+    vi.stubGlobal('fetch', fetch)
+    return fetch
+  }
+
+  function observeTags(barId: number | undefined, ids: number[]) {
+    const observer = new QueryObserver(client, drinkTagsOptions(barId, ids))
+    unsubscribes.push(observer.subscribe(() => {}))
+    return observer
+  }
+
+  it('asks the index for exactly those drinks, with their tags, on one page, with the bar header', async () => {
+    const fetch = serveIndex()
+    const tags = observeTags(BAR_ID, [C.bobbyBurns, C.robRoy, C.bobbyBurns])
+    await vi.waitFor(() => expect(tags.getCurrentResult().isSuccess).toBe(true))
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    const url = new URL(String(fetch.mock.calls[0]?.[0]))
+    expect(url.pathname).toBe('/api/cocktails')
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      'filter[id]': `${C.robRoy},${C.bobbyBurns}`,
+      include: 'tags',
+      per_page: '2',
+    })
+    expect(fetch.mock.calls[0]?.[1]?.headers).toMatchObject({ 'Bar-Assistant-Bar-Id': String(BAR_ID) })
+    expect(tags.getCurrentResult().data?.map((d) => [d.id, d.tags?.map((t) => t.name)])).toEqual([
+      [C.bobbyBurns, []],
+      [C.robRoy, ['family:spirit-forward']],
+    ])
+  })
+
+  it('is one read for one set of drinks, in whatever order they are named', async () => {
+    const fetch = serveIndex()
+    const one = observeTags(BAR_ID, [C.daiquiri, C.gimlet])
+    const other = observeTags(BAR_ID, [C.gimlet, C.daiquiri])
+    await vi.waitFor(() => expect(other.getCurrentResult().isSuccess).toBe(true))
+    expect(one.getCurrentResult().isSuccess).toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(drinkTagsOptions(BAR_ID, [C.gimlet, C.daiquiri]).queryKey).toEqual([
+      'drink-tags',
+      BAR_ID,
+      `${C.daiquiri},${C.gimlet}`,
+    ])
+  })
+
+  it('is not asked for no drinks, nor before the bar is known', async () => {
+    const fetch = serveIndex()
+    const none = observeTags(BAR_ID, [])
+    const early = observeTags(undefined, [C.daiquiri])
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    for (const o of [none, early]) {
+      expect(o.getCurrentResult().fetchStatus).toBe('idle')
+      expect(o.getCurrentResult().data).toBeUndefined()
+    }
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('is not asked again when a check-off refreshes every count', async () => {
+    const fetch = serveIndex()
+    const tags = observeTags(BAR_ID, [C.daiquiri])
+    await vi.waitFor(() => expect(tags.getCurrentResult().isSuccess).toBe(true))
+    // useCheckOff invalidates ['ingredient-extra'], among the shelf-derived reads.
+    await client.invalidateQueries({ queryKey: ['ingredient-extra'] })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the drinks a bottle unlocks (unlockedDrinksOptions)', () => {
+  it('is the count’s own read, under its key, as the ids of the drinks /extra names', async () => {
+    const fetch = serve()
+    const count = observe(BAR_ID, I.scotch)
+    const drinks = new QueryObserver(client, unlockedDrinksOptions(BAR_ID, I.scotch))
+    unsubscribes.push(drinks.subscribe(() => {}))
+    await vi.waitFor(() => expect(drinks.getCurrentResult().isSuccess).toBe(true))
+
+    expect(unlockedDrinksOptions(BAR_ID, I.scotch).queryKey).toEqual(unlocksOptions(BAR_ID, I.scotch).queryKey)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(count.getCurrentResult().data).toBe(2)
+    expect(drinks.getCurrentResult().data).toEqual([C.robRoy, C.bobbyBurns])
   })
 })
