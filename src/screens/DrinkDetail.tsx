@@ -28,6 +28,9 @@ import { deriveRatio, ratioForSlug } from '../data/ratios';
 /** The screen's name when the bar has no drink by that slug. */
 const NOT_FOUND_TITLE = 'No such drink';
 
+/** The screen's name while there is no drink to name it by (frontend-spec §1). */
+const SCREEN_TITLE = 'Recipe';
+
 export function DrinkDetail({ slug }: { slug: string }) {
   const bars = useBars();
   const barId = useBarId();
@@ -46,11 +49,6 @@ export function DrinkDetail({ slug }: { slug: string }) {
 
   // The bar's own 404: there is no such drink (CocktailController::show).
   const notFound = recipe.isError && isCocktailNotFound(recipe.error);
-
-  useEffect(() => {
-    if (notFound) setScreenTitle(NOT_FOUND_TITLE);
-    else if (cocktail) setScreenTitle(cocktail.name);
-  }, [notFound, cocktail?.name]);
 
   // Standalone PWA has no browser chrome — the screen carries its own way back.
   const goBack = () => {
@@ -77,7 +75,17 @@ export function DrinkDetail({ slug }: { slug: string }) {
   // too; it goes out again by itself on reconnect.
   const barsFailed = barId === undefined && (bars.isError || bars.isPaused);
   const recipePaused = recipe.isPending && recipe.isPaused;
-  if (barsFailed || recipePaused || (recipe.isError && !notFound)) {
+  const failed = barsFailed || recipePaused || (recipe.isError && !notFound);
+
+  // The tab names what the screen shows: the drink only beside its recipe.
+  // While the recipe is read, or beside the error line, it names the screen,
+  // never the screen or drink left behind (chrispezza/barback#108).
+  const title = notFound ? NOT_FOUND_TITLE : !failed && cocktail ? cocktail.name : SCREEN_TITLE;
+  useEffect(() => {
+    setScreenTitle(title);
+  }, [title]);
+
+  if (failed) {
     return (
       <main class="screen screen--narrow">
         {backRow}
