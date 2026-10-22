@@ -558,12 +558,40 @@ a {
 }
 
 .bar-status a {
+  position: relative;
   color: var(--brass-500);
   text-decoration: underline;
   text-decoration-color: var(--rule-strong);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
   transition: var(--transition-state);
+}
+
+/* Each count is a target of its own at least the system's 44px (--tap-min;
+   WCAG 2.5.8), though its glyphs are a digit or two of the line's type, some
+   12 × 29: an empty box that is the link's, out of the flow, so the line
+   keeps its layout and type and the focus ring stays on the glyphs. Centred
+   on them, it reaches no further than a phone's gutter. */
+.bar-status a::after {
+  content: '';
+  position: absolute;
+  inset: calc(50% - var(--tap-min) / 2) min(0px, calc(50% - var(--tap-min) / 2));
+}
+
+/* The first two counts sit one "·" apart ("5 · 7"), closer than 44px centre
+   to centre, so those two boxes are not centred: each reaches over the words
+   its count belongs to, "You can pour" before the first and "one bottle away"
+   after the second, and the two never overlap. */
+.bar-status a[href='#pour']::after {
+  left: auto;
+  right: 0;
+  width: max(100%, var(--tap-min));
+}
+
+.bar-status a[href='#near']::after {
+  left: 0;
+  right: auto;
+  width: max(100%, var(--tap-min));
 }
 
 .bar-status a:hover {
