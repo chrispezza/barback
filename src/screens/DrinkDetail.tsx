@@ -20,7 +20,7 @@ import {
   useToggleFavorite,
 } from '../api/queries';
 import { isStocked, shelfIndex } from '../api/types';
-import { setScreenTitle } from '../app';
+import { appScreenBehind, setScreenTitle } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
 import { cardIngredients, matchState } from '../data/match';
 import { deriveRatio, ratioForSlug } from '../data/ratios';
@@ -54,14 +54,18 @@ export function DrinkDetail({ slug }: { slug: string }) {
   const notFound = recipe.isError && isCocktailNotFound(recipe.error);
 
   // Standalone PWA has no browser chrome — the screen carries its own way back.
+  // It steps back only onto a screen of the app's own; a recipe opened from
+  // outside (a launch, a shared link, a tab that has been somewhere first)
+  // goes to the index instead, never out of the app (frontend-spec §9).
   const goBack = () => {
-    if (window.history.length > 1) window.history.back();
+    if (appScreenBehind()) window.history.back();
     else route('/drinks');
   };
+  // The affordance is a word, not a glyph (the design system's Iconography).
   const backRow = (
     <p class="back-row">
       <Button variant="ghost" size="sm" onClick={goBack}>
-        ← Back
+        Back
       </Button>
     </p>
   );

@@ -20,7 +20,7 @@ import { expect, test } from './support/test'
 
 const main = (page: Page) => page.getByRole('main')
 const favorite = (page: Page) => main(page).getByRole('button', { name: /favorite/i })
-const back = (page: Page) => page.getByRole('button', { name: '← Back' })
+const back = (page: Page) => page.getByRole('button', { name: 'Back', exact: true })
 const similarHeading = (page: Page) => page.getByRole('heading', { level: 2, name: 'In the same vein' })
 const similarSection = (page: Page) => main(page).locator('section', { has: similarHeading(page) })
 /** A similar-drink card; a favourited card's name starts with its mark, so no anchor. */

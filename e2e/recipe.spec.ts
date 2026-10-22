@@ -24,7 +24,7 @@ const favorite = (page: Page) => main(page).getByRole('button', { name: /favorit
  *  case-insensitive substring match, which would let a third part (a dash)
  *  ride along unseen, so the name is matched exactly. */
 const ratioDevice = (page: Page, name: string) => main(page).getByRole('group', { name, exact: true })
-const back = (page: Page) => page.getByRole('button', { name: '← Back' })
+const back = (page: Page) => page.getByRole('button', { name: 'Back', exact: true })
 const similarHeading = (page: Page) => page.getByRole('heading', { level: 2, name: 'In the same vein' })
 const similarSection = (page: Page) => main(page).locator('section', { has: similarHeading(page) })
 // The recipe's own gap line — similar-drink cards print one of their own.
