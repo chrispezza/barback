@@ -141,8 +141,17 @@ test.describe('the desktop rail after its reads fail (chrispezza/barback#103)', 
     await expect(pour(page).getByRole('alert')).toHaveCount(0)
     await expect(standing(page)).toHaveText('11 bottles · 5 pourable')
     await expect(status(page)).toHaveText(STATUS)
+    // The rail's offer is decided from reads of its own (the favourites, the
+    // ranking, the staples), which failed in the outage too. The section's
+    // Retry asks for them as well, as it does for the status line's reads, so
+    // the rail offers again with it, with no line of its own left to retry
+    // (ADR-008; chrispezza/barback#71).
+    await expect(rail(page).getByRole('alert')).toHaveCount(0)
+    await expect(rail(page).locator('.buy-next-name')).toHaveText('Scotch whisky')
+    await expect(rail(page).getByRole('heading', { name: 'Restock next', exact: true })).toBeVisible()
 
     await near(page).getByRole('alert').getByRole('button', { name: 'Retry' }).click()
+    await expect(near(page).getByRole('alert')).toHaveCount(0)
     await expect(page.getByRole('alert')).toHaveCount(0)
   })
 })
