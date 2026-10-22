@@ -68,6 +68,31 @@ async function readUpstreamMessage(res: Response): Promise<string | null> {
   return null;
 }
 
+/**
+ * Whether a token other than the one a call was sent with is stored now: a
+ * login replaced it while the call was out. No token at all is not a
+ * replacement; the session that call belonged to is simply over.
+ */
+function replacedSince(sent: string | null): boolean {
+  const current = getToken();
+  return current !== null && current !== sent;
+}
+
+/**
+ * Session ended mid-use: keep their place and say so on the login screen,
+ * rather than a hard reload onto a blank form. Calls in flight together all
+ * 401 at once (the bootstrap's /profile and /bars on a stale token): the first
+ * moves to the door, and the rest find it already there — taking `next` from
+ * the location again would wrap the door into its own next.
+ */
+function endSession(): void {
+  clearToken();
+  if (!isDoor(window.location.pathname)) {
+    const next = window.location.pathname + window.location.search;
+    navigateOutsideTree(`/login?reason=expired&next=${encodeURIComponent(next)}`);
+  }
+}
+
 export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   const token = getToken();
@@ -82,16 +107,12 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   });
 
   if (res.status === 401) {
-    // Session ended mid-use: keep their place and say so on the login screen,
-    // rather than a hard reload onto a blank form. Calls in flight together
-    // all 401 at once (the bootstrap's /profile and /bars on a stale token):
-    // the first moves to the door, and the rest find it already there — taking
-    // `next` from the location again would wrap the door into its own next.
-    clearToken();
-    if (!isDoor(window.location.pathname)) {
-      const next = window.location.pathname + window.location.search;
-      navigateOutsideTree(`/login?reason=expired&next=${encodeURIComponent(next)}`);
-    }
+    // The refusal is about the token this call carried. A fresh login can have
+    // stored another while it was out (a slow bootstrap read on a stale token,
+    // answered after the user logged in again): that session is the user's
+    // now, so it stays, and so do they. The caller still hears the 401, and a
+    // read is asked again on the token held by then (queryDefaults' retry).
+    if (!replacedSince(token)) endSession();
     throw apiError('unauthenticated', res.status, null);
   }
   if (!res.ok) throw apiError(`API ${res.status} on ${path}`, res.status, await readUpstreamMessage(res));

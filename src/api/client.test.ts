@@ -189,6 +189,26 @@ describe('a 401 answered after a fresh login, on the token it replaced', () => {
     expect(window.location.pathname + window.location.search).toBe('/tonight')
     unsubscribe()
   })
+
+  it('still end the session, keeping the place, when the token is gone rather than replaced', async () => {
+    // Another tab's refusal cleared the token both tabs share (localStorage)
+    // while this tab's call was out. No login replaced it: the session is over.
+    window.localStorage.setItem('barback.token', 'old')
+    window.history.replaceState(null, '', '/shelf?x=1')
+    const bar = slowFirstAnswer('new')
+
+    const call = rejection(api('/shelf'))
+    await vi.waitFor(() => expect(bar.sent).toEqual(['/shelf Bearer old']))
+    window.localStorage.removeItem('barback.token')
+    bar.release()
+
+    const e = await call
+    expect(isApiError(e) && e.status).toBe(401)
+    expect(window.localStorage.getItem('barback.token')).toBeNull()
+    expect(window.location.pathname + window.location.search).toBe(
+      `/login?reason=expired&next=${encodeURIComponent('/shelf?x=1')}`,
+    )
+  })
 })
 
 describe('api() answers', () => {
