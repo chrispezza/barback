@@ -142,7 +142,12 @@ export interface IngredientDetail extends Ingredient {
   };
 }
 
-/** GET /bars/{id}/ingredients/recommend entry. */
+/**
+ * GET /users/{id}/ingredients/recommend entry (the IngredientRecommend schema;
+ * the bar-shelf route returns the same shape). `potential_cocktails` counts the
+ * recipes that name the bottle exactly, optional lines included: a usage count,
+ * not what it unlocks (`/ingredients/{id}/extra` says that).
+ */
 export interface RecommendedIngredient {
   id: number;
   slug: string;

@@ -136,10 +136,12 @@ export function Tonight() {
     barNearMiss.data?.meta !== undefined &&
     shoppingList.data !== undefined;
 
-  // Restock (frontend-spec §5): server-ranked, minus what's already listed or
-  // owned — upstream recommend doesn't exclude on-shelf bottles (ADR-001:
-  // client-side filter, never an upstream patch).
-  const recommendations = useRecommendations(barId);
+  // Restock (frontend-spec §2, §9; ADR-008): ranked by the server against the
+  // user's shelf, the one Barback writes, so it already leaves out what that
+  // shelf holds (chrispezza/barback#22). The client filter in data/buy-next.ts
+  // stays as a safety net for what the ranking cannot see: the list, staples,
+  // favourites and held child brands (ADR-001: never an upstream patch).
+  const recommendations = useRecommendations(barId, profile?.id);
   const shelf = useShelf(barId);
   // GET /cocktails carries no variant flags: the cards and the favourites gaps
   // read a held child brand off the shelf (chrispezza/barback#20).
@@ -208,12 +210,13 @@ export function Tonight() {
     favoriteGaps(favorites.data?.data ?? [], ownedOrListed, shelfIdx),
   );
   // Staples and favorite gaps own their groups; both stay out of the
-  // general suggestions.
+  // general suggestions, as does a parent a held brand already covers.
   const suggestions = restockSuggestions(
     recommendations.data ?? [],
     ownedOrListed,
     stapleIds,
     favoriteNeeds,
+    shelfIdx,
   );
   // Buy next: one decision-ready bottle, which leaves the group it came from.
   const {

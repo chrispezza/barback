@@ -306,18 +306,26 @@ export function useStaples(barId: number | undefined, slugs: string[]) {
 }
 
 /**
- * Restock recommendations (frontend-spec §5): server-ranked bottles that open
- * the most drinks. Shelf-derived, so shelf mutations invalidate ['recommend'].
+ * Restock recommendations (frontend-spec §2 Tonight, §9; ADR-008): the ten
+ * bottles named by the most recipes among those NOT on the user's shelf
+ * (IngredientService::getIngredientsForPossibleCocktails at v5.15.3). The
+ * user-shelf route (ShelfController::recommend), never
+ * /bars/{id}/ingredients/recommend, which ranks against the bar shelf that
+ * Barback never writes (chrispezza/barback#22). Shelf-derived, so shelf
+ * mutations invalidate ['recommend'].
  */
-export function useRecommendations(barId: number | undefined) {
+export function useRecommendations(
+  barId: number | undefined,
+  userId: number | undefined,
+) {
   return useQuery({
-    queryKey: ['recommend', barId],
+    queryKey: ['recommend', barId, userId],
     queryFn: () =>
       api<ListResponse<RecommendedIngredient>>(
-        `/bars/${barId}/ingredients/recommend`,
+        `/users/${userId}/ingredients/recommend`,
         { barId },
       ),
-    enabled: barId !== undefined,
+    enabled: barId !== undefined && userId !== undefined,
     select: (r) => r.data,
   });
 }

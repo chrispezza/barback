@@ -98,20 +98,38 @@ function favoriteReason(need: FavoriteNeed): string {
 }
 
 /**
- * Restock suggestions: the server's ranking, minus what is owned or listed
- * (upstream recommend does not exclude them, chrispezza/barback#22; ADR-001
- * means a client-side filter, never a patch), minus staples, which are
- * standing orders, and minus what the favourites group claimed. Capped.
+ * Restock suggestions: the server's ranking against the user's shelf
+ * (chrispezza/barback#22), which already leaves out every bottle that shelf
+ * holds by id. The client filter stays as a safety net (ADR-001: a client-side
+ * filter, never a patch) and takes out what the ranking cannot know: what is
+ * owned or listed, should it come back; staples, which are standing orders;
+ * what the favourites group claimed; and, given the `shelf`, a bottle the shelf
+ * already covers through a held child brand. The ranking compares ids only, so
+ * it names Islay Scotch beside a Laphroaig 10, although the matcher credits
+ * the brand to its direct parent and its root (ShelfIndex; frontend-spec §9).
+ * Such a parent can still open a drink through its own parent (Islay Scotch
+ * pours a Rob Roy's Scotch whisky, which the Laphroaig does not), but the
+ * bottle above it (Scotch whisky) opens all of that and more. A
+ * recipe that calls the parent with `is_specified` still wants the exact
+ * bottle; the ranking carries no line data to tell, and a favourite that needs
+ * it still reaches the favourites group, which reads its lines. Capped.
  */
 export function restockSuggestions(
   recommendations: readonly RecommendedIngredient[],
   ownedOrListed: ReadonlySet<number>,
   stapleIds: ReadonlySet<number>,
   favoriteNeeds: readonly FavoriteNeed[],
+  shelf?: ShelfIndex,
 ): RecommendedIngredient[] {
   const claimed = new Set(favoriteNeeds.map((f) => f.id));
   return recommendations
-    .filter((r) => !ownedOrListed.has(r.id) && !stapleIds.has(r.id) && !claimed.has(r.id))
+    .filter(
+      (r) =>
+        !ownedOrListed.has(r.id) &&
+        !stapleIds.has(r.id) &&
+        !claimed.has(r.id) &&
+        shelf?.parentsAndRoots.has(r.id) !== true,
+    )
     .slice(0, GROUP_LIMIT);
 }
 
