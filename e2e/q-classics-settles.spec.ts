@@ -99,7 +99,7 @@ async function settled(page: Page): Promise<void> {
 }
 
 test.describe('a Choose says what the bar answered without waiting for the roster (ADR-003; §1, §5)', () => {
-  test('a drink with nothing to queue reads Chosen once its button is free, before the roster is read back', async ({
+  test('a drink with nothing to queue reads ✓ Choose once its button is free, before the roster is read back', async ({
     page,
     bar,
   }) => {
@@ -124,7 +124,7 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     await expect(button).toHaveAttribute('aria-pressed', 'true')
   })
 
-  test('a drink reads Chosen while its favourite is out', async ({ page, bar }) => {
+  test('a drink reads ✓ Choose while its favourite is out', async ({ page, bar }) => {
     await openRoster(page)
     const button = chooseButton(page, 'Daiquiri')
     await expect(button).toHaveAttribute('aria-pressed', 'false')
@@ -153,7 +153,7 @@ test.describe('a Choose says what the bar answered without waiting for the roste
   // put the button back to Choose until the bar answers. The flip cancels any
   // roster read already out (useToggleFavorite, onMutate), as it does the
   // recipe read.
-  test('a drink chosen while the last roster read-back is out still reads Chosen when that read lands', async ({
+  test('a drink chosen while the last roster read-back is out still reads ✓ Choose when that read lands', async ({
     page,
     bar,
   }) => {
@@ -266,7 +266,7 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     roster.release()
   })
 
-  test('a drink taken off elsewhere reads Chosen once the bar answers that it is on, before the roster is read back', async ({
+  test('a drink taken off elsewhere reads ✓ Choose once the bar answers that it is on, before the roster is read back', async ({
     page,
     bar,
   }) => {
