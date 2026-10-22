@@ -195,6 +195,30 @@ test.describe('To buy, annotated by family', () => {
   })
 })
 
+test.describe('To buy, a line that names a hyphenated family', () => {
+  // As above, with the Rum Old Fashioned tagged spirit-forward and a Rum Flip,
+  // a dessert drink, beside it: seven drinks, five families.
+  const RUM_FLIP = 206
+  const world = structuredClone(rumWorld)
+  const oldFashioned = world.cocktails.find((c) => c.id === RUM_OLD_FASHIONED)
+  if (oldFashioned) oldFashioned.tagIds = [T.spiritForward]
+  world.cocktails.push(rumDrink(RUM_FLIP, 'Rum Flip', [T.dessert], [I.simpleSyrup]))
+  test.use({ world })
+
+  test('wraps after a separator, or at the hyphen of "spirit-forward", and nowhere else', async ({ page }) => {
+    await page.goto('/tonight')
+    await expect(rowLine(page, 'White rum')).toHaveText(
+      'Unlocks 7·\u200A2 sours · 2 tiki drinks · 1 spirit-forward drink · 1 highball · 1 dessert drink',
+    )
+    // The hyphen is a compound's own break: held, the phrase could not break
+    // at all, and would overflow a 320px viewport's line (ShoppingRow.tsx).
+    const lines = await renderedLines(page, 'White rum')
+    expect(lines.length, `lines: ${JSON.stringify(lines)}`).toBeGreaterThan(2)
+    expect(lines.slice(0, -1).filter((line) => !/(·|spirit-)$/.test(line.trimEnd()))).toEqual([])
+    expect(lines.filter((line) => line.trimStart().startsWith('·'))).toEqual([])
+  })
+})
+
 test.describe('To buy, a bottle whose drinks are partly untagged', () => {
   // Scotch whisky opens the Rob Roy (spirit-forward) and the Bobby Burns (no tag).
   test.use({ world: tonightWorld((w) => (w.list = [I.scotch])) })
