@@ -10,11 +10,12 @@ import { expect, test } from './support/test'
 // filter), plus the pager. Only conformant behaviour is asserted. Divergences
 // are left out on purpose and tracked in the PR that adds this file, among
 // them: search ignoring the active family (chrispezza/barback#81), the family
-// bar's arrow keys, and "type-ahead disables" (chrispezza/barback#76). Two
-// that were left out here have since been fixed and are pinned elsewhere: a
-// cold deep link to a family, which listed every drink under the family's
-// header until /tags answered (e2e/b-family-reads.spec.ts), and the
-// family-aware empty state (e2e/b-family-empty.spec.ts).
+// bar's arrow keys (chrispezza/barback#138), and "type-ahead disables"
+// (chrispezza/barback#76). Two that were left out here have since been fixed
+// and are pinned elsewhere: a cold deep link to a family, which listed every
+// drink under the family's header until /tags answered
+// (e2e/b-family-reads.spec.ts), and the family-aware empty state
+// (e2e/b-family-empty.spec.ts).
 
 interface FamilyCase {
   segment: string

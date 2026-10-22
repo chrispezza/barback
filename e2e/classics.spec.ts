@@ -224,12 +224,16 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     expect([...bar.model.list.entries()]).toEqual([[I.tequila, 1]])
   })
 
-  // This case holds Choose while the favourite and list writes are pending.
-  // The window after they settle, while the list is read back, was divergence
-  // 7 in the PR that added this file. Choose is now held while the list is
-  // first read and while it is read back after a write, and a Choose made
-  // during a later read waits for it; e2e/d-classics-choose.spec.ts ("Choose
-  // waits for the list") pins all three.
+  // This case holds Choose while the favourite and list writes are pending,
+  // and asserts nothing after they settle. The PR that added this file
+  // (chrispezza/barback#31) found two divergences in that later window.
+  // Divergence 7: the roster's is_favorited stayed false until the
+  // first-pours refetch landed, so the button read "Choose" for a drink just
+  // favourited and a second tap undid the favourite. The code now writes the
+  // toggle answer into the roster cache (settleFavorite, chrispezza/barback#110),
+  // but no journey pins that yet: chrispezza/barback#137. Divergence 4: Choose
+  // was not held while the list was read, so it resent bottles already listed.
+  // e2e/d-classics-choose.spec.ts ("Choose waits for the list") pins that half.
   test('a second tap while the favourite and list writes are pending writes nothing more', async ({ page, bar }) => {
     await openRoster(page)
     bar.slowDown(600)
