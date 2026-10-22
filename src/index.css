@@ -24,6 +24,18 @@ body {
   overflow-x: clip;
 }
 
+/* The system's one focus ring (Visual foundations: "focus-visible only: 2px
+   solid brass, 2px offset … never removed and never restyled per
+   component"), as the base for everything the app itself can focus: a
+   heading ErrorLine hands focus to, a screen's main, a group heading after a
+   Remove. DS components carry the same ring in their own CSS; the rules below
+   that remove it are for programmatic announcement targets (a route's h1,
+   Tonight's jump sections), which take focus only to be read out. */
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 /* ---------- App shell: mobile-first, rail on desktop ---------- */
 
 .app-shell {
