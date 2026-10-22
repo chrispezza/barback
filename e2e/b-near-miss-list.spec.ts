@@ -7,8 +7,9 @@ import { expect, test } from './support/test'
 // Journey 1; §2 Tonight "Add gap to list": POST /users/{id}/shopping-list/
 // batch-store). Beside each card on Tonight's One bottle away section, outside
 // its link (a control inside a link is invalid and unnamed), sits the action
-// that lists the one bottle the card names, named "Add <bottle> to the list";
-// once that bottle is on the list it reads Listed instead. Listing is a tap,
+// that lists the one bottle the card names: it says List it, as every list
+// action on Tonight does, and is named "List it: <bottle>", the words it shows
+// first (WCAG 2.5.3); once that bottle is on the list it reads Listed instead. Listing is a tap,
 // never automatic (ADR-008: suggestions the app derives require a tap), and
 // leaves the receipt every List it leaves ("Campari — listed.").
 //
@@ -51,9 +52,9 @@ const item = (page: Page, drink: string) =>
     .getByRole('listitem')
     .filter({ has: page.getByRole('link', { name: new RegExp(`^${drink}`) }) })
 const addToList = (scope: Locator, bottle: string) =>
-  scope.getByRole('button', { name: `Add ${bottle} to the list`, exact: true })
+  scope.getByRole('button', { name: `List it: ${bottle}`, exact: true })
 /** Every list action the near-miss section offers, whatever the bottle. */
-const anyAdd = (page: Page) => near(page).getByRole('button', { name: /^Add .+ to the list$/ })
+const anyAdd = (page: Page) => near(page).getByRole('button', { name: /^List it: .+$/ })
 const listedMark = (scope: Locator) => scope.getByText('Listed', { exact: true })
 /** A shopping-list row's check-off control; its name starts with the bottle. */
 const listItem = (page: Page, name: string) =>
@@ -104,10 +105,10 @@ test.describe('a near-miss card on Tonight', () => {
       await expect(card.getByRole('link')).toContainText(`One bottle away: ${bottle}`)
       const add = addToList(card, bottle)
       await expect(add).toBeVisible()
-      await expect(add).toHaveText('+ List')
+      await expect(add).toHaveText('List it')
       // Beside the card, never inside its link: the link is named by the card alone.
       await expect(card.getByRole('link').getByRole('button')).toHaveCount(0)
-      await expect(card.getByRole('link')).not.toHaveAccessibleName(/to the list/)
+      await expect(card.getByRole('link')).not.toHaveAccessibleName(/List it/)
       // Visual foundations: every interactive target is at least 44px.
       const box = await add.boundingBox()
       expect(box && box.height >= 44 && box.width >= 44, `${bottle}: ${JSON.stringify(box)}`).toBe(true)
@@ -116,7 +117,7 @@ test.describe('a near-miss card on Tonight', () => {
     const naming = near(page).locator('a.bb-drink').filter({ hasText: /One bottle away: / })
     expect(await naming.count()).toBeGreaterThanOrEqual(NEAR.length)
     await expect(anyAdd(page)).toHaveCount(await naming.count())
-    await expect(page.locator('#pour').getByRole('button', { name: /^Add .+ to the list$/ })).toHaveCount(0)
+    await expect(page.locator('#pour').getByRole('button', { name: /^List it: .+$/ })).toHaveCount(0)
     // ADR-008: an app-derived suggestion writes nothing until it is tapped.
     expect(bar.calls('POST')).toEqual([])
   })

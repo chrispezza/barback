@@ -16,7 +16,9 @@ import { expect, test } from './support/test'
 // the shelf holds eleven bottles. The family's empty state says what to do
 // from the family's own gap data (§6 Journey 2; chrispezza/barback#74, and
 // e2e/b-family-empty.spec.ts): the tiki family holds no drinks, so it points
-// at another family; the one dessert drink, the Espresso Martini, waits on
+// at another family, and offers no Browse, which would lead to an Index that
+// says the same (the design system's "Content fundamentals": empty states name
+// the next action); the one dessert drink, the Espresso Martini, waits on
 // three bottles, which it names.
 
 const pour = (page: Page) => page.locator('#pour')
@@ -26,13 +28,14 @@ const near = (page: Page) => page.locator('#near')
  *  drink cards do). */
 const emptyTitle = (page: Page) => pour(page).locator('.bb-empty').getByRole('heading', { level: 3 })
 
-for (const { suffix, plural, segment, tagId, body } of [
+for (const { suffix, plural, segment, tagId, body, holdsDrinks } of [
   {
     suffix: 'tiki',
     plural: 'tiki drinks',
     segment: 'TIKI',
     tagId: T.tiki,
     body: 'The index holds no tiki drinks yet — pick another family.',
+    holdsDrinks: false,
   },
   {
     suffix: 'dessert',
@@ -40,6 +43,7 @@ for (const { suffix, plural, segment, tagId, body } of [
     segment: 'DESSERT',
     tagId: T.dessert,
     body: 'Add Vodka, Coffee liqueur and Espresso and one dessert drink opens up.',
+    holdsDrinks: true,
   },
 ]) {
   test.describe(`a stocked shelf under ?family=${suffix}, with nothing in it within reach`, () => {
@@ -59,20 +63,29 @@ for (const { suffix, plural, segment, tagId, body } of [
       await expect(page.getByText('the bottles below are one purchase away')).toHaveCount(0)
     })
 
-    test('Browse leads to the Index under the same family', async ({ page, bar }) => {
-      await page.goto(`/tonight?family=${suffix}`)
-      await pour(page).getByRole('button', { name: `Browse ${plural}` }).click()
-      await expect(page).toHaveURL(new RegExp(`/drinks\\?family=${suffix}$`))
-      await expect(page.getByRole('heading', { level: 1, name: 'Drinks' })).toBeVisible()
-      // The Index applied the family, not just the URL (§6: the family persists
-      // across Tonight and Index; ADR-002: one tag-filtered read).
-      await expect(
-        page.getByRole('group', { name: 'Drink family' }).getByRole('button', { name: segment, exact: true }),
-      ).toHaveAttribute('aria-pressed', 'true')
-      await expect
-        .poll(() => bar.calls('GET', /^\/cocktails$/).filter((c) => c.query.get('filter[tag_id]') === String(tagId)).length)
-        .toBeGreaterThan(0)
-    })
+    if (holdsDrinks) {
+      test('Browse leads to the Index under the same family', async ({ page, bar }) => {
+        await page.goto(`/tonight?family=${suffix}`)
+        await pour(page).getByRole('button', { name: `Browse ${plural}` }).click()
+        await expect(page).toHaveURL(new RegExp(`/drinks\\?family=${suffix}$`))
+        await expect(page.getByRole('heading', { level: 1, name: 'Drinks' })).toBeVisible()
+        // The Index applied the family, not just the URL (§6: the family persists
+        // across Tonight and Index; ADR-002: one tag-filtered read).
+        await expect(
+          page.getByRole('group', { name: 'Drink family' }).getByRole('button', { name: segment, exact: true }),
+        ).toHaveAttribute('aria-pressed', 'true')
+        await expect
+          .poll(() => bar.calls('GET', /^\/cocktails$/).filter((c) => c.query.get('filter[tag_id]') === String(tagId)).length)
+          .toBeGreaterThan(0)
+      })
+    } else {
+      test('offers no Browse, only the way to the other families', async ({ page }) => {
+        await page.goto(`/tonight?family=${suffix}`)
+        await expect(pour(page).locator('.bb-empty__body')).toHaveText(body)
+        await expect(pour(page).getByRole('button', { name: `Browse ${plural}` })).toHaveCount(0)
+        await expect(pour(page).locator('.bb-empty').getByRole('button')).toHaveText(['Show all families'])
+      })
+    }
 
     test('Show all families clears the family and Tonight pours again', async ({ page }) => {
       await page.goto(`/tonight?family=${suffix}`)

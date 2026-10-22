@@ -43,7 +43,7 @@ const rail = (page: Page) => page.locator('#buy')
 const heading = (page: Page, name: string) => page.getByRole('heading', { name, exact: true })
 const addToList = (scope: Locator | Page, bottle: string) =>
   scope.getByRole('button', { name: `Add ${bottle} to the list`, exact: true })
-/** A recipe line's List it, named for its bottle. */
+/** A per-bottle List it (a recipe line, or a near-miss card on Tonight), named for its bottle after those words. */
 const listIt = (scope: Locator | Page, bottle: string) =>
   scope.getByRole('button', { name: `List it: ${bottle}`, exact: true })
 const listedMark = (scope: Locator) => scope.getByText('Listed', { exact: true })
@@ -171,14 +171,14 @@ test.describe('on the Recipe', () => {
 test.describe('on Tonight', () => {
   test.use({ world: tonightWorld() })
 
-  test('two quick taps on a near miss’s + List send one write and leave one receipt', async ({ page, bar }) => {
+  test('two quick taps on a near miss’s List it send one write and leave one receipt', async ({ page, bar }) => {
     await recordToastHost(page)
     await page.goto('/tonight')
     await expect(heading(page, 'To buy · 0')).toBeVisible()
     const negroni = nearItem(page, 'Negroni')
-    await expect(addToList(negroni, 'Campari')).toBeEnabled()
+    await expect(listIt(negroni, 'Campari')).toBeEnabled()
 
-    await tapTwice(page, bar, addToList(negroni, 'Campari'))
+    await tapTwice(page, bar, listIt(negroni, 'Campari'))
 
     await expect(listedMark(negroni)).toBeVisible({ timeout: 10_000 })
     await expect(toast(page)).toHaveText('Campari — listed.')
