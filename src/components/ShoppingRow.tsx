@@ -1,7 +1,7 @@
 import { Button } from '@ds/core/Button';
 import { ShoppingListItem } from '@ds/shopping/ShoppingListItem';
 import { useBarId, useIngredientReach, useIngredientUnlocks } from '../api/queries';
-import { useUnlockFamilies, type FamilyUnlocks } from '../api/unlocks';
+import { unlessFailed, useUnlockFamilies, type FamilyUnlocks } from '../api/unlocks';
 import { reachDetail } from '../data/hierarchy';
 
 interface ShoppingRowProps {
@@ -87,7 +87,12 @@ export function ShoppingRow({
   onDrop,
 }: ShoppingRowProps) {
   const barId = useBarId();
-  const { data: unlocks } = useIngredientUnlocks(barId, ingredientId);
+  // A count whose read failed is not known, though the last one is still in
+  // hand: it was worked out against the shelf as it stood then (ADR-007
+  // Consequences, no stock answer is ever served stale). The row then says
+  // what it says before its first answer: the name, and a staple's
+  // attribution (unlessFailed).
+  const unlocks = unlessFailed(useIngredientUnlocks(barId, ingredientId));
   const families = useUnlockFamilies(barId, ingredientId);
   const reach = useIngredientReach(barId, ingredientId, !isStaple && unlocks === 0);
   // The row states a count once it is read and is not 0.

@@ -23,7 +23,7 @@ import {
 } from '../api/queries';
 import { shelfIndex, type RecommendedIngredient, type ShelfIndex } from '../api/types';
 import { useIngredientSearch } from '../api/search';
-import { useFamilyDrinks, useUnlockCounts, type FamilyDrinks } from '../api/unlocks';
+import { unlessFailed, useFamilyDrinks, useUnlockCounts, type FamilyDrinks } from '../api/unlocks';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
@@ -64,7 +64,10 @@ function BuyNextCard({
   onList: () => void;
 }) {
   const barId = useBarId();
-  const { data: unlocks } = useIngredientUnlocks(barId, id);
+  // A count whose read failed is not known, the last one in hand included
+  // (unlessFailed): the card gives the ranking as its reason, as before the
+  // count answers.
+  const unlocks = unlessFailed(useIngredientUnlocks(barId, id));
   const line =
     reason ??
     (unlocks !== undefined && unlocks > 0
@@ -163,7 +166,8 @@ function RestockRow({
   disabled: boolean;
 }) {
   const barId = useBarId();
-  const { data: unlocks } = useIngredientUnlocks(barId, suggestion.id);
+  // No count whose read failed (unlessFailed), as a To buy row states none.
+  const unlocks = unlessFailed(useIngredientUnlocks(barId, suggestion.id));
   return (
     <div class="restock-row">
       <span class="restock-name">{suggestion.name}</span>
@@ -275,15 +279,21 @@ export function Tonight() {
   const recommendations = useRecommendations(barId, profile?.id);
   const shelf = useShelf(barId);
   // GET /cocktails carries no variant flags: the cards and the favourites gaps
-  // read a held child brand off the shelf (chrispezza/barback#20).
-  const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
+  // read a held child brand off the shelf (chrispezza/barback#20). Only off a
+  // shelf that answered: a refetch that failed leaves the last answer in hand
+  // (answerOf), and a brand taken off the shelf since would still be painted
+  // as held on fresh cards. Without it the cards read their own line flags,
+  // which see no child brand, under the pour section's error line
+  // (chrispezza/barback#104).
+  const shelfAnswer = answerOf(shelf);
+  const shelfIdx = shelfAnswer ? shelfIndex(shelfAnswer.data) : undefined;
   // Buy next and both groups are decided against what is owned or listed.
   // Before the shelf and the list have both been read, that set is empty and
   // no held child brand is known, so they would offer a bottle already on the
   // shelf or the list, with a live "List it" (chrispezza/barback#69). They
   // wait for both reads. A shelf read that failed, with an older answer in hand
   // or none, says so where they go instead (ADR-007 Consequences).
-  const suggestionsReady = listKnown && shelf.data !== undefined && !shelf.isError;
+  const suggestionsReady = listKnown && shelfAnswer !== undefined;
 
   // What the pour section says when nothing pours (frontend-spec §5 "Empty
   // states are directive", §6 family-aware empty states). A bare shelf is a
@@ -298,8 +308,8 @@ export function Tonight() {
   const pourEmpty = pourEmptyState(
     shelf.isError
       ? 'failed'
-      : shelf.data
-        ? (shelf.data.meta?.total ?? shelf.data.data.length)
+      : shelfAnswer
+        ? (shelfAnswer.meta?.total ?? shelfAnswer.data.length)
         : 'pending',
     canMakeTotal,
     nearMissTotal,
@@ -307,20 +317,21 @@ export function Tonight() {
   );
   // The family's own drinks are read only once its counts say nothing in it
   // pours or is one bottle away, and only against a shelf that answered.
-  const answeredShelf = shelfIdx !== undefined && !shelf.isError ? shelfIdx : undefined;
   const familyDrinks = useFamilyDrinks(
     barId,
     family?.tagId,
-    pourEmpty === 'family' && answeredShelf !== undefined,
+    pourEmpty === 'family' && shelfIdx !== undefined,
   );
   const familyBody =
     pourEmpty === 'family' && scope !== undefined
-      ? familyEmptyBody(answeredShelf ?? 'failed', familyDrinks, scope)
+      ? familyEmptyBody(shelfIdx ?? 'failed', familyDrinks, scope)
       : undefined;
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
+  // What is owned or listed, as far as the reads answer: a shelf read that
+  // failed adds nothing (chrispezza/barback#104).
   const ownedOrListed = new Set([
     ...listItems.map((item) => item.ingredient.id),
-    ...(shelf.data?.data.map((i) => i.id) ?? []),
+    ...(shelfAnswer?.data.map((i) => i.id) ?? []),
   ]);
   // Free-form add: same type-ahead the Shelf uses, writing to the list.
   const [listQuery, setListQuery] = useState('');

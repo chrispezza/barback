@@ -147,24 +147,40 @@ export function unlockFamilies(
 }
 
 /**
+ * What a read answers, if anything: its data, or nothing once it has failed.
+ * A refetch that fails leaves the query's last answer beside the error
+ * (TanStack Query keeps `data`), and what a bottle unlocks is worked out
+ * against the user's shelf as it stood then (IngredientController::extra).
+ * No stock answer is ever served stale (ADR-007 Consequences): a count whose
+ * read failed is not known, as before its first answer.
+ */
+export function unlessFailed<T>(read: { data: T | undefined; isError: boolean }): T | undefined {
+  return read.isError ? undefined : read.data;
+}
+
+/**
  * The families of what this bottle unlocks, for its To buy row (unlockFamilies):
  * its /extra read, shared with the row's count, joined with the tags of the
  * drinks it names. Until the tags of those very drinks are read, undefined:
  * never the families of the set a bottle unlocked before a check-off beside
  * the count it unlocks now. A tags read that fails stays undefined, and the
- * row states its count alone.
+ * row states its count alone; an /extra read that fails is no answer, the
+ * last one in hand included (unlessFailed), and the row names nothing.
  */
 export function useUnlockFamilies(
   barId: number | undefined,
   ingredientId: number,
 ): FamilyUnlocks[] | undefined {
-  const drinks = useQuery(unlockedDrinksOptions(barId, ingredientId));
-  const tags = useQuery(drinkTagsOptions(barId, drinks.data ?? []));
-  return unlockFamilies(drinks.data, tags.data);
+  const drinks = unlessFailed(useQuery(unlockedDrinksOptions(barId, ingredientId)));
+  const tags = unlessFailed(useQuery(drinkTagsOptions(barId, drinks ?? [])));
+  return unlockFamilies(drinks, tags);
 }
 
-/** What the order needs of one bottle's read: the count it holds, and whether it is under way. */
-export type UnlockRead = Pick<QueryObserverResult<number>, 'data' | 'fetchStatus'>;
+/**
+ * What the order needs of one bottle's read: the count it holds, whether it
+ * is under way, and whether it failed.
+ */
+export type UnlockRead = Pick<QueryObserverResult<number>, 'data' | 'fetchStatus' | 'isError'>;
 
 /**
  * The counts that have answered, for the bottles `reads` belong to (in the same
@@ -172,8 +188,9 @@ export type UnlockRead = Pick<QueryObserverResult<number>, 'data' | 'fetchStatus
  * read again alike: after a check-off refreshes every count (useCheckOff), or
  * a refetch on focus, the row still states its last count, but until the read
  * answers that count may be the one the check-off changed. A bottle whose
- * count could not be read, with none in hand, is left out too. What an absent
- * count means for the order is rankList's (data/buy-next.ts).
+ * count could not be read is left out too, with a last count in hand or none:
+ * its row states none either (unlessFailed). What an absent count means for
+ * the order is rankList's (data/buy-next.ts).
  */
 export function answeredCounts(
   ingredientIds: readonly number[],
@@ -182,7 +199,9 @@ export function answeredCounts(
   const counts = new Map<number, number>();
   ingredientIds.forEach((id, i) => {
     const read = reads[i];
-    if (read?.data !== undefined && read.fetchStatus === 'idle') counts.set(id, read.data);
+    if (read === undefined || read.fetchStatus !== 'idle') return;
+    const count = unlessFailed(read);
+    if (count !== undefined) counts.set(id, count);
   });
   return counts;
 }
