@@ -8,6 +8,15 @@ interface ActiveFamily {
   /** Bar Assistant tag id; undefined while GET /tags is in flight (and, in a
    *  dev build only, for a family not yet tagged upstream). */
   tagId: number | undefined;
+  /**
+   * True while GET /tags has neither answered nor failed (it waits on the
+   * bar, so it stays true while /bars is unanswered): the URL names this
+   * family, but whether it has a tag, and which, is not yet known. A read
+   * scoped to it waits rather than go out unscoped, so the family's name is
+   * never shown over the whole bar (ADR-002 Validation;
+   * chrispezza/barback#73).
+   */
+  pending: boolean;
 }
 
 /**
@@ -36,7 +45,7 @@ function familiesOnBar(tags: ReadonlyMap<string, number> | undefined): FamilyDef
 function resolve(suffix: string | undefined, tags: ReadonlyMap<string, number> | undefined): ActiveFamily | undefined {
   if (!suffix) return undefined;
   const def = familiesOnBar(tags).find((f) => f.tag === `family:${suffix}`);
-  return def && { def, tagId: tags?.get(def.tag) };
+  return def && { def, tagId: tags?.get(def.tag), pending: tags === undefined };
 }
 
 /**

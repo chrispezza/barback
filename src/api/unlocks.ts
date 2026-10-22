@@ -1,6 +1,7 @@
-import { queryOptions, useQueries, useQuery, type QueryObserverResult } from '@tanstack/react-query';
+import { hashKey, queryOptions, useQueries, useQuery, type QueryObserverResult } from '@tanstack/react-query';
 import { api } from './client';
 import { familyByTag, type FamilyDef } from '../data/families';
+import type { CocktailFilters } from './queries';
 import type { Cocktail, ListResponse } from './types';
 
 /**
@@ -195,4 +196,61 @@ export function useUnlockCounts(
     queries: ingredientIds.map((id) => unlocksOptions(barId, id)),
   });
   return answeredCounts(ingredientIds, reads);
+}
+
+/** The cocktail index's query string, exactly as useCocktails (queries.ts) builds it. */
+function indexQuery(filters: CocktailFilters, perPage: number, page: number): string {
+  const params = new URLSearchParams({ per_page: String(perPage) });
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined) params.set(`filter[${k}]`, String(v));
+  }
+  return `${params.toString()}&page=${page}`;
+}
+
+/**
+ * One page of the cocktail index under these filters: the Index list. It is
+ * read under the key useCocktails (queries.ts) reads a page by, and sent as
+ * it sends it, so whatever invalidates ['cocktails'] (a shelf toggle, a
+ * check-off, a favourite) reads it again.
+ *
+ * What it holds while its read is on its way differs. useCocktails keeps
+ * whatever it last answered (keepPreviousData). This keeps that only when the
+ * page alone changed: the previous page of the same list, with the same
+ * total, stands in while the next page loads. Across a change of filter (a
+ * family, the favourites) it holds nothing until the new read lands, so the
+ * list shows its heading with no count and no cards: the previous filter's
+ * drinks and total are not this one's (frontend-spec §6;
+ * chrispezza/barback#73). It is not asked for while `enabled` is false or the
+ * bar is not yet known.
+ */
+export function indexPageOptions(
+  barId: number | undefined,
+  filters: CocktailFilters,
+  perPage: number,
+  page: number,
+  enabled: boolean,
+) {
+  const list = ['cocktails', barId, filters, perPage];
+  return queryOptions({
+    queryKey: [...list, page],
+    queryFn: () =>
+      api<ListResponse<Cocktail>>(`/cocktails?${indexQuery(filters, perPage, page)}`, { barId }),
+    enabled: barId !== undefined && enabled,
+    placeholderData: (previous: ListResponse<Cocktail> | undefined, previousQuery) =>
+      previousQuery !== undefined &&
+      hashKey(previousQuery.queryKey.slice(0, list.length)) === hashKey(list)
+        ? previous
+        : undefined,
+  });
+}
+
+/** The Index list's page (indexPageOptions). */
+export function useIndexPage(
+  barId: number | undefined,
+  filters: CocktailFilters,
+  perPage: number,
+  page: number,
+  enabled: boolean,
+) {
+  return useQuery(indexPageOptions(barId, filters, perPage, page, enabled));
 }
