@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'preact-iso';
 import { Button } from '@ds/core/Button';
@@ -136,11 +136,17 @@ export function DrinkDetail({ slug }: { slug: string }) {
     // decision. The favourite stays as the screen holds it: the toggle owns it
     // (useToggleFavorite flips it at the tap, then settles it on the bar's
     // answer and reads the recipe back), and a read answered before the
-    // toggle reaches the bar would take the flip away.
+    // toggle reaches the bar would take the flip away. A read of the recipe's
+    // own query already out (the one the favourite starts once the bar has
+    // answered it) may have reached the bar before the shelf changed, and
+    // would land the lines as they stood then on top of this answer: it is
+    // cancelled first, which leaves the recipe as the cache holds it.
     const asked = ++linesAsked.current;
     const key = ['cocktail', barId, slug];
     api<ItemResponse<Cocktail>>(`/cocktails/${slug}`, { barId }).then(
-      (answer) => {
+      async (answer) => {
+        if (asked !== linesAsked.current) return;
+        await queryClient.cancelQueries({ queryKey: key, exact: true });
         if (asked !== linesAsked.current) return;
         queryClient.setQueryData<ItemResponse<Cocktail>>(key, (held) =>
           held && { ...answer, data: { ...answer.data, is_favorited: held.data.is_favorited } },
@@ -154,6 +160,8 @@ export function DrinkDetail({ slug }: { slug: string }) {
   // management handled deliberately; frontend-spec §7). A list action is held
   // while its write is out with aria-disabled, never disabled: Chromium drops
   // the focus from a button that becomes disabled, and it does not come back.
+  // The design system's Button styles only :disabled, so a held action still
+  // looks live: chrispezza/barback#158, the design system's to settle.
   // Once the list is read back the action is replaced: a line's List it by
   // the word Listed, Add missing by "Already on the list.". Neither is a
   // control, so the focus falls to <body> with the button, and it is put on
@@ -161,26 +169,32 @@ export function DrinkDetail({ slug }: { slug: string }) {
   // -1, never a Tab stop), as RouteEffects lands on a screen's heading
   // (src/app.tsx), and an announcement as that is, with no ring of its own.
   // Only focus that fell is moved: a reader who has moved on keeps their
-  // place. A refused write leaves the action where it was, still focused, and
-  // nothing to wait for (listThem). What replaced the action is looked for in
-  // the page as it stands, not in what a render knew: an effect can run after
-  // the tap that a render before it scheduled.
+  // place. The landing is made in a layout effect, in the commit that takes
+  // the action away, so the focus never rests on <body> for a frame, where a
+  // screen reader could announce the document. Once the write has settled
+  // with the action still standing (refused, or taken but not read back),
+  // nothing will replace it: the press is let go, and a list read long after
+  // pulls no focus. What replaced the action is looked for in the page as
+  // the commit left it.
   const screen = useRef<HTMLElement>(null);
   const alreadyListed = useRef<HTMLParagraphElement>(null);
   const pressed = useRef<ListAction | null>(null);
   // Another recipe opened in this one's place (a card "In the same vein")
-  // starts with nothing pressed.
-  useEffect(() => {
+  // starts with nothing pressed: let go before the landing below looks.
+  useLayoutEffect(() => {
     pressed.current = null;
   }, [slug]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const action = pressed.current;
     if (action === null) return;
     const landing =
       action === 'missing'
         ? alreadyListed.current
         : (screen.current?.querySelector<HTMLElement>(`[data-ingredient-id="${action.line}"] .listed-mark`) ?? null);
-    if (landing === null) return;
+    if (landing === null) {
+      if (!shoppingMutation.isPending) pressed.current = null;
+      return;
+    }
     pressed.current = null;
     if (document.activeElement !== null && document.activeElement !== document.body) return;
     landing.focus({ preventScroll: true, focusVisible: false });
@@ -239,18 +253,11 @@ export function DrinkDetail({ slug }: { slug: string }) {
   // Every list action is held until the list is read back after a write
   // (useShoppingMutation), so a second tap in that round trip sends nothing.
   const listWriteOut = shoppingMutation.isPending;
+  // The press is remembered until the write settles (the landing above).
   const listThem = (ingredientIds: number[], action: ListAction) => {
     if (listWriteOut) return;
     pressed.current = action;
-    shoppingMutation.mutate(
-      { ingredientIds, action: 'add' },
-      {
-        // Refused: the action stands, and keeps the focus; nothing will replace it.
-        onError: () => {
-          if (pressed.current === action) pressed.current = null;
-        },
-      },
-    );
+    shoppingMutation.mutate({ ingredientIds, action: 'add' });
   };
 
   // "In the same vein" draws on two stock answers: /similar's, whose in_shelf
