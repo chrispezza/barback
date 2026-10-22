@@ -501,13 +501,18 @@ export interface CheckOff {
 }
 
 /**
- * What a check-off reads back once it has settled, and its Undo once that has:
- * the shelf, the list, the drink sections and every count shown beside them —
- * each row's "Unlocks N" and "In N drinks", Buy next and Restock next, the
- * staples (frontend-spec §4; §6 journey 3, "refreshes all counts"). One list
- * for both, so an Undo never leaves a count where the check-off put it.
+ * What every shelf change reads back once it has settled — a check-off and its
+ * Undo, a chip, a ledger Remove and its Undo: the shelf, the list, the drink
+ * sections and every count shown beside them — each row's "Unlocks N" and
+ * "In N drinks", Buy next and Restock next, the staples (frontend-spec §4,
+ * "they must refetch after any shelf change"; §6 journey 3, "refreshes all
+ * counts"). Upstream works the unlock count out against the user's shelf, as
+ * it does the drink sections and Restock next (IngredientController::extra in
+ * the reference clone), and its shelf batch-store takes the bottle off the
+ * list (ShelfController::batchStore). One list for all of them, so no shelf
+ * change leaves a count where an earlier one put it.
  */
-const CHECK_OFF_READ_BACK = [
+const SHELF_READ_BACK = [
   'shelf',
   'shopping-list',
   'cocktails',
@@ -517,8 +522,8 @@ const CHECK_OFF_READ_BACK = [
   'staples',
 ] as const;
 
-function readBackCheckOff(queryClient: QueryClient): void {
-  for (const key of CHECK_OFF_READ_BACK) {
+function readBackShelf(queryClient: QueryClient): void {
+  for (const key of SHELF_READ_BACK) {
     void queryClient.invalidateQueries({ queryKey: [key] });
   }
 }
@@ -559,7 +564,7 @@ async function undoCheckOff(
         : 'The undo didn’t take — the bottle is still on the shelf.',
     });
   } finally {
-    readBackCheckOff(queryClient);
+    readBackShelf(queryClient);
   }
 }
 
@@ -599,7 +604,7 @@ export function checkOffOptions(
         onAction: () => void undoCheckOff(queryClient, barId, userId, vars),
       });
     },
-    onSettled: () => readBackCheckOff(queryClient),
+    onSettled: () => readBackShelf(queryClient),
   };
 }
 
@@ -750,11 +755,7 @@ export function shelfToggleOptions(
     onSettled: () => {
       // A settling toggle still counts itself; any more are still in flight.
       if (queryClient.isMutating({ mutationKey }) > 1) return;
-      void queryClient.invalidateQueries({ queryKey: ['shelf'] });
-      void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
-      void queryClient.invalidateQueries({ queryKey: ['cocktails'] });
-      void queryClient.invalidateQueries({ queryKey: ['recommend'] });
-      void queryClient.invalidateQueries({ queryKey: ['staples'] });
+      readBackShelf(queryClient);
     },
   };
 }
