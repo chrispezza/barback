@@ -51,6 +51,18 @@ async function expectErrorLine(page: Page, section: string) {
   await expect(alert.getByRole('button', { name: 'Retry' })).toBeVisible()
 }
 
+/**
+ * The rail's error line for the failure the pour section's line announces (the
+ * bootstrap): the same words and a Retry named for what it asks again, with no
+ * second alert (chrispezza/barback#71).
+ */
+async function expectQuietErrorLine(page: Page, section: string, retry: string) {
+  await expect(page.locator(section).getByRole('alert')).toHaveCount(0)
+  const line = page.locator(section).getByText('The bar didn’t answer — try again.')
+  await expect(line).toHaveCount(1)
+  await expect(line.getByRole('button', { name: retry, exact: true })).toBeVisible()
+}
+
 test.describe('a cold start with the API out of reach', () => {
   // What the API would serve, were it reached.
   test.use({ world: listing([I.campari]), locale: 'en-US', timezoneId: 'America/New_York' })
@@ -68,7 +80,7 @@ test.describe('a cold start with the API out of reach', () => {
       // The other sections have answered with their error lines, so the rail
       // has had the same chance to answer with the snapshot.
       await expectErrorLine(page, '#pour')
-      await expectErrorLine(page, '#buy')
+      await expectQuietErrorLine(page, '#buy', 'Retry the list')
       await expect(offlineLine(page)).toHaveCount(0)
       await expect(snapshotNames(page)).toHaveCount(0)
       await expect(page.getByText(/2001/)).toHaveCount(0)

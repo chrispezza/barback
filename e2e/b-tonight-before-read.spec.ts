@@ -257,23 +257,30 @@ test.describe('a shelf that cannot be read', () => {
     await recordRail(page)
     await page.goto('/tonight')
 
-    const alert = rail(page).getByRole('alert')
-    await expect(alert).toHaveCount(1)
-    await expect(alert).toContainText('The bar didn’t answer — try again.')
+    // One failure, one alert: the pour section waits on the shelf too, and
+    // its line announces the failure. The rail says so in the same words
+    // without a second alert, and names its Retry for what it asks again
+    // (chrispezza/barback#71).
+    await expect(page.getByRole('alert')).toHaveCount(1)
+    await expect(page.locator('#pour').getByRole('alert')).toContainText('The bar didn’t answer — try again.')
+    await expect(rail(page).getByRole('alert')).toHaveCount(0)
+    const errorLine = rail(page).getByText('The bar didn’t answer — try again.')
+    await expect(errorLine).toHaveCount(1)
+    await expect(errorLine.getByRole('button', { name: 'Retry the suggestions', exact: true })).toBeVisible()
     // The list was read: its count and its empty line stand, above the line.
     await expect(toBuy(page)).toHaveText('To buy · 0')
     await expect(emptyLine(page)).toBeVisible()
     const lineBox = await emptyLine(page).boundingBox()
-    const alertBox = await alert.boundingBox()
-    expect(lineBox && alertBox && alertBox.y > lineBox.y).toBe(true)
+    const errorBox = await errorLine.boundingBox()
+    expect(lineBox && errorBox && errorBox.y > lineBox.y).toBe(true)
     await expect(buyNext(page)).toHaveCount(0)
     await expect(rail(page).locator('.restock-section')).toHaveCount(0)
     await expect(rail(page).getByRole('button', { name: 'List it' })).toHaveCount(0)
     await settled(bar)
     expect(offered(await recorded(page))).toEqual([])
 
-    await alert.getByRole('button', { name: 'Retry' }).click()
-    await expect(rail(page).getByRole('alert')).toHaveCount(0)
+    await errorLine.getByRole('button', { name: 'Retry' }).click()
+    await expect(errorLine).toHaveCount(0)
     await expect(buyNext(page).locator('.buy-next-name')).toHaveText('Honey syrup')
     await expect(buyNext(page).locator('.buy-next-reason')).toHaveText('completes 1 favorite')
     await expect(group(page, 'Restock next').locator('.restock-name')).toHaveText([

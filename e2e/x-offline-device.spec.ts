@@ -125,15 +125,31 @@ async function expectErrorLine(page: Page, section: string) {
 }
 
 /**
+ * The section's error line for a failure the pour section's line announces
+ * (the bootstrap): the same words and a Retry named for what it asks again,
+ * with no second alert (chrispezza/barback#71).
+ */
+async function expectQuietErrorLine(page: Page, section: string, retry: string) {
+  await expect(page.locator(section).getByRole('alert')).toHaveCount(0)
+  const line = page.locator(section).getByText('The bar didn’t answer — try again.')
+  await expect(line).toHaveCount(1)
+  await expect(line.getByRole('button', { name: retry, exact: true })).toBeVisible()
+}
+
+/**
  * Tonight as ADR-007 Validation reads it with the API gone: "the rail shows the
  * stamped snapshot; every other section shows the error line" — and nothing
- * stated that the bar did not say.
+ * stated that the bar did not say. Opened from a warm start, each section's
+ * own read failed and each announces it; on a cold start the one failure is
+ * the bootstrap's, which the pour section announces and the near section
+ * states without a second alert (chrispezza/barback#71).
  */
-async function expectTonightOffline(page: Page, names: string[]) {
+async function expectTonightOffline(page: Page, names: string[], start: 'warm' | 'cold') {
   await expect(offlineLine(page)).toBeVisible()
   await expect(snapshotNames(page)).toHaveText(names)
   await expectErrorLine(page, '#pour')
-  await expectErrorLine(page, '#near')
+  if (start === 'warm') await expectErrorLine(page, '#near')
+  else await expectQuietErrorLine(page, '#near', 'Retry the drinks one bottle away')
   await expect(rail(page).getByRole('alert')).toHaveCount(0)
   // Nothing in the rail writes (chrispezza/barback#62).
   await expect(rail(page).locator('.shopping-row-line')).toHaveCount(0)
@@ -161,7 +177,7 @@ test.describe('Tonight with the device offline', () => {
     bar.takeApiDown()
     await goTo(page, 'Tonight', 'Tonight')
 
-    await expectTonightOffline(page, ['Campari', 'Cointreau'])
+    await expectTonightOffline(page, ['Campari', 'Cointreau'], 'warm')
     expect(bar.calls('POST')).toEqual([])
   })
 
@@ -190,7 +206,7 @@ test.describe('Tonight with the device offline', () => {
     bar.takeApiDown()
     release()
 
-    await expectTonightOffline(page, ['Campari', 'Cointreau'])
+    await expectTonightOffline(page, ['Campari', 'Cointreau'], 'cold')
     expect(bar.calls('POST')).toEqual([])
   })
 
@@ -217,7 +233,7 @@ test.describe('Tonight with the device offline', () => {
     await page.goto('/tonight')
     expect(await page.evaluate(() => navigator.onLine)).toBe(false)
 
-    await expectTonightOffline(page, ['Campari', 'Cointreau'])
+    await expectTonightOffline(page, ['Campari', 'Cointreau'], 'cold')
     expect(bar.calls('POST')).toEqual([])
   })
 })
