@@ -174,6 +174,31 @@ test.describe('Choose waits for the favourite (§1, ADR-008)', () => {
     expect(await toasts()).toEqual(['The favorite didn’t take.'])
   })
 
+  test('a favourite that takes with a refused list write says only that the list did not take', async ({
+    page,
+    bar,
+  }) => {
+    const toasts = await recordToasts(page)
+    bar.fail(/\/shopping-list\/batch-store$/, { method: 'POST', status: 500 })
+    const listed = listLoaded(page)
+    await openRoster(page)
+    await listed
+    const button = chooseButton(page, 'Margarita')
+
+    await button.click()
+    await expect(toast(page)).toHaveText('The list didn’t take that change.')
+    await expect(button).toBeEnabled()
+    // The favourite stands; no bottle went on the list, so none is claimed.
+    expect(bar.calls('POST').map((r) => r.path)).toEqual([
+      `/cocktails/${C.margarita}/toggle-favorite`,
+      '/users/1/shopping-list/batch-store',
+    ])
+    expect(bar.model.favorites.has(C.margarita)).toBe(true)
+    expect([...bar.model.list.keys()]).toEqual([])
+    await toastsDone(page)
+    expect(await toasts()).toEqual(['The list didn’t take that change.'])
+  })
+
   test('a drink with nothing to queue is called favorited only once the favourite has taken', async ({ page, bar }) => {
     const toasts = await recordToasts(page)
     const listed = listLoaded(page)
@@ -408,6 +433,34 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
     expect(stores).toHaveLength(1)
     expect(listedIds(stores[0]?.body)).toEqual([I.cointreau])
     expect(bar.model.list.get(I.tequila)).toBe(2)
+  })
+
+  test('a profile that cannot be read holds Choose and says so; Retry reads it, then the list', async ({
+    page,
+    bar,
+  }) => {
+    // The list is keyed on the profile's user, so without the profile it cannot
+    // be read. The profile read and its one retry (app.tsx: retry 1) both fail.
+    bar.fail(/^\/profile$/, { method: 'GET', status: 500, times: 2 })
+    await openRoster(page)
+    const button = chooseButton(page, 'Margarita')
+
+    await expect(page.getByRole('alert')).toHaveCount(1)
+    await expect(page.getByRole('alert')).toContainText('The bar didn’t answer — try again.')
+    await expect(button).toBeDisabled()
+    await button.click({ force: true })
+    expect(bar.calls('POST')).toEqual([])
+    expect(bar.calls('GET', /\/shopping-list$/)).toEqual([])
+
+    const listed = listLoaded(page)
+    await page.getByRole('alert').getByRole('button', { name: 'Retry' }).click()
+    await listed
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(button).toBeEnabled()
+
+    await button.click()
+    await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
+    expect(bar.calls('POST', /\/shopping-list\/batch-store$/)).toHaveLength(1)
   })
 
   test('a list that cannot be read holds Choose and says so; Retry reads it', async ({ page, bar }) => {
