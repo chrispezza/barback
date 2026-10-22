@@ -100,6 +100,13 @@ async function outage(page: Page, matches: (url: URL) => boolean) {
   }
 }
 
+/** The shelf read (useShelf): the user's bottles, GET /ingredients?filter[on_shelf]=true. */
+const isShelfRead = (url: URL) =>
+  url.pathname === '/bar/api/ingredients' && url.searchParams.get('filter[on_shelf]') === 'true'
+
+/** The sours' summary in the default world (e2e/index-family-summary.spec.ts). */
+const SOUR = 'You can pour 3 of 5 sours · 1 is one bottle away.'
+
 test.describe('the desktop rail after its reads fail (chrispezza/barback#103)', () => {
   test.skip(({ isMobile }) => isMobile, 'the nav rail exists only at 900px and wider')
 
@@ -160,6 +167,77 @@ test.describe('the Index after its reads fail (chrispezza/barback#105)', () => {
     await expect(main(page).getByText(/one bottle away\.$/)).toHaveCount(0)
     await expect(main(page).getByRole('heading', { level: 2, name: /^The index · / })).toHaveCount(0)
     await expect(cards(page)).toHaveCount(0)
+  })
+
+  // The summary is three count reads of its own beside the list's: Retry asks
+  // for every read the error line stands for, or the list comes back alone and
+  // the summary never does, with nothing to say so.
+  test('under a family, states its summary again once the bar answers and Retry asks', async ({ page }) => {
+    await page.goto('/drinks?family=sour')
+    const summary = main(page).getByText(/^You can pour \d+ of \d+ sours · /)
+    await expect(summary).toHaveText(SOUR)
+
+    await goTo(page, 'Tonight', 'Tonight')
+    const { lift } = await outage(page, () => true)
+    await goTo(page, 'Drinks', 'Drinks')
+    await expect(page).toHaveURL(/\/drinks\?family=sour$/)
+    await expectOneErrorLine(main(page))
+    await expect(summary).toHaveCount(0)
+
+    lift()
+    await main(page).getByRole('alert').getByRole('button', { name: 'Retry' }).click()
+    await expect(summary).toHaveText(SOUR)
+    await expect(cards(page)).toHaveCount(5)
+    await expect(main(page).getByRole('alert')).toHaveCount(0)
+  })
+
+  // The cards read held child brands off the shelf (chrispezza/barback#20). A
+  // shelf read that failed is dropped, and the cards fall back to their own
+  // line flags, which see no child brand: that may err toward "not held", and
+  // only under an error line that says the shelf was not read
+  // (chrispezza/barback#104, Option 1).
+  test('says so beside its cards when only the shelf could not be read again, and asks for it on Retry', async ({
+    page,
+  }) => {
+    await page.goto('/drinks')
+    const penicillin = cardOf(main(page), 'Penicillin')
+    await expect(penicillin.locator('.bb-drink__missing-line')).toHaveText('One bottle away: Honey syrup')
+
+    await goTo(page, 'Shelf', 'Shelf')
+    const { lift } = await outage(page, isShelfRead)
+    await goTo(page, 'Drinks', 'Drinks')
+
+    // The list answered; the shelf its cards are read against did not.
+    await expect(sectionHeading(page, 'The index · 15')).toBeVisible()
+    await expect(cards(page)).toHaveCount(15)
+    await expectOneErrorLine(main(page))
+
+    lift()
+    await main(page).getByRole('alert').getByRole('button', { name: 'Retry' }).click()
+    await expect(main(page).getByRole('alert')).toHaveCount(0)
+    await expect(penicillin.locator('.bb-drink__missing-line')).toHaveText('One bottle away: Honey syrup')
+  })
+
+  test('a search says so beside its hits when the shelf could not be read again', async ({ page }) => {
+    await page.goto('/drinks')
+    await expect(cards(page)).toHaveCount(15)
+
+    await goTo(page, 'Shelf', 'Shelf')
+    const { lift } = await outage(page, isShelfRead)
+    await goTo(page, 'Drinks', 'Drinks')
+    await page.getByRole('searchbox', { name: 'Find a drink' }).fill('Penicillin')
+
+    // The search and its cards answered; the shelf did not.
+    await expect(sectionHeading(page, 'Matches · 1')).toBeVisible()
+    await expect(cardOf(main(page), 'Penicillin')).toBeVisible()
+    await expectOneErrorLine(main(page))
+
+    lift()
+    await main(page).getByRole('alert').getByRole('button', { name: 'Retry' }).click()
+    await expect(main(page).getByRole('alert')).toHaveCount(0)
+    await expect(cardOf(main(page), 'Penicillin').locator('.bb-drink__missing-line')).toHaveText(
+      'One bottle away: Honey syrup',
+    )
   })
 })
 
