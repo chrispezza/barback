@@ -30,6 +30,7 @@ import { expect, test } from './support/test'
 
 const rail = (page: Page) => page.locator('#buy')
 const pour = (page: Page) => page.locator('#pour')
+const near = (page: Page) => page.locator('#near')
 const buyNext = (page: Page) => rail(page).locator('.buy-next')
 const group = (page: Page, heading: string) =>
   rail(page)
@@ -446,6 +447,25 @@ test.describe('a read of the offer’s that fails when Tonight asks again', () =
     lift()
     await alert.getByRole('button', { name: 'Retry' }).click()
     await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(group(page, 'Restock next').locator('.restock-name')).toHaveText(RESTOCK)
+  })
+
+  // A whole outage fails the drink sections' reads as well, each under its
+  // own line, and the rail shows the stamped list (ADR-007). Either section's
+  // Retry asks again for the reads the offer is decided from, as it does for
+  // the status line's (e2e/t-warm-stale.spec.ts pins the pour section's), so
+  // the rail offers again with it rather than raising a line of its own
+  // (chrispezza/barback#71).
+  test('after a whole outage, the near section’s Retry brings the offer back with its cards', async ({ page }) => {
+    const { lift } = await comeBackWith(page, () => true)
+    await expect(near(page).getByRole('alert')).toHaveCount(1)
+    await expect(offerHeadings(page)).toHaveCount(0)
+
+    lift()
+    await near(page).getByRole('alert').getByRole('button', { name: 'Retry' }).click()
+    await expect(near(page).getByRole('alert')).toHaveCount(0)
+    await expect(rail(page).getByRole('alert')).toHaveCount(0)
+    await expect(buyNext(page).locator('.buy-next-name')).toHaveText('Honey syrup')
     await expect(group(page, 'Restock next').locator('.restock-name')).toHaveText(RESTOCK)
   })
 })
