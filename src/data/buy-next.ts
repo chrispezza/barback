@@ -162,7 +162,7 @@ export function buyNextGroups(
 
 /**
  * The standing order: staples to queue now. A staple is queued when it is off
- * the shelf, not already on the list, and not queued before (`queued`: Tonight
+ * the shelf, not already on the list, and not held as queued (`queued`: Tonight
  * passes queuedThisSession with what its current mount has sent), so it is
  * written once per emptying rather than on every render or every visit.
  */
@@ -176,7 +176,8 @@ export function staplesToQueue<T extends Pick<Ingredient, 'id' | 'in_shelf'>>(
 
 // ADR-008: an out-of-stock staple is queued automatically, and it "queues
 // itself once per session" (Validation). Once per emptying, for the page
-// session: a staple is held here from the moment its write is sent until
+// session: a staple is held here from the moment its write is sent, or from
+// the moment Tonight reads it on the list while it is off the shelf, until
 // Tonight sees it back on the shelf. A staple the user drops from the list is
 // still off the shelf, so it stays held and stays dropped; one that is checked
 // off and later used up is queued again. The page session is this module's
@@ -193,6 +194,39 @@ export const queuedThisSession: ReadonlySet<number> = queuedSession;
  */
 export function rememberQueued(ids: Iterable<number>): void {
   for (const id of ids) queuedSession.add(id);
+}
+
+/**
+ * Hold the staples a list just read carries while they are off the shelf. Their
+ * standing order for this emptying is met, by whoever listed them: as a rule an
+ * earlier session, whose write this one never sent (chrispezza/barback#55).
+ * Dropped later this session, here or from another device, they stay dropped.
+ * Tonight calls it with every list it reads beside the staples read; a staple
+ * on the shelf is not held, and forgetRestocked releases a held one once it is.
+ */
+export function rememberListed(
+  staples: readonly Pick<Ingredient, 'id' | 'in_shelf'>[],
+  listedIds: ReadonlySet<number>,
+): void {
+  for (const s of staples) if (!s.in_shelf && listedIds.has(s.id)) queuedSession.add(s.id);
+}
+
+/**
+ * Hold a bottle the user drops from the list by hand, when it is a staple off
+ * the shelf or may be one. `staples` is the staples read, undefined until it
+ * lands: until then Tonight cannot tell, and the list it reads after the drop
+ * no longer carries the bottle for rememberListed to see (chrispezza/barback#55).
+ * A bottle held then that is no staple is never queued, so holding it changes
+ * nothing; a staple the read then has on the shelf is released by
+ * forgetRestocked, which Tonight calls with that read.
+ */
+export function rememberDropped(
+  id: number,
+  staples: readonly Pick<Ingredient, 'id' | 'in_shelf'>[] | undefined,
+): void {
+  if (staples === undefined || staples.some((s) => s.id === id && !s.in_shelf)) {
+    queuedSession.add(id);
+  }
 }
 
 /**
