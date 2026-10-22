@@ -34,6 +34,8 @@ import {
   forgetRestocked,
   queuedThisSession,
   rankFavoriteNeeds,
+  rememberDropped,
+  rememberListed,
   rememberQueued,
   restockSuggestions,
   staplesToQueue,
@@ -282,16 +284,28 @@ export function Tonight() {
     listedIds,
     new Set([...queuedThisSession, ...sentThisMount.current]),
   );
+  // On every staples read, one that answers unchanged included. TanStack then
+  // keeps the same data, so keyed on the data alone this would not run, and a
+  // staple dropped on the shelf while that read was under way (dropFromList)
+  // would stay held: its next emptying would not be queued.
   useEffect(() => {
     if (staples.data === undefined) return;
     forgetRestocked(staples.data);
     for (const s of staples.data) if (s.in_shelf) sentThisMount.current.delete(s.id);
-  }, [staples.data]);
+  }, [staples.data, staples.dataUpdatedAt]);
   // Queue only against a list just read (ADR-008 with ADR-007). Not while the
   // list cannot be read: the rail shows the snapshot alone. Nor while a read
   // is under way: the rows in hand may be the stale ones a failing refetch
   // leaves behind, and that failure is known only once its retry fails.
   const listRead = shoppingList.isSuccess && !shoppingList.isFetching && !listUnavailable;
+  // A staple already on that list while off the shelf has had its standing
+  // order met, as a rule by an earlier session, so it is held as queued too:
+  // dropped later this session, it stays dropped (chrispezza/barback#55).
+  const listedKey = [...listedIds].join(',');
+  useEffect(() => {
+    if (staples.data === undefined || !listRead) return;
+    rememberListed(staples.data, listedIds);
+  }, [staples.data, listRead, listedKey]);
   useEffect(() => {
     if (profile?.id === undefined || staplesOut.length === 0) return;
     if (!listRead) return; // don't queue against a stale view
@@ -307,6 +321,15 @@ export function Tonight() {
       // The promise settles after Tonight unmounts too; mutate's onError would not.
       .catch(() => forgetQueued(ids));
   }, [staplesOut.map((s) => s.id).join(','), profile?.id, listRead]);
+
+  // A bottle taken off the list by hand. A staple stays dropped, as above;
+  // dropped before the staples read lands, or while it is being read again and
+  // the staples in hand may be stale, the list read after the drop no longer
+  // carries it, so it is held as the drop is sent (rememberDropped).
+  function dropFromList(id: number) {
+    rememberDropped(id, staples.isFetching ? undefined : staples.data);
+    shoppingMutation.mutate({ ingredientIds: [id], action: 'remove' });
+  }
 
   // What the favorited drinks still need — aspiration outranks the generic
   // server ranking, so these pin above Restock next (data/buy-next.ts).
@@ -506,10 +529,9 @@ export function Tonight() {
                         state={isListed ? 'have' : 'default'}
                         disabled={shoppingMutation.isPending}
                         onToggle={() =>
-                          shoppingMutation.mutate({
-                            ingredientIds: [hit.id],
-                            action: isListed ? 'remove' : 'add',
-                          })
+                          isListed
+                            ? dropFromList(hit.id)
+                            : shoppingMutation.mutate({ ingredientIds: [hit.id], action: 'add' })
                         }
                       />
                     );
@@ -537,12 +559,7 @@ export function Tonight() {
                         }
                       }}
                       onDrop={() => {
-                        if (!shoppingMutation.isPending) {
-                          shoppingMutation.mutate({
-                            ingredientIds: [item.ingredient.id],
-                            action: 'remove',
-                          });
-                        }
+                        if (!shoppingMutation.isPending) dropFromList(item.ingredient.id);
                       }}
                     />
                   ))}

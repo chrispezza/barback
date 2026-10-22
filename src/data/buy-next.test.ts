@@ -468,3 +468,77 @@ describe('the standing-order memory', () => {
     expect(names(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
   })
 })
+
+describe('the standing-order memory, for a staple listed before the session (chrispezza/barback#55)', () => {
+  // The usual state after an earlier session's auto-queue: Tonic off the shelf
+  // and on the list. This session never sent its write, so the memory holds it
+  // only once Tonight reads it there (rememberListed) or the user drops it by
+  // hand (rememberDropped). Either way the next emptying is still queued.
+  const tonicOut = (listed: number[] = []) =>
+    world((w) => {
+      w.shelf = without(w.shelf, I.tonic)
+      w.list = listed
+    })
+  async function newSession() {
+    vi.resetModules()
+    return import('./buy-next')
+  }
+
+  it('holds a staple read on the list off the shelf: dropped, it is not queued', async () => {
+    const s = await newSession()
+    const listed = inputs(tonicOut([I.tonic]))
+    const dropped = inputs(tonicOut())
+    // Unheld, the drop alone would queue it straight back.
+    expect(names(s.staplesToQueue(dropped.staples, dropped.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
+    s.rememberListed(listed.staples, listed.listedIds)
+    expect([...s.queuedThisSession]).toEqual([I.tonic])
+    expect(s.staplesToQueue(dropped.staples, dropped.listedIds, s.queuedThisSession)).toEqual([])
+  })
+
+  it('holds only listed staples that are off the shelf', async () => {
+    const s = await newSession()
+    // Tonic off the shelf and not listed; Club soda listed and on the shelf;
+    // Campari listed and off the shelf, but no staple.
+    const t = inputs(tonicOut([I.clubSoda, I.campari]))
+    s.rememberListed(t.staples, t.listedIds)
+    expect(s.queuedThisSession.size).toBe(0)
+  })
+
+  it('releases a listed staple read back on the shelf, so its next emptying is queued', async () => {
+    const s = await newSession()
+    const listed = inputs(tonicOut([I.tonic]))
+    s.rememberListed(listed.staples, listed.listedIds)
+    // Checked off: the staples read has Tonic on the shelf again.
+    s.forgetRestocked(inputs(defaultWorld()).staples)
+    // Used up again: off the shelf and off the list.
+    const out = inputs(tonicOut())
+    expect(names(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
+  })
+
+  it('holds a staple dropped by hand off the shelf', async () => {
+    const s = await newSession()
+    const out = inputs(tonicOut())
+    s.rememberDropped(I.tonic, out.staples)
+    expect(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession)).toEqual([])
+  })
+
+  it('does not hold a dropped staple the staples read has on the shelf, nor a dropped bottle that is no staple', async () => {
+    const s = await newSession()
+    const stocked = inputs(defaultWorld())
+    s.rememberDropped(I.tonic, stocked.staples)
+    s.rememberDropped(I.campari, stocked.staples)
+    expect(s.queuedThisSession.size).toBe(0)
+  })
+
+  it('holds a bottle dropped before the staples read lands, until that read has it on the shelf', async () => {
+    const s = await newSession()
+    const out = inputs(tonicOut())
+    s.rememberDropped(I.tonic, undefined)
+    // The read lands with Tonic still off the shelf: it stays dropped.
+    s.forgetRestocked(out.staples)
+    expect(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession)).toEqual([])
+    // The read has it on the shelf: released, so its next emptying is queued.
+    s.forgetRestocked(inputs(defaultWorld()).staples)
+    expect(names(s.staplesToQueue(out.staples, out.listedIds, s.queuedThisSession))).toEqual(['Tonic'])
+  })
+})
