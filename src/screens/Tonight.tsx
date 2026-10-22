@@ -381,7 +381,10 @@ export function Tonight() {
                       .slice(0, 3)
                       .map((s) => s.name)
                       .join(', ')} — they open the most drinks.`
-                  : 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
+                  : pourEmpty === 'bare'
+                    ? 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
+                    : // A stocked shelf may hold all three already: say only what the counts do.
+                      'Nothing is one bottle away either — add to the shelf and the first drinks open up.'
               }
               action={
                 <>

@@ -127,6 +127,17 @@ test.describe('a stocked shelf from which nothing pours and nothing is one bottl
     // Still directive: the way to the shelf is offered.
     await expect(pour(page).getByRole('button', { name: 'Stock the shelf' })).toBeVisible()
   })
+
+  test('with no restock ranking to name, does not presume the shelf is empty', async ({ page, bar }) => {
+    // The ranking fails (first try and its one retry), so no bottle can be named.
+    bar.fail(/^\/users\/1\/ingredients\/recommend$/, { method: 'GET', status: 500, times: 2 })
+    await page.goto('/tonight')
+    await expect(emptyTitle(page)).toHaveText('Nothing pours yet')
+    await expect(pour(page).locator('.bb-empty__body')).toHaveText(
+      'Nothing is one bottle away either — add to the shelf and the first drinks open up.',
+    )
+    await expect(page.getByText('Add a spirit, a citrus and a sweetener')).toHaveCount(0)
+  })
 })
 
 test.describe('a stocked shelf from which nothing pours but some drinks are one bottle away', () => {
@@ -223,4 +234,13 @@ test.describe('a bare shelf', () => {
       await expect(pour(page).locator('.bb-empty')).toHaveCount(1)
     })
   }
+
+  test('with no restock ranking to name, names the first bottles to add', async ({ page, bar }) => {
+    bar.fail(/^\/users\/1\/ingredients\/recommend$/, { method: 'GET', status: 500, times: 2 })
+    await page.goto('/tonight')
+    await expect(emptyTitle(page)).toHaveText('The shelf is bare')
+    await expect(pour(page).locator('.bb-empty__body')).toHaveText(
+      'Add a spirit, a citrus and a sweetener and the first drinks open up.',
+    )
+  })
 })
