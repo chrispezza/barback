@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MutationObserver, QueryClient, QueryObserver, onlineManager } from '@tanstack/react-query'
-import { api, isApiError, queryDefaults } from './client'
+import { api, isApiError, login, queryDefaults } from './client'
 
 // api() errors carry what the bar answered (status, upstream `message`) so a
 // screen can say why, while the Error message callers already see is unchanged.
@@ -103,6 +103,91 @@ describe('api() errors', () => {
     expect(isApiError(new Error('API 500 on /x'))).toBe(false)
     expect(isApiError(Object.assign(new Error('x'), { name: 'ApiError' }))).toBe(false)
     expect(isApiError({ name: 'ApiError', status: 500 })).toBe(false)
+  })
+})
+
+// A call goes out on the token held when it was sent, and the bar can answer
+// it after the user has logged in again: the bootstrap's /profile and /bars on
+// a stale token, one refused at once and one slow. Upstream's Sanctum guard
+// judges each call by the token it carried (the 401 in
+// e2e/support/fake-bar.ts), so that late refusal is about the old token, not
+// the one the fresh login stored. The journey is e2e/x-stale-token-401.spec.ts.
+describe('a 401 answered after a fresh login, on the token it replaced', () => {
+  let client: QueryClient | undefined
+
+  afterEach(() => {
+    client?.unmount()
+    client?.clear()
+    client = undefined
+  })
+
+  /**
+   * A bar that honours one token. Its first answer to anything but the login
+   * waits until the test lets it go; the login issues the honoured token.
+   * Every call is kept as "path Authorization".
+   */
+  function slowFirstAnswer(honoured: string) {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const sent: string[] = []
+    const json = { 'Content-Type': 'application/json' }
+    const fetch = vi.fn(async (input: string, init?: RequestInit) => {
+      const path = new URL(input, 'http://localhost').pathname.replace(/^\/api/, '')
+      const auth = new Headers(init?.headers).get('Authorization')
+      sent.push(`${path} ${auth ?? 'none'}`)
+      if (path === '/auth/login') {
+        return new Response(JSON.stringify({ data: { token: honoured } }), { status: 200, headers: json })
+      }
+      if (sent.filter((s) => !s.startsWith('/auth/login ')).length === 1) await held
+      return auth === `Bearer ${honoured}`
+        ? new Response(JSON.stringify({ data: [] }), { status: 200, headers: json })
+        : new Response(JSON.stringify({ message: 'Unauthenticated.' }), { status: 401, headers: json })
+    })
+    vi.stubGlobal('fetch', fetch)
+    return { sent, release: () => release() }
+  }
+
+  it('leave the new token stored and the user where they are', async () => {
+    window.localStorage.setItem('barback.token', 'old')
+    window.history.replaceState(null, '', '/tonight')
+    const before = window.history.length
+    const bar = slowFirstAnswer('new')
+
+    const call = rejection(api('/bars'))
+    await vi.waitFor(() => expect(bar.sent).toEqual(['/bars Bearer old']))
+    await login('owner@example.com', 'secret')
+    expect(window.localStorage.getItem('barback.token')).toBe('new')
+    bar.release()
+
+    // The caller still hears the refusal; the session it ended is already gone.
+    const e = await call
+    expect(isApiError(e) && e.status).toBe(401)
+    expect(window.localStorage.getItem('barback.token')).toBe('new')
+    expect(window.location.pathname + window.location.search).toBe('/tonight')
+    expect(window.history.length).toBe(before)
+  })
+
+  it('let the app’s read ask again on the new token and settle', async () => {
+    window.localStorage.setItem('barback.token', 'old')
+    window.history.replaceState(null, '', '/tonight')
+    const bar = slowFirstAnswer('new')
+    client = new QueryClient({ defaultOptions: queryDefaults })
+    client.mount()
+    const observer = new QueryObserver(client, { queryKey: ['bars'], queryFn: () => api('/bars') })
+    const unsubscribe = observer.subscribe(() => {})
+
+    await vi.waitFor(() => expect(bar.sent).toEqual(['/bars Bearer old']))
+    await login('owner@example.com', 'secret')
+    bar.release()
+
+    // The app's one retry goes out on whatever token is held by then.
+    await vi.waitFor(() => expect(observer.getCurrentResult().status).toBe('success'), { timeout: 3000 })
+    expect(bar.sent.at(-1)).toBe('/bars Bearer new')
+    expect(window.localStorage.getItem('barback.token')).toBe('new')
+    expect(window.location.pathname + window.location.search).toBe('/tonight')
+    unsubscribe()
   })
 })
 
