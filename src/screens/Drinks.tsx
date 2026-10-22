@@ -8,11 +8,26 @@ import { EmptyState } from '@ds/feedback/EmptyState';
 import { SearchField } from '@ds/forms/SearchField';
 import { useBarId, useCocktails, useShelf } from '../api/queries';
 import { useCocktailSearch } from '../api/search';
-import { shelfIndex, type Cocktail } from '../api/types';
+import { shelfIndex, type Cocktail, type ListResponse } from '../api/types';
 import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { cardIngredients, matchState } from '../data/match';
 import { useDebounced } from '../hooks';
+
+/**
+ * The total of a count-only read, or undefined while it is unread or still
+ * shows the previous family's answer (placeholderData across a family switch):
+ * the header never states another family's counts under this one's name.
+ */
+function countOf(read: { data?: ListResponse<Cocktail>; isPlaceholderData: boolean }): number | undefined {
+  return read.isPlaceholderData ? undefined : read.data?.meta?.total;
+}
+
+/** "of 23 sours", "of 1 sour": families.ts names the plural, and one drink
+ *  drops its final "s" ("tiki drinks", "tiki drink"). */
+function familyNoun(plural: string, count: number): string {
+  return count === 1 ? plural.replace(/s$/, '') : plural;
+}
 
 export function Drinks() {
   const barId = useBarId();
@@ -60,8 +75,12 @@ export function Drinks() {
     route(buildUrl(next, showFavorites));
   }
 
-  // Family stock summary (frontend-spec §6): two count-only queries.
+  // Family stock summary (frontend-spec §6): "You can pour 8 of 23 sours · 6
+  // are one bottle away", every count the pagination total of a tag_id-filtered
+  // read. The total is a count-only read of its own: the list below carries
+  // the favourites filter, and the family's total does not.
   const hasFamilyTag = family?.tagId !== undefined;
+  const familyTotal = useCocktails(barId, { tag_id: family?.tagId }, 1, hasFamilyTag);
   const familyCanMake = useCocktails(
     barId,
     { on_shelf: true, tag_id: family?.tagId },
@@ -74,15 +93,17 @@ export function Drinks() {
     1,
     hasFamilyTag,
   );
+  const total = countOf(familyTotal);
+  const canMake = countOf(familyCanMake);
+  const nearMiss = countOf(familyNearMiss);
   const summary =
-    family?.tagId !== undefined &&
-    cocktails.data?.meta &&
-    familyCanMake.data?.meta &&
-    familyNearMiss.data?.meta
-      ? `You can pour ${familyCanMake.data.meta.total} of ${cocktails.data.meta.total} · ${
-          familyNearMiss.data.meta.total === 1
-            ? '1 is one bottle away.'
-            : `${familyNearMiss.data.meta.total} are one bottle away.`
+    family !== undefined &&
+    hasFamilyTag &&
+    total !== undefined &&
+    canMake !== undefined &&
+    nearMiss !== undefined
+      ? `You can pour ${canMake} of ${total} ${familyNoun(family.def.plural, total)} · ${
+          nearMiss === 1 ? '1 is one bottle away.' : `${nearMiss} are one bottle away.`
         }`
       : null;
 
