@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { LocationProvider, Router, Route, useLocation } from 'preact-iso';
-import type { ComponentChildren } from 'preact';
+import type { ComponentChildren, ComponentType } from 'preact';
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { Button } from '@ds/core/Button';
 import { clearToken, isAuthenticated } from './auth';
@@ -87,6 +87,10 @@ function RouteEffects() {
   const { path } = useLocation();
   const previous = useRef<string | null>(null);
   useLayoutEffect(() => {
+    // A path no screen answers is left at once (Landing). It shows nothing to
+    // name or to focus, and it is not where the reader was: landing on Tonight
+    // from it is still the page load, or still the route change that reached it.
+    if (!isScreen(path)) return;
     const isChange = previous.current !== null && previous.current !== path;
     previous.current = path;
     const title = TITLES[path];
@@ -244,17 +248,74 @@ function DrinkDetailRoute({ slug }: { slug?: string }) {
   );
 }
 
+/** A screen behind the door: the shell around it once signed in. */
+function behindDoor(Screen: ComponentType): ComponentType {
+  return () => (
+    <Authed>
+      <Screen />
+    </Authed>
+  );
+}
+
+/**
+ * The route table (frontend-spec §1): each screen by the path it answers. No
+ * other path is a screen, "/" included (Landing).
+ */
+const SCREENS: readonly { path: string; component: ComponentType<{ slug?: string }> }[] = [
+  { path: '/login', component: Login },
+  { path: '/tonight', component: behindDoor(Tonight) },
+  { path: '/shelf', component: behindDoor(Shelf) },
+  { path: '/drinks', component: behindDoor(Drinks) },
+  { path: '/first-pours', component: behindDoor(FirstPours) },
+  { path: '/drinks/:slug', component: DrinkDetailRoute },
+];
+
+/**
+ * Whether a screen answers this path. preact-iso keeps its matcher internal,
+ * so this reads the patterns in SCREENS as the Router reads them: segment by
+ * segment, a `:name` segment taking any one segment, nothing left over.
+ */
+export function isScreen(path: string): boolean {
+  const segments = path.split('/').filter(Boolean);
+  return SCREENS.some((screen) => {
+    const pattern = screen.path.split('/').filter(Boolean);
+    return (
+      pattern.length === segments.length &&
+      pattern.every((part, i) => part.startsWith(':') || part === segments[i])
+    );
+  });
+}
+
+/** Where the app opens, and where a path no screen answers goes. */
+const HOME = '/tonight';
+
+/**
+ * "/", the installed app's start_url (public/manifest.webmanifest; ADR-007),
+ * and any path no screen answers land on Tonight's own route, so the nav marks
+ * Tonight as the current tab and the tab names it (ADR-003 Consequences;
+ * frontend-spec §7). Rendering Tonight in place left it with neither. A
+ * replace navigation: the address the app opened at leaves no history entry
+ * for Back to spend. The query comes along, so "/?family=sour" is still a
+ * sour Tonight.
+ */
+function Landing() {
+  const { url, route } = useLocation();
+  useLayoutEffect(() => {
+    const query = url.indexOf('?');
+    route(query === -1 ? HOME : `${HOME}${url.slice(query)}`, true);
+  }, [url, route]);
+  return null;
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <LocationProvider>
         <Router>
-          <Route path="/login" component={Login} />
-          <Route path="/shelf" component={() => <Authed><Shelf /></Authed>} />
-          <Route path="/drinks" component={() => <Authed><Drinks /></Authed>} />
-          <Route path="/first-pours" component={() => <Authed><FirstPours /></Authed>} />
-          <Route path="/drinks/:slug" component={DrinkDetailRoute} />
-          <Route default component={() => <Authed><Tonight /></Authed>} />
+          {SCREENS.map((screen) => (
+            <Route key={screen.path} path={screen.path} component={screen.component} />
+          ))}
+          <Route default component={Landing} />
         </Router>
         <RouteEffects />
         <ToastHost />
