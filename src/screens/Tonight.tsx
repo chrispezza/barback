@@ -82,6 +82,28 @@ function BuyNextCard({
   );
 }
 
+/** The shelf read as the pour section's empty states use it: its total once read. */
+type ShelfRead = number | 'pending' | 'failed';
+
+/**
+ * Which empty state the pour section shows, if any. Only bare needs the
+ * shelf, and is decided by it alone. The others say only what the two counts
+ * support, which holds whether or not the shelf is bare, so a failed shelf
+ * read does not hold them back. While the shelf is on its way they wait, so a
+ * bare shelf never shows another state first.
+ */
+function pourEmptyState(
+  shelf: ShelfRead,
+  canMakeTotal: number | undefined,
+  nearMissTotal: number | undefined,
+  familyActive: boolean,
+): 'bare' | 'near' | 'family' | 'bar' | undefined {
+  if (shelf === 0) return 'bare';
+  if (shelf === 'pending' || canMakeTotal !== 0 || nearMissTotal === undefined) return undefined;
+  if (nearMissTotal > 0) return 'near';
+  return familyActive ? 'family' : 'bar';
+}
+
 /** One restock suggestion: live "unlocks N" (same voice as the shopping list). */
 function RestockRow({
   suggestion,
@@ -130,16 +152,15 @@ export function Tonight() {
   const bars = useBars();
   const barsFailed = barId === undefined && bars.isError;
   const profileFailed = profile?.id === undefined && profileQuery.isError;
-  /** Ask again for what failed: the bootstrap a section waits on, and its own read. */
-  function retry(own: { isError: boolean; refetch: () => Promise<unknown> }) {
+  /** Ask again for what failed: the bootstrap a section waits on, and its own reads. */
+  function retry(...own: { isError: boolean; refetch: () => Promise<unknown> }[]) {
     if (barsFailed) void bars.refetch();
     if (profileFailed) void profileQuery.refetch();
-    if (own.isError) void own.refetch();
+    for (const read of own) if (read.isError) void read.refetch();
   }
 
   const canMakeTotal = canMake.data?.meta?.total;
   const pourCards = canMake.data?.data ?? [];
-  const shelfIsBare = canMakeTotal === 0 && nearMiss.data?.meta?.total === 0;
 
   const listItems = shoppingList.data?.data ?? [];
   // A list Tonight cannot read, whichever read failed, is shown as the stamped
@@ -172,6 +193,26 @@ export function Tonight() {
   // GET /cocktails carries no variant flags: the cards and the favourites gaps
   // read a held child brand off the shelf (chrispezza/barback#20).
   const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
+
+  // What the pour section says when nothing pours (frontend-spec §5 "Empty
+  // states are directive", §6 family-aware empty states). A bare shelf is a
+  // fact about the shelf, never about the counts under a family: the family
+  // only refines Tonight's stock axis (§6), so a stocked shelf with nothing in
+  // the family within reach is pointed at the family, not told to stock up.
+  // A shelf read that failed says nothing about bareness, even with an older
+  // answer in hand; the section says the read failed instead.
+  // A count still on screen from the previous family (placeholderData, while
+  // the new family's read is under way) says nothing about this one.
+  const pourEmpty = pourEmptyState(
+    shelf.isError
+      ? 'failed'
+      : shelf.data
+        ? (shelf.data.meta?.total ?? shelf.data.data.length)
+        : 'pending',
+    canMake.isPlaceholderData ? undefined : canMakeTotal,
+    nearMiss.isPlaceholderData ? undefined : nearMiss.data?.meta?.total,
+    scope !== undefined,
+  );
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const ownedOrListed = new Set([
     ...listItems.map((item) => item.ingredient.id),
@@ -283,8 +324,12 @@ export function Tonight() {
       <div class="tonight-grid">
         <section class="tonight-pour" id="pour" tabIndex={-1}>
           <MatchHeader label={scope ? `${scope} you can pour` : 'You can pour'} count={canMakeTotal} />
-          {(canMake.isError || barsFailed) && <ErrorLine onRetry={() => retry(canMake)} />}
-          {canMakeTotal === 0 && !shelfIsBare && (
+          {/* The shelf is this section's too: it decides a bare shelf, and the
+              cards read held child brands off it. One line for whatever failed. */}
+          {(canMake.isError || shelf.isError || barsFailed) && (
+            <ErrorLine onRetry={() => retry(canMake, shelf)} />
+          )}
+          {pourEmpty === 'near' && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
           )}
           <ul class={showAllPour ? 'card-list' : 'card-list card-list--capped'}>
@@ -307,16 +352,39 @@ export function Tonight() {
               </Button>
             </p>
           )}
-          {shelfIsBare && (
+          {pourEmpty === 'family' && family !== undefined && scope !== undefined && (
             <EmptyState
-              title="The shelf is bare"
+              title={`No ${scope} pour yet`}
+              body="None is one bottle away either — browse them to see what they call for."
+              action={
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => route(`/drinks?family=${family.def.tag.replace('family:', '')}`)}
+                  >
+                    {`Browse ${scope}`}
+                  </Button>{' '}
+                  <Button variant="ghost" size="sm" onClick={() => route('/tonight')}>
+                    Show all families
+                  </Button>
+                </>
+              }
+            />
+          )}
+          {(pourEmpty === 'bare' || pourEmpty === 'bar') && (
+            <EmptyState
+              title={pourEmpty === 'bare' ? 'The shelf is bare' : 'Nothing pours yet'}
               body={
                 suggestions.length > 0
                   ? `Start with ${suggestions
                       .slice(0, 3)
                       .map((s) => s.name)
                       .join(', ')} — they open the most drinks.`
-                  : 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
+                  : pourEmpty === 'bare'
+                    ? 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
+                    : // A stocked shelf may hold all three already: say only what the counts do.
+                      'Nothing is one bottle away either — add to the shelf and the first drinks open up.'
               }
               action={
                 <>
