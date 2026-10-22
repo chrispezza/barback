@@ -212,11 +212,15 @@ export function Tonight() {
   const bars = useBars();
   const barsFailed = barId === undefined && bars.isError;
   const profileFailed = profile?.id === undefined && profileQuery.isError;
-  /** Ask again for what failed: the bootstrap a section waits on, and its own reads. */
+  /**
+   * Ask again for what failed: the bootstrap a section waits on, and its own
+   * reads. A read two of them share (the shelf is the pour section's and the
+   * offer's) is asked for once: a second refetch would cancel the first.
+   */
   function retry(...own: { isError: boolean; refetch: () => Promise<unknown> }[]) {
     if (barsFailed) void bars.refetch();
     if (profileFailed) void profileQuery.refetch();
-    for (const read of own) if (read.isError) void read.refetch();
+    for (const read of new Set(own)) if (read.isError) void read.refetch();
   }
 
   // Each section draws only on what its read answers (answerOf): after a
@@ -467,7 +471,10 @@ export function Tonight() {
   // The reads the offer is decided from, beyond the list: one error line for
   // whichever failed, not one per read (chrispezza/barback#71). A staples
   // read that failed, first or again, also leaves the standing orders unrun
-  // until it answers (freshStaples).
+  // until it answers (freshStaples). The two sections' Retry ask for them
+  // again too, as for the status line's reads: after an outage that failed
+  // them all, the rail offers again with the section rather than raising a
+  // line of its own once the list is back.
   const offerReads = [shelf, favorites, recommendations, staples];
   const offerFailed = offerReads.some((read) => read.isError);
 
@@ -501,7 +508,7 @@ export function Tonight() {
           {/* The shelf is this section's too: it decides a bare shelf, and the
               cards read held child brands off it. One line for whatever failed. */}
           {(canMake.isError || shelf.isError || barsFailed) && (
-            <ErrorLine onRetry={() => retry(canMake, shelf, ...statusReads)} />
+            <ErrorLine onRetry={() => retry(canMake, shelf, ...statusReads, ...offerReads)} />
           )}
           {pourEmpty === 'near' && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
@@ -587,7 +594,7 @@ export function Tonight() {
             tone="gap"
           />
           {(nearMiss.isError || barsFailed) && (
-            <ErrorLine onRetry={() => retry(nearMiss, ...statusReads)} />
+            <ErrorLine onRetry={() => retry(nearMiss, ...statusReads, ...offerReads)} />
           )}
           {/* A near miss converts directly to the list (frontend-spec §6
               Journey 1): beside each card, outside its link, as the classics
