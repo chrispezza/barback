@@ -476,8 +476,13 @@ test.describe('a shelf change made with the recipe open reads its lines back (AD
     })
 
     // What a recipe whose read-back failed should say is chrispezza/barback#127's
-    // decision. Until it is made, the read-back does not decide it: the recipe
-    // stands as it was read, and no error line takes its place.
+    // decision, and both of its options say it in the error voice (ADR-007
+    // Consequences): an error line above the measures, or the whole-screen
+    // error. Until it is made, the read-back does not make it: the recipe
+    // stands as it was read, and no error line is added. The no-alert check
+    // below pins that temporary silence, not an answer to #127. Lines the bar
+    // could not read again are stale, and the PR that decides #127 replaces
+    // this check with what it decides.
     test('a read-back that fails leaves the recipe standing', async ({ page, bar }) => {
       await checkOffThenNegroni(page, bar)
       const reads = recipeReads(bar, 'negroni-1')
@@ -488,6 +493,7 @@ test.describe('a shelf change made with the recipe open reads its lines back (AD
       await expect.poll(() => recipeReads(bar, 'negroni-1')).toBeGreaterThan(reads)
 
       await expect(h1(page, 'Negroni')).toBeVisible()
+      // Temporary: #127's decision replaces this (see above).
       await expect(main(page).getByRole('alert')).toHaveCount(0)
       await expect(line(page, 'Campari')).toBeVisible()
       await expect(favorite(page)).toBeVisible()
