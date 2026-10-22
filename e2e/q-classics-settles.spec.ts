@@ -172,6 +172,86 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     expect(bar.model.favorites.has(C.daiquiri)).toBe(false)
     roster.release()
   })
+
+  // The flip is the tap's own way. The bar toggles what it holds and answers
+  // which way it went (CocktailController::toggleFavorite,
+  // CocktailController.php 221-228 at v5.15.3), so a drink favourited or taken
+  // off elsewhere since the roster was read goes the other way from the tap.
+  // The answer replaces the flip before the roster read-back lands.
+
+  test('a drink favourited elsewhere reads Choose once the bar answers that it is off, before the roster is read back', async ({
+    page,
+    bar,
+  }) => {
+    await openRoster(page)
+    const button = chooseButton(page, 'Negroni')
+    await expect(button).toHaveAttribute('aria-pressed', 'false')
+    // Favourited elsewhere (the Recipe screen, another device) after the roster was read.
+    bar.model.favorites.add(C.negroni)
+    const roster = await hold(page, isRosterRead)
+
+    await button.click()
+    await expect(toast(page)).toHaveText('Negroni — removed from favorites.')
+    await roster.arrived
+    await expect(button).toBeEnabled()
+    await expect(button).toHaveText('Choose', { timeout: 1000 })
+    await expect(button).toHaveAttribute('aria-pressed', 'false')
+    expect(bar.model.favorites.has(C.negroni)).toBe(false)
+    expect(bar.calls('POST', /\/shopping-list\//)).toEqual([])
+    roster.release()
+  })
+
+  test('a drink taken off elsewhere reads Chosen once the bar answers that it is on, before the roster is read back', async ({
+    page,
+    bar,
+  }) => {
+    bar.model.favorites.add(C.margarita)
+    await openRoster(page)
+    const button = chooseButton(page, 'Margarita')
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+    // Taken off elsewhere after the roster was read.
+    bar.model.favorites.delete(C.margarita)
+    const roster = await hold(page, isRosterRead)
+
+    await button.click()
+    await expect(toast(page)).toHaveText('Margarita — favorited.')
+    await roster.arrived
+    await expect(button).toBeEnabled()
+    await expect(button).toHaveText('✓ Chosen', { timeout: 1000 })
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+    expect(bar.model.favorites.has(C.margarita)).toBe(true)
+    expect(bar.calls('POST', /\/shopping-list\//)).toEqual([])
+    roster.release()
+  })
+
+  test('a second tap before the roster is read back un-chooses, and queues nothing more', async ({ page, bar }) => {
+    await openRoster(page)
+    const button = chooseButton(page, 'Margarita')
+    // Hold every roster read from here on: the read-back after each favourite.
+    const roster = await hold(page, isRosterRead)
+
+    await button.click()
+    await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
+    await roster.arrived
+    await expect(button).toBeEnabled()
+    await expect(button).toHaveText('✓ Chosen', { timeout: 1000 })
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+
+    // The button says Chosen, so a second tap means to take it off.
+    await button.click()
+    // Toasts queue: the un-choose follows the receipt.
+    await expect(toast(page)).toHaveText('Margarita — removed from favorites. Its bottles stay on the list.', {
+      timeout: 10_000,
+    })
+    await expect(button).toBeEnabled()
+    await expect(button).toHaveText('Choose', { timeout: 1000 })
+    await expect(button).toHaveAttribute('aria-pressed', 'false')
+    expect(bar.calls('POST', TOGGLE)).toHaveLength(2)
+    expect(bar.calls('POST', /\/shopping-list\/batch-store$/)).toHaveLength(1)
+    expect(bar.model.favorites.has(C.margarita)).toBe(false)
+    expect([...bar.model.list.keys()].sort((a, b) => a - b)).toEqual([I.tequila, I.cointreau].sort((a, b) => a - b))
+    roster.release()
+  })
 })
 
 test.describe('the un-choose receipt counts its listed bottles flatly (Content fundamentals)', () => {
