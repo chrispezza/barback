@@ -52,9 +52,13 @@ export function Drinks() {
   const [searchQuery, setSearchQuery] = useState('');
   const hasQuery = searchQuery.trim().length >= 1;
   const searchHits = useCocktailSearch(useDebounced(searchQuery, 200));
-  // A failed search states nothing it once read (ADR-007): no count, and no
-  // card left over from an answer it no longer has.
-  const answer = searchHits.isError ? undefined : searchHits.data;
+  // A search with no answer says so and states nothing it once read
+  // (ADR-007): no count, and no card left over from an earlier answer. It
+  // failed, or the device is offline and the read waits paused for the
+  // network (chrispezza/barback#107); a paused read goes out again by itself
+  // on reconnect.
+  const searchUnanswered = searchHits.isError || searchHits.isPaused;
+  const answer = searchUnanswered ? undefined : searchHits.data;
   const hitIds = answer?.hits.map((h) => h.id) ?? [];
   const hitCocktails = useCocktails(
     barId,
@@ -64,8 +68,10 @@ export function Drinks() {
   );
   const hitRank = new Map(hitIds.map((id, i) => [id, i]));
   // The by-id read keeps its previous answer across a key change; only the
-  // cards this answer ranked are listed.
-  const hits = hitCocktails.isError
+  // cards this answer ranked are listed, and none while that read has failed
+  // or waits offline: their stock marks would be cached answers (ADR-007).
+  const hitsUnanswered = hitCocktails.isError || hitCocktails.isPaused;
+  const hits = hitsUnanswered
     ? []
     : (hitCocktails.data?.data ?? [])
         .filter((c) => hitRank.has(c.id))
@@ -171,7 +177,7 @@ export function Drinks() {
           {/* Search answers from Meilisearch or, failing that, the REST name
               filter (ADR-004); the hits then come back as full cards. One line
               for whichever failed. */}
-          {(searchHits.isError || hitCocktails.isError || barsFailed) && (
+          {(searchUnanswered || hitsUnanswered || barsFailed) && (
             <ErrorLine onRetry={() => retry(searchHits, hitCocktails)} />
           )}
           {answer?.total === 0 && <p class="recipe-aside">Nothing by that name.</p>}
