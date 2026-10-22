@@ -446,7 +446,7 @@ test.describe('quiet loading and error voices (§9, ADR-007)', () => {
     await expect(main(page).getByText('Fetching the recipe…')).toBeVisible()
     await expect(main(page)).toHaveAttribute('aria-busy', 'true')
     await expect(back(page)).toBeVisible()
-    await expect(main(page).getByText('Not found.')).toHaveCount(0)
+    await expect(main(page).getByText('No drink by that name — the index has the rest.')).toHaveCount(0)
 
     await expect(page.getByRole('heading', { level: 1, name: 'Daiquiri' })).toBeVisible({ timeout: 10_000 })
     await expect(main(page)).not.toHaveAttribute('aria-busy', 'true')

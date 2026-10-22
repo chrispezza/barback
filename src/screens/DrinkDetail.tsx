@@ -4,9 +4,12 @@ import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
+import { EmptyState } from '@ds/feedback/EmptyState';
 import { ShelfRow } from '@ds/inventory/ShelfRow';
 import {
+  isCocktailNotFound,
   useBarId,
+  useBars,
   useCocktail,
   useProfile,
   useShelf,
@@ -31,9 +34,11 @@ function measure(entry: CocktailIngredientEntry): string {
 }
 
 export function DrinkDetail({ slug }: { slug: string }) {
+  const bars = useBars();
   const barId = useBarId();
   const { route } = useLocation();
-  const { data: cocktail, isLoading, isError, refetch } = useCocktail(barId, slug);
+  const recipe = useCocktail(barId, slug);
+  const cocktail = recipe.data;
   const { data: profile } = useProfile();
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
@@ -61,27 +66,42 @@ export function DrinkDetail({ slug }: { slug: string }) {
     </p>
   );
 
-  if (isLoading) {
+  // Before there is a recipe, one of three things is true (ADR-007; frontend-spec
+  // §9 "quiet loading/error voices"; chrispezza/barback#68). The recipe read
+  // waits on /bars for the bar id and stays disabled until then, so a disabled
+  // read is never "missing": a bootstrap that failed is the error voice, and
+  // its Retry asks for the bootstrap again.
+  const barsFailed = barId === undefined && bars.isError;
+  if (barsFailed || (recipe.isError && !isCocktailNotFound(recipe.error))) {
+    return (
+      <main class="screen screen--narrow">
+        {backRow}
+        <ErrorLine onRetry={() => void (barsFailed ? bars.refetch() : recipe.refetch())} />
+      </main>
+    );
+  }
+  // Only the bar's own 404 says there is no such drink; the next move is the index.
+  if (recipe.isError) {
+    return (
+      <main class="screen screen--narrow">
+        {backRow}
+        <EmptyState
+          body="No drink by that name — the index has the rest."
+          action={
+            <Button variant="secondary" size="sm" onClick={() => route('/drinks')}>
+              Browse the index
+            </Button>
+          }
+        />
+      </main>
+    );
+  }
+  // The bar, or the recipe, is still on its way.
+  if (!cocktail) {
     return (
       <main class="screen screen--narrow" aria-busy="true">
         {backRow}
         <p class="recipe-aside">Fetching the recipe…</p>
-      </main>
-    );
-  }
-  if (isError) {
-    return (
-      <main class="screen screen--narrow">
-        {backRow}
-        <ErrorLine onRetry={() => void refetch()} />
-      </main>
-    );
-  }
-  if (!cocktail) {
-    return (
-      <main class="screen screen--narrow">
-        {backRow}
-        <p class="recipe-aside">Not found.</p>
       </main>
     );
   }
