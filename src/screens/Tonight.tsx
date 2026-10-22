@@ -202,6 +202,10 @@ export function Tonight() {
   // failed refetch leaves behind are not shown beside it.
   const listUnavailable = shoppingList.isError || barsFailed || profileFailed;
   const snapshot = listUnavailable ? readListSnapshot() : null;
+  // Until the list has been read, the rail states no count and no empty line:
+  // an empty state is a fact, never a read still under way (frontend-spec §5;
+  // chrispezza/barback#69).
+  const listKnown = !listUnavailable && shoppingList.data !== undefined;
 
   // Dashboard lead: whole-bar counts, deliberately unscoped by family — the
   // line is the bar's status; the scoped story is told by the sections below.
@@ -227,6 +231,13 @@ export function Tonight() {
   // GET /cocktails carries no variant flags: the cards and the favourites gaps
   // read a held child brand off the shelf (chrispezza/barback#20).
   const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
+  // Buy next and both groups are decided against what is owned or listed.
+  // Before the shelf and the list have both been read, that set is empty and
+  // no held child brand is known, so they would offer a bottle already on the
+  // shelf or the list, with a live "List it" (chrispezza/barback#69). They
+  // wait for both reads. A shelf read that failed, with an older answer in hand
+  // or none, says so where they go instead (ADR-007 Consequences).
+  const suggestionsReady = listKnown && shelf.data !== undefined && !shelf.isError;
 
   // What the pour section says when nothing pours (frontend-spec §5 "Empty
   // states are directive", §6 family-aware empty states). A bare shelf is a
@@ -479,7 +490,7 @@ export function Tonight() {
         </section>
 
         <aside class="tonight-rail" id="buy" tabIndex={-1}>
-          {!listUnavailable && buyNext && (
+          {suggestionsReady && buyNext && (
             <BuyNextCard
               id={buyNext.id}
               name={buyNext.name}
@@ -490,7 +501,7 @@ export function Tonight() {
           )}
           <MatchHeader
             label="To buy"
-            count={listUnavailable ? undefined : listItems.length}
+            count={listKnown ? listItems.length : undefined}
             tone="gap"
           />
           {listUnavailable ? (
@@ -542,9 +553,11 @@ export function Tonight() {
                 </div>
               )}
               {listItems.length === 0 ? (
-                <p class="recipe-aside">
-                  Nothing to buy yet — a near miss puts its bottle here.
-                </p>
+                listKnown && (
+                  <p class="recipe-aside">
+                    Nothing to buy yet — a near miss puts its bottle here.
+                  </p>
+                )
               ) : (
                 <div>
                   {listItems.map((item) => (
@@ -571,7 +584,11 @@ export function Tonight() {
                 </div>
               )}
 
-              {favoriteNeedsShown.length > 0 && (
+              {/* The shelf the groups are decided against is its own read: one
+                  line for it here, where they would go, and nothing offered. */}
+              {shelf.isError && <ErrorLine onRetry={() => retry(shelf)} />}
+
+              {suggestionsReady && favoriteNeedsShown.length > 0 && (
                 <section class="restock-section">
                   <MatchHeader label="For your favorites" align="left" tone="gap" />
                   {favoriteNeedsShown.map((f) => (
@@ -593,7 +610,7 @@ export function Tonight() {
                 </section>
               )}
 
-              {suggestionsShown.length > 0 && (
+              {suggestionsReady && suggestionsShown.length > 0 && (
                 <section class="restock-section">
                   <MatchHeader label="Restock next" align="left" />
                   {suggestionsShown.map((s) => (
