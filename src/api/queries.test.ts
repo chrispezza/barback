@@ -3,7 +3,9 @@ import {
   MutationObserver as QueryMutationObserver,
   QueryClient,
   QueryObserver,
+  focusManager,
   onlineManager,
+  type QueryObserverOptions,
 } from '@tanstack/react-query'
 import { BarModel, ingredientResource, orderByName } from '../../test/fixtures/upstream'
 import { BAR_ID, I, USER_ID, defaultWorld } from '../../test/fixtures/world'
@@ -448,9 +450,13 @@ describe('a check-off', () => {
   /**
    * The list as Tonight's rail shows it: observed, so a read-back refetches it,
    * read once already, and every later read held until the test answers it. Its
-   * reads are not fetch calls, so `writes` stays the check-off's own.
+   * reads are not fetch calls, so `writes` stays the check-off's own. A read is
+   * not retried unless `retrying` says so.
    */
-  async function shownList(client: QueryClient): Promise<ListRead[]> {
+  async function shownList(
+    client: QueryClient,
+    retrying: Pick<QueryObserverOptions, 'retry' | 'retryDelay' | 'networkMode'> = {},
+  ): Promise<ListRead[]> {
     const reads: ListRead[] = []
     const observer = new QueryObserver(client, {
       queryKey: ['shopping-list', BAR_ID],
@@ -462,6 +468,7 @@ describe('a check-off', () => {
           })
         }),
       retry: false,
+      ...retrying,
     })
     observer.subscribe(() => {})
     await vi.waitFor(() => expect(reads).toHaveLength(1))
@@ -639,6 +646,48 @@ describe('a check-off', () => {
       expect(await done).toBe('taken')
       expect(s.pending()).toBe(false)
       expect(toasts.shown.map((t) => t.message)).toEqual(['Moved to the shelf.'])
+    })
+
+    // Queries run networkMode 'always' and retry once (queryDefaults,
+    // src/api/client.ts), so a list read's retry waits for one thing only: the
+    // tab to be seen again. The row is still shown when it is, and the retry
+    // has not landed, so the hold lasts until it has, as useShoppingMutation's
+    // does. A hidden tab takes no taps meanwhile.
+    it('holds through a list read whose retry waits for the tab to be seen, until the retry lands', async () => {
+      const s = checkOffSetup()
+      s.client.mount()
+      try {
+        const reads = await shownList(s.client, { retry: 1, retryDelay: 0, networkMode: 'always' })
+        const listFetch = () =>
+          s.client.getQueryCache().find({ queryKey: ['shopping-list', BAR_ID] })?.state.fetchStatus
+        let settled = false
+        const done = s.checkOff(I.campari).then((outcome) => {
+          settled = true
+          return outcome
+        })
+        ;(await written(1)).answer(204)
+        ;(await written(2)).answer(204)
+        const read = await listRead(reads, 1)
+
+        focusManager.setFocused(false)
+        read.fail()
+        await vi.waitFor(() => expect(listFetch()).toBe('paused'))
+        await quiet()
+        expect([s.pending(), isCheckOffPending(s.client, BAR_ID, I.campari), settled]).toEqual([true, true, false])
+
+        focusManager.setFocused(true)
+        const retry = await listRead(reads, 2)
+        await quiet()
+        expect([s.pending(), settled]).toEqual([true, false])
+
+        retry.answer()
+        expect(await done).toBe('taken')
+        expect(s.pending()).toBe(false)
+        expect(toasts.shown.map((t) => t.message)).toEqual(['Moved to the shelf.'])
+      } finally {
+        focusManager.setFocused(undefined)
+        s.client.unmount()
+      }
     })
 
     it('holds a refused check-off too, until the list it left the bottle on is read back', async () => {
