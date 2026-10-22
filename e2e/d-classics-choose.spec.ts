@@ -331,6 +331,7 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
       ],
       instructions: 'Build over ice and top with soda.',
     })
+    const toasts = await recordToasts(page)
     const listed = listLoaded(page)
     await openRoster(page)
     await listed
@@ -344,12 +345,16 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
     // The rows in hand predate the write: Paloma's tequila would read as unlisted.
     await expect(chooseButton(page, 'Paloma')).toBeDisabled()
     await chooseButton(page, 'Paloma').click({ force: true })
+    // The list write is pending until its read-back lands (useShoppingMutation),
+    // so the receipt follows the new rows rather than the write's answer. The
+    // recorder holds every toast shown since load, so one that came and went
+    // while the read was held is counted too.
+    await settled(page)
+    expect(await toasts(), 'no receipt while the read-back is held').toEqual([])
 
     const listedAgain = listLoaded(page)
     reread.release()
     await listedAgain
-    // The list write is pending until its read-back lands (useShoppingMutation),
-    // so the receipt follows the new rows rather than the write's answer.
     await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
     await expect(chooseButton(page, 'Paloma')).toBeEnabled()
     expect(bar.calls('POST', /\/shopping-list\/batch-store$/)).toHaveLength(1)
