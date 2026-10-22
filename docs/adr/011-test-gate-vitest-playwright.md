@@ -14,7 +14,7 @@ pagefind: true
 
 ## Status
 
-Proposed
+Accepted (2026-10-22, by the maintainer)
 
 ## Context
 
