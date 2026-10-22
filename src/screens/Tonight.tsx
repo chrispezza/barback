@@ -82,6 +82,17 @@ function BuyNextCard({
   );
 }
 
+/**
+ * What a read still answers. A refetch that fails leaves the query's last
+ * answer in hand beside the error (TanStack Query keeps `data`), and that
+ * answer is stale. No stock answer is ever served stale: the section says so
+ * in the error voice instead, with no card, count or empty state drawn from
+ * it (ADR-007 Consequences; chrispezza/barback#61).
+ */
+function answerOf<T>(read: { data: T | undefined; isError: boolean }): T | undefined {
+  return read.isError ? undefined : read.data;
+}
+
 /** The shelf read as the pour section's empty states use it: its total once read. */
 type ShelfRead = number | 'pending' | 'failed';
 
@@ -159,8 +170,15 @@ export function Tonight() {
     for (const read of own) if (read.isError) void read.refetch();
   }
 
-  const canMakeTotal = canMake.data?.meta?.total;
-  const pourCards = canMake.data?.data ?? [];
+  // Each section draws only on what its read still answers (answerOf): after
+  // a failed refetch, its error line alone, never the cards and count of the
+  // last good read beside it.
+  const canMakeAnswer = answerOf(canMake);
+  const canMakeTotal = canMakeAnswer?.meta?.total;
+  const pourCards = canMakeAnswer?.data ?? [];
+  const nearMissAnswer = answerOf(nearMiss);
+  const nearMissTotal = nearMissAnswer?.meta?.total;
+  const nearMissCards = nearMissAnswer?.data ?? [];
 
   const listItems = shoppingList.data?.data ?? [];
   // A list Tonight cannot read, whichever read failed, is shown as the stamped
@@ -179,8 +197,9 @@ export function Tonight() {
     barNearMiss.data?.meta !== undefined &&
     shoppingList.data !== undefined;
   // Once a read the line waits on has failed (the bootstrap included, through
-  // listUnavailable), the count is not under way: the line says nothing
-  // rather than "Counting the bar…" for good.
+  // listUnavailable), the line says nothing: not "Counting the bar…" for good,
+  // and not the counts a failed refetch left in hand (ADR-007;
+  // chrispezza/barback#61). It speaks again once its reads answer.
   const statusFailed = listUnavailable || barCanMake.isError || barNearMiss.isError;
 
   // Restock (frontend-spec §2, §9; ADR-008): ranked by the server against the
@@ -202,7 +221,8 @@ export function Tonight() {
   // A shelf read that failed says nothing about bareness, even with an older
   // answer in hand; the section says the read failed instead.
   // A count still on screen from the previous family (placeholderData, while
-  // the new family's read is under way) says nothing about this one.
+  // the new family's read is under way) says nothing about this one; nor does
+  // a count whose refetch failed (answerOf).
   const pourEmpty = pourEmptyState(
     shelf.isError
       ? 'failed'
@@ -210,7 +230,7 @@ export function Tonight() {
         ? (shelf.data.meta?.total ?? shelf.data.data.length)
         : 'pending',
     canMake.isPlaceholderData ? undefined : canMakeTotal,
-    nearMiss.isPlaceholderData ? undefined : nearMiss.data?.meta?.total,
+    nearMiss.isPlaceholderData ? undefined : nearMissTotal,
     scope !== undefined,
   );
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
@@ -303,7 +323,7 @@ export function Tonight() {
       {/* The three numbers are also the way to their sections — on one column
           the list can sit a long way down. Plain hash links: preact-iso leaves
           them to the browser, which also moves focus to the target. */}
-      {(statusReady || !statusFailed) && (
+      {!statusFailed && (
         <p class="bar-status" aria-busy={!statusReady}>
           {statusReady ? (
             <>
@@ -403,12 +423,12 @@ export function Tonight() {
         <section class="tonight-near" id="near" tabIndex={-1}>
           <MatchHeader
             label={scope ? `${scope} one bottle away` : 'One bottle away'}
-            count={nearMiss.data?.meta?.total}
+            count={nearMissTotal}
             tone="gap"
           />
           {(nearMiss.isError || barsFailed) && <ErrorLine onRetry={() => retry(nearMiss)} />}
           <ul class="card-list">
-            {nearMiss.data?.data.map((c) => (
+            {nearMissCards.map((c) => (
               <li key={c.id}>
                 <DrinkCard
                   name={c.name}
