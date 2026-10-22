@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { LocationProvider, Router, Route, useLocation } from 'preact-iso';
 import type { ComponentChildren } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { Button } from '@ds/core/Button';
 import { clearToken, isAuthenticated } from './auth';
 import { queryDefaults } from './api/client';
@@ -27,7 +27,7 @@ const NAV = [
   { href: '/drinks', label: 'Drinks', hint: 'the full index' },
 ];
 
-/** Static screen titles; the recipe screen sets its own once the drink loads. */
+/** Static screen titles; the recipe screen sets its own (src/screens/DrinkDetail.tsx). */
 const TITLES: Record<string, string> = {
   '/tonight': 'Tonight',
   '/shelf': 'Shelf',
@@ -40,25 +40,59 @@ export function setScreenTitle(title: string): void {
   document.title = `${title} · Barback`;
 }
 
+/** What the reader does that ends a wait for the heading: they have moved on. */
+const READER_MOVES = ['focusin', 'keydown', 'pointerdown'] as const;
+
+/**
+ * Move focus to the screen's heading once it renders. A screen still reading
+ * what it names (a recipe the client has not read) has no heading at the route
+ * change, and the control that was tapped went with the screen it was on, so
+ * focus has fallen to <body> until the heading arrives. The wait is for this
+ * route change alone: it ends when the heading takes focus, at the next route
+ * change, or as soon as the reader moves focus, presses a key or touches the
+ * page, so a heading that renders later never takes focus from where the
+ * reader put it. Armed as the route change commits, so even a move made
+ * before the next frame counts. Returns what ends the wait.
+ */
+function focusHeadingOnArrival(): () => void {
+  let waiting = true;
+  const observer = new MutationObserver(() => land());
+  function stop() {
+    waiting = false;
+    observer.disconnect();
+    for (const type of READER_MOVES) document.removeEventListener(type, stop, true);
+  }
+  function land() {
+    const heading = waiting ? document.querySelector<HTMLElement>('main h1') : null;
+    if (!heading) return;
+    stop();
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }
+  for (const type of READER_MOVES) document.addEventListener(type, stop, true);
+  observer.observe(document.body, { childList: true, subtree: true });
+  // A screen that names itself at once has its heading already; look once the
+  // render that changed the route has finished committing.
+  queueMicrotask(land);
+  return stop;
+}
+
 /**
  * After a client-side navigation the browser announces nothing and focus stays
  * on whatever was tapped. Name the screen in the tab/history and move focus to
- * its heading so assistive tech reads where it landed. Skips the initial load.
+ * its heading, once it renders, so assistive tech reads where it landed (ADR-003
+ * Consequences). Skips the initial load.
  */
 function RouteEffects() {
   const { path } = useLocation();
   const previous = useRef<string | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const isChange = previous.current !== null && previous.current !== path;
     previous.current = path;
     const title = TITLES[path];
     if (title) setScreenTitle(title);
     if (!isChange) return;
-    const heading = document.querySelector<HTMLElement>('main h1');
-    if (heading) {
-      heading.tabIndex = -1;
-      heading.focus({ preventScroll: true });
-    }
+    return focusHeadingOnArrival();
   }, [path]);
   return null;
 }
