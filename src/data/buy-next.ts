@@ -22,12 +22,15 @@ export const GROUP_LIMIT = 5;
 export interface FavoriteNeed {
   id: number;
   name: string;
-  /**
-   * Favourited lines that call for this bottle and are not covered. ADR-008
-   * ranks by favourited drinks the bottle completes; the two differ when a
-   * favourite is more than one bottle away.
-   */
+  /** Favourited drinks that still need this bottle: "in N favorites". */
   count: number;
+  /**
+   * Favourited drinks this bottle completes: those it is the only gap of.
+   * ADR-008 ranks by this first. It is less than `count` whenever a favourite
+   * is more than one bottle away, and then that favourite counts for none of
+   * its bottles.
+   */
+  completes: number;
 }
 
 /** The one decision-ready bottle. `reason` is undefined for the server's pick,
@@ -42,7 +45,9 @@ export interface BuyNextPick {
  * What the favourited drinks still need, in the order first met. A line is a
  * gap when the shelf does not cover it (isStocked, with the shelf so a held
  * child brand counts as the matcher counts it, chrispezza/barback#20), it is
- * not optional, and its bottle is neither owned nor already listed.
+ * not optional, and its bottle is neither owned nor already listed. A listed
+ * bottle is set aside as already on its way, so a drink whose other gaps are
+ * all listed is completed by the one bottle left.
  */
 export function favoriteGaps(
   favorites: readonly Cocktail[],
@@ -51,24 +56,45 @@ export function favoriteGaps(
 ): FavoriteNeed[] {
   const gaps = new Map<number, FavoriteNeed>();
   for (const c of favorites) {
+    // This drink's gaps, one per bottle however many lines call it.
+    const missing = new Map<number, string>();
     for (const e of c.ingredients) {
       if (!isStocked(e, shelf) && !e.optional && !ownedOrListed.has(e.ingredient.id)) {
-        const gap = gaps.get(e.ingredient.id) ?? {
-          id: e.ingredient.id,
-          name: e.ingredient.name,
-          count: 0,
-        };
-        gap.count += 1;
-        gaps.set(e.ingredient.id, gap);
+        missing.set(e.ingredient.id, e.ingredient.name);
       }
+    }
+    for (const [id, name] of missing) {
+      const gap = gaps.get(id) ?? { id, name, count: 0, completes: 0 };
+      gap.count += 1;
+      if (missing.size === 1) gap.completes += 1;
+      gaps.set(id, gap);
     }
   }
   return [...gaps.values()];
 }
 
-/** The favourites group: highest count first, ties in the order met, capped. */
+/**
+ * The favourites group, capped. ADR-008: the bottle completing the most
+ * favourited drinks first; then the one the most favourites need; then by name.
+ */
 export function rankFavoriteNeeds(gaps: readonly FavoriteNeed[]): FavoriteNeed[] {
-  return [...gaps].sort((a, b) => b.count - a.count).slice(0, GROUP_LIMIT);
+  return [...gaps]
+    .sort((a, b) => b.completes - a.completes || b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, GROUP_LIMIT);
+}
+
+const favoritesPhrase = (n: number) => `${n} favorite${n === 1 ? '' : 's'}`;
+
+/**
+ * Why a favourite's bottle is Buy next: "completes N favorites" when it is the
+ * last bottle of N of them (ADR-008 Validation), otherwise "in N favorites",
+ * the voice of the For your favorites rows. Never "completes" a drink that
+ * still misses another bottle.
+ */
+function favoriteReason(need: FavoriteNeed): string {
+  return need.completes > 0
+    ? `completes ${favoritesPhrase(need.completes)}`
+    : `in ${favoritesPhrase(need.count)}`;
 }
 
 /**
@@ -105,11 +131,7 @@ export function buyNextGroups(
   const topNeed = favoriteNeeds[0];
   const topSuggestion = suggestions[0];
   const pick: BuyNextPick | undefined = topNeed
-    ? {
-        id: topNeed.id,
-        name: topNeed.name,
-        reason: `completes ${topNeed.count} favorite${topNeed.count === 1 ? '' : 's'}`,
-      }
+    ? { id: topNeed.id, name: topNeed.name, reason: favoriteReason(topNeed) }
     : topSuggestion
       ? { id: topSuggestion.id, name: topSuggestion.name, reason: undefined }
       : undefined;
