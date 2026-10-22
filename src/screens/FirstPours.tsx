@@ -1,8 +1,10 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'preact/hooks';
 import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import {
+  shoppingListOptions,
   useBarId,
   useFirstPours,
   useProfile,
@@ -10,7 +12,7 @@ import {
   useShoppingMutation,
   useToggleFavorite,
 } from '../api/queries';
-import { isStocked, type Cocktail } from '../api/types';
+import { isStocked, type Cocktail, type ListResponse, type ShoppingListItem } from '../api/types';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
 import { FIRST_POUR_SLUGS } from '../data/first-pours';
@@ -51,6 +53,9 @@ function favoritedAfter(answer: unknown, intended: boolean): boolean {
  * read, so Choose waits until the list has been read: a bottle already listed
  * is not sent again, since upstream batch-store resets a listed row's quantity
  * to 1 (ShoppingListController::batchStore, ShoppingListController.php 76-79).
+ * A later read of the list (the tab coming back into view refetches it) holds
+ * no button, since a disabled button drops the focus it holds; a Choose made
+ * during that read waits for it before deciding.
  *
  * Un-choosing leaves the queued bottles alone, and says so when one of the
  * drink's missing bottles is on the list: a list entry is only ever removed by
@@ -58,26 +63,26 @@ function favoritedAfter(answer: unknown, intended: boolean): boolean {
  */
 export function FirstPours() {
   const barId = useBarId();
+  const queryClient = useQueryClient();
   const profileQuery = useProfile();
   const profile = profileQuery.data;
   const pours = useFirstPours(barId, FIRST_POUR_SLUGS);
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const toggleFavorite = useToggleFavorite(barId);
-  // One choice at a time, from the tap until its last write has answered. The
-  // ref answers a second tap at once; the state holds the buttons.
+  // One choice at a time, from the tap until its last write has answered and,
+  // after a list write, the list has been read back. The ref answers a second
+  // tap at once; the state holds the buttons.
   const choosing = useRef(false);
   const [isChoosing, setIsChoosing] = useState(false);
 
-  // The list as just read: not while a read is under way, whose answer is not
-  // in yet, nor after one failed, when the rows in hand are none or stale.
-  const listRead = shoppingList.isSuccess && !shoppingList.isFetching;
   // The list cannot be read: its own read failed, or the profile it is keyed on did.
   const profileFailed = profile?.id === undefined && profileQuery.isError;
   const listFailed = shoppingList.isError || profileFailed;
-  const listedIds = new Set(
-    shoppingList.data?.data.map((item) => item.ingredient.id) ?? [],
-  );
+  // Choose is held until the list has been read, and after a read failed. Not
+  // for a read under way while rows from one that succeeded are in hand:
+  // choose() waits for that read instead.
+  const listHeld = !shoppingList.isSuccess || listFailed;
 
   /** Ask again for what failed: the roster, the list, or the profile it waits on. */
   function retry() {
@@ -86,15 +91,34 @@ export function FirstPours() {
     if (shoppingList.isError) void shoppingList.refetch();
   }
 
+  /**
+   * The list to decide against: the rows of the last read, or, while a read is
+   * under way, the rows it brings. Undefined when the list cannot be read. It
+   * asks the query, not this render, which can lag a read that has just begun.
+   */
+  async function listAsRead(): Promise<ListResponse<ShoppingListItem> | undefined> {
+    const key = shoppingListOptions(barId, profile?.id).queryKey;
+    const state = queryClient.getQueryState<ListResponse<ShoppingListItem>>(key);
+    if (state?.fetchStatus === 'fetching') {
+      // Joins the read under way; cancelRefetch: false starts no second one.
+      const read = await shoppingList.refetch({ cancelRefetch: false });
+      return read.isSuccess ? read.data : undefined;
+    }
+    return state?.status === 'success' ? state.data : undefined;
+  }
+
   async function choose(cocktail: Cocktail) {
-    if (choosing.current || !listRead) return;
+    if (choosing.current || listHeld) return;
     choosing.current = true;
     setIsChoosing(true);
-    // Decided at the tap, against the list as read.
-    const missing = missingIds(cocktail);
-    const unqueued = missing.filter((id) => !listedIds.has(id));
-    const anyListed = missing.some((id) => listedIds.has(id));
     try {
+      const list = await listAsRead();
+      // The read failed: the error line says so, and nothing is sent.
+      if (list === undefined) return;
+      const listedIds = new Set(list.data.map((item) => item.ingredient.id));
+      const missing = missingIds(cocktail);
+      const unqueued = missing.filter((id) => !listedIds.has(id));
+      const anyListed = missing.some((id) => listedIds.has(id));
       const answer = await toggleFavorite.mutateAsync({
         cocktailId: cocktail.id,
         slug: cocktail.slug,
@@ -113,12 +137,19 @@ export function FirstPours() {
         showToast({ message: `${cocktail.name} — favorited.` });
         return;
       }
-      await shoppingMutation.mutateAsync({ ingredientIds: unqueued, action: 'add' });
-      showToast({
-        message: `${cocktail.name} — favorited, ${unqueued.length} bottle${
-          unqueued.length === 1 ? '' : 's'
-        } queued.`,
-      });
+      try {
+        await shoppingMutation.mutateAsync({ ingredientIds: unqueued, action: 'add' });
+        showToast({
+          message: `${cocktail.name} — favorited, ${unqueued.length} bottle${
+            unqueued.length === 1 ? '' : 's'
+          } queued.`,
+        });
+      } finally {
+        // Still held until the list is read back after this write (the hook's
+        // onSettled has begun that read), so the next Choose decides against
+        // rows that include it.
+        await shoppingList.refetch({ cancelRefetch: false });
+      }
     } catch {
       // A refused write is answered by its own hook: the rollback and the toast.
     } finally {
@@ -151,7 +182,7 @@ export function FirstPours() {
               variant={c.is_favorited ? 'ghost' : 'secondary'}
               size="sm"
               aria-pressed={c.is_favorited}
-              disabled={isChoosing || !listRead}
+              disabled={isChoosing || listHeld}
               onClick={() => void choose(c)}
             >
               {c.is_favorited ? '✓ Chosen' : 'Choose'}
