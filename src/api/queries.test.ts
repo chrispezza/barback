@@ -3,7 +3,9 @@ import {
   MutationObserver as QueryMutationObserver,
   QueryClient,
   QueryObserver,
+  focusManager,
   onlineManager,
+  type QueryObserverOptions,
 } from '@tanstack/react-query'
 import { BarModel, ingredientResource, orderByName } from '../../test/fixtures/upstream'
 import { BAR_ID, I, USER_ID, defaultWorld } from '../../test/fixtures/world'
@@ -12,6 +14,7 @@ import { isPlaced } from '../data/hierarchy'
 import {
   checkOffOptions,
   ingredientNamesOptions,
+  isCheckOffPending,
   isShelfTogglePending,
   shelfToggleOptions,
   toggleShelf,
@@ -433,7 +436,53 @@ describe('a check-off', () => {
         () => 'refused',
       )
     const readBack = () => invalidate.mock.calls.map(([filters]) => filters?.queryKey)
-    return { checkOff, readBack }
+    /** Whether the check-off is held: useCheckOff drops a press on its row while it is. */
+    const pending = () => observer.getCurrentResult().isPending
+    return { client, checkOff, readBack, pending }
+  }
+
+  /** A list read the test answers by hand. */
+  interface ListRead {
+    answer: () => void
+    fail: () => void
+  }
+
+  /**
+   * The list as Tonight's rail shows it: observed, so a read-back refetches it,
+   * read once already, and every later read held until the test answers it. Its
+   * reads are not fetch calls, so `writes` stays the check-off's own. A read is
+   * not retried unless `retrying` says so.
+   */
+  async function shownList(
+    client: QueryClient,
+    retrying: Pick<QueryObserverOptions, 'retry' | 'retryDelay' | 'networkMode'> = {},
+  ): Promise<ListRead[]> {
+    const reads: ListRead[] = []
+    const observer = new QueryObserver(client, {
+      queryKey: ['shopping-list', BAR_ID],
+      queryFn: () =>
+        new Promise<ListResponse<never>>((resolve, reject) => {
+          reads.push({
+            answer: () => resolve({ data: [], meta: { total: 0, current_page: 1, last_page: 1 } }),
+            fail: () => reject(new Error('API 500 on /users/1/shopping-list')),
+          })
+        }),
+      retry: false,
+      ...retrying,
+    })
+    observer.subscribe(() => {})
+    await vi.waitFor(() => expect(reads).toHaveLength(1))
+    reads[0]?.answer()
+    await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true))
+    return reads
+  }
+
+  /** The list read numbered `n` (1 is the read the rail opened with). */
+  async function listRead(reads: ListRead[], n: number): Promise<ListRead> {
+    await vi.waitFor(() => expect(reads.length).toBeGreaterThan(n))
+    const r = reads[n]
+    if (!r) throw new Error(`no list read ${n}`)
+    return r
   }
 
   /** Let any write that would follow go out, so its absence means something. */
@@ -484,6 +533,179 @@ describe('a check-off', () => {
       'That didn’t move — the bottle is still on the list.',
     ])
     expect(s.readBack()).toEqual(READ_BACK)
+  })
+
+  // chrispezza/barback#142: the row leaves the rail only when the list read the
+  // check-off starts has landed, and until then it takes a tap. The check-off
+  // holds the row (useCheckOff drops a press on it while isCheckOffPending)
+  // until that read has landed, not only until its writes have answered. The
+  // hold is that bottle's alone. The screen is driven in
+  // e2e/t5t-checkoff-double-tap.spec.ts.
+  describe('while its list is read back', () => {
+    it('stays pending until the list read it started has landed', async () => {
+      const s = checkOffSetup()
+      const reads = await shownList(s.client)
+      let settled = false
+      const done = s.checkOff(I.campari).then((outcome) => {
+        settled = true
+        return outcome
+      })
+      ;(await written(1)).answer(204)
+      ;(await written(2)).answer(204)
+      const read = await listRead(reads, 1)
+      // The receipt is shown once the writes have answered; the hold is the row's.
+      await vi.waitFor(() => expect(toasts.shown.map((t) => t.message)).toEqual(['Moved to the shelf.']))
+      await quiet()
+      expect([s.pending(), settled]).toEqual([true, false])
+
+      read.answer()
+      expect(await done).toBe('taken')
+      expect(s.pending()).toBe(false)
+    })
+
+    it('holds only its own bottle, and another bottle checked off meanwhile holds its own', async () => {
+      const s = checkOffSetup()
+      const reads = await shownList(s.client)
+      /** Whether a press on Campari's row, then Scotch whisky's, would be dropped. */
+      const held = () => [I.campari, I.scotch].map((id) => isCheckOffPending(s.client, BAR_ID, id))
+      const campari = s.checkOff(I.campari)
+      ;(await written(1)).answer(204)
+      ;(await written(2)).answer(204)
+      const own = await listRead(reads, 1)
+      await quiet()
+      expect(held()).toEqual([true, false])
+
+      // Scotch whisky's row, pressed while Campari's list is read back, is a
+      // check-off of its own, through the same hook.
+      const scotch = s.checkOff(I.scotch)
+      const store = await written(3)
+      expect(held()).toEqual([true, true])
+
+      own.answer()
+      expect(await campari).toBe('taken')
+      expect(held()).toEqual([false, true])
+
+      store.answer(204)
+      ;(await written(4)).answer(204)
+      const next = await listRead(reads, 2)
+      await quiet()
+      expect(held()).toEqual([false, true])
+
+      next.answer()
+      expect(await scotch).toBe('taken')
+      expect(held()).toEqual([false, false])
+      expect(writes.map((w) => [w.path, w.body])).toEqual([
+        [`/api/users/${USER_ID}/ingredients/batch-store`, { ingredients: [I.campari] }],
+        [`/api/users/${USER_ID}/shopping-list/batch-delete`, { ingredients: [{ id: I.campari }] }],
+        [`/api/users/${USER_ID}/ingredients/batch-store`, { ingredients: [I.scotch] }],
+        [`/api/users/${USER_ID}/shopping-list/batch-delete`, { ingredients: [{ id: I.scotch }] }],
+      ])
+    })
+
+    it('stays pending through list reads that replaced its own, until the last one lands', async () => {
+      const s = checkOffSetup()
+      const reads = await shownList(s.client)
+      let settled = false
+      const done = s.checkOff(I.campari).then((outcome) => {
+        settled = true
+        return outcome
+      })
+      ;(await written(1)).answer(204)
+      ;(await written(2)).answer(204)
+      const own = await listRead(reads, 1)
+      // A list write's read-back, then an Undo's, while this one is out: each
+      // cancels the read under way and starts one of its own. A cancelled
+      // read's promise follows the read that replaced it, but not a second
+      // (Query.fetch on a silent cancel, query-core 5.101.4), so two
+      // replacements tell a hold on the list from a hold on one read.
+      void s.client.invalidateQueries({ queryKey: ['shopping-list'] })
+      const second = await listRead(reads, 2)
+      void s.client.invalidateQueries({ queryKey: ['shopping-list'] })
+      const last = await listRead(reads, 3)
+      own.answer()
+      second.answer()
+      await quiet()
+      expect([s.pending(), settled]).toEqual([true, false])
+
+      last.answer()
+      expect(await done).toBe('taken')
+      expect(s.pending()).toBe(false)
+    })
+
+    it('is freed by a list read that fails, and still says the bottle moved', async () => {
+      const s = checkOffSetup()
+      const reads = await shownList(s.client)
+      const done = s.checkOff(I.campari)
+      ;(await written(1)).answer(204)
+      ;(await written(2)).answer(204)
+      const read = await listRead(reads, 1)
+      await quiet()
+      expect(s.pending()).toBe(true)
+
+      read.fail()
+      expect(await done).toBe('taken')
+      expect(s.pending()).toBe(false)
+      expect(toasts.shown.map((t) => t.message)).toEqual(['Moved to the shelf.'])
+    })
+
+    // Queries run networkMode 'always' and retry once (queryDefaults,
+    // src/api/client.ts), so a list read's retry waits for one thing only: the
+    // tab to be seen again. The row is still shown when it is, and the retry
+    // has not landed, so the hold lasts until it has, as useShoppingMutation's
+    // does. A hidden tab takes no taps meanwhile.
+    it('holds through a list read whose retry waits for the tab to be seen, until the retry lands', async () => {
+      const s = checkOffSetup()
+      s.client.mount()
+      try {
+        const reads = await shownList(s.client, { retry: 1, retryDelay: 0, networkMode: 'always' })
+        const listFetch = () =>
+          s.client.getQueryCache().find({ queryKey: ['shopping-list', BAR_ID] })?.state.fetchStatus
+        let settled = false
+        const done = s.checkOff(I.campari).then((outcome) => {
+          settled = true
+          return outcome
+        })
+        ;(await written(1)).answer(204)
+        ;(await written(2)).answer(204)
+        const read = await listRead(reads, 1)
+
+        focusManager.setFocused(false)
+        read.fail()
+        await vi.waitFor(() => expect(listFetch()).toBe('paused'))
+        await quiet()
+        expect([s.pending(), isCheckOffPending(s.client, BAR_ID, I.campari), settled]).toEqual([true, true, false])
+
+        focusManager.setFocused(true)
+        const retry = await listRead(reads, 2)
+        await quiet()
+        expect([s.pending(), settled]).toEqual([true, false])
+
+        retry.answer()
+        expect(await done).toBe('taken')
+        expect(s.pending()).toBe(false)
+        expect(toasts.shown.map((t) => t.message)).toEqual(['Moved to the shelf.'])
+      } finally {
+        focusManager.setFocused(undefined)
+        s.client.unmount()
+      }
+    })
+
+    it('holds a refused check-off too, until the list it left the bottle on is read back', async () => {
+      const s = checkOffSetup()
+      const reads = await shownList(s.client)
+      const done = s.checkOff(I.campari)
+      ;(await written(1)).answer(500)
+      const read = await listRead(reads, 1)
+      await quiet()
+      expect(s.pending()).toBe(true)
+
+      read.answer()
+      expect(await done).toBe('refused')
+      expect(s.pending()).toBe(false)
+      expect(toasts.shown.map((t) => t.message)).toEqual([
+        'That didn’t move — the bottle is still on the list.',
+      ])
+    })
   })
 
   describe('its Undo', () => {
