@@ -17,10 +17,25 @@ const SCREENS = [
   { name: 'the Index', path: '/drinks', field: 'Find a drink', typed: 'neg' },
 ] as const
 
-async function box(locator: Locator) {
-  const b = await locator.boundingBox()
-  if (!b) throw new Error(`${locator.toString()} has no box`)
-  return b
+/**
+ * The frame, its input and (when shown) Clear, measured in one layout pass.
+ * Separate boundingBox() calls can straddle a reflow: on Tonight the rail moves
+ * down as the cards above it render, and the frame and the input were once
+ * measured ~800px apart (chrispezza/barback#199).
+ */
+async function boxes(frame: Locator) {
+  return frame.evaluate((el) => {
+    const r = (e: Element | null) => {
+      if (!e) return null
+      const b = e.getBoundingClientRect()
+      return { x: b.x, y: b.y, width: b.width, height: b.height }
+    }
+    return {
+      outer: r(el)!,
+      target: r(el.querySelector('input'))!,
+      clear: r(el.querySelector('button[aria-label="Clear search"]')),
+    }
+  })
 }
 
 for (const screen of SCREENS) {
@@ -29,9 +44,9 @@ for (const screen of SCREENS) {
     const input = page.getByRole('searchbox', { name: screen.field })
     const frame = page.locator('.bb-search', { has: input })
     await expect(input).toBeVisible()
+    await page.waitForLoadState('networkidle')
 
-    let outer = await box(frame)
-    let target = await box(input)
+    let { outer, target } = await boxes(frame)
     expect(outer.height, 'the frame, empty').toBeCloseTo(44, 1)
     expect(target.height, 'the input').toBeGreaterThanOrEqual(44)
     expect(target.y, 'the input inside its frame').toBeGreaterThanOrEqual(outer.y - 0.01)
@@ -40,9 +55,12 @@ for (const screen of SCREENS) {
     await input.fill(screen.typed)
     const clear = frame.getByRole('button', { name: 'Clear search' })
     await expect(clear).toBeVisible()
-    outer = await box(frame)
-    target = await box(input)
-    const clearBox = await box(clear)
+    await page.waitForLoadState('networkidle')
+    const after = await boxes(frame)
+    outer = after.outer
+    target = after.target
+    const clearBox = after.clear
+    if (!clearBox) throw new Error('Clear has no box')
     expect(outer.height, 'the frame, with Clear in it').toBeCloseTo(44, 1)
     expect(target.height, 'the input, with Clear beside it').toBeGreaterThanOrEqual(44)
     expect([clearBox.width, clearBox.height], 'Clear').toEqual([44, 44])
