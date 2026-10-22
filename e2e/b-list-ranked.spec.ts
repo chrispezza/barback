@@ -32,11 +32,21 @@ function tonightWorld(change?: (w: WorldSeed) => void): WorldSeed {
 // Against that shelf: Scotch whisky opens the Rob Roy and the Bobby Burns;
 // Campari the Negroni; Dry vermouth the Martini; Mint the Mojito; Cointreau and
 // Tequila open nothing alone (the Margarita needs both), so their rows say what
-// they are in instead.
+// they are in instead. A row that opens drinks names their families after the
+// count (frontend-spec §6 Journey 3; e2e/b-unlocks-family.spec.ts), after a
+// hair space that parts the two for assistive tech: the Bobby Burns carries
+// no family tag, so it is counted and not named.
 const LISTED = [I.campari, I.cointreau, I.dryVermouth, I.mint, I.scotch, I.tequila]
 const BY_NAME = ['Campari', 'Cointreau', 'Dry vermouth', 'Mint', 'Scotch whisky', 'Tequila']
 const RANKED = ['Scotch whisky', 'Campari', 'Dry vermouth', 'Mint', 'Cointreau', 'Tequila']
-const RANKED_LINES = ['Unlocks 2', 'Unlocks 1', 'Unlocks 1', 'Unlocks 1', 'In 1 drink', 'In 1 drink']
+const RANKED_LINES = [
+  'Unlocks 2·\u200A1 spirit-forward drink',
+  'Unlocks 1·\u200A1 spirit-forward drink',
+  'Unlocks 1·\u200A1 spirit-forward drink',
+  'Unlocks 1·\u200A1 highball',
+  'In 1 drink',
+  'In 1 drink',
+]
 
 const rail = (page: Page) => page.locator('#buy')
 const heading = (page: Page, name: string) => page.getByRole('heading', { name, exact: true })
@@ -45,7 +55,7 @@ const rowNames = (page: Page) => rail(page).locator('.shopping-row-line .bb-shop
 /** A To buy row's check-off control; its name starts with the bottle. */
 const listItem = (page: Page, name: string) =>
   rail(page).locator('.shopping-row-line').getByRole('button', { name: new RegExp(`^${name}`) })
-/** A To buy row's detail line ("Unlocks 2", "In 1 drink"). */
+/** A To buy row's detail line ("Unlocks 1·\u200A1 highball", "In 1 drink"; the hair space is ShoppingRow's). */
 const rowLine = (page: Page, name: string) => listItem(page, name).locator('.bb-shop__meta')
 
 /**
@@ -128,11 +138,11 @@ test.describe('To buy on Tonight', () => {
     // Each answer but the last shows its count and moves nothing, the bottle
     // that will lead included.
     const answers: [id: number, name: string, line: string][] = [
-      [I.scotch, 'Scotch whisky', 'Unlocks 2'],
-      [I.mint, 'Mint', 'Unlocks 1'],
-      [I.campari, 'Campari', 'Unlocks 1'],
+      [I.scotch, 'Scotch whisky', 'Unlocks 2·\u200A1 spirit-forward drink'],
+      [I.mint, 'Mint', 'Unlocks 1·\u200A1 highball'],
+      [I.campari, 'Campari', 'Unlocks 1·\u200A1 spirit-forward drink'],
       [I.cointreau, 'Cointreau', 'In 1 drink'],
-      [I.dryVermouth, 'Dry vermouth', 'Unlocks 1'],
+      [I.dryVermouth, 'Dry vermouth', 'Unlocks 1·\u200A1 spirit-forward drink'],
     ]
     for (const [id, name, line] of answers) {
       holds.get(id)?.release()
@@ -170,7 +180,7 @@ test.describe('To buy on Tonight', () => {
     rye.release()
     const ranked = ['Scotch whisky', 'Campari', 'Dry vermouth', 'Mint', 'Rye whiskey', 'Cointreau', 'Tequila']
     await expect(rowNames(page)).toHaveText(ranked)
-    await expect(rowLine(page, 'Rye whiskey')).toHaveText('Unlocks 1')
+    await expect(rowLine(page, 'Rye whiskey')).toHaveText('Unlocks 1·\u200A1 spirit-forward drink')
     expect(await orders(page)).toEqual([BY_NAME, RANKED, [...RANKED, 'Rye whiskey'], ranked])
   })
 
@@ -180,7 +190,7 @@ test.describe('To buy on Tonight', () => {
     bar.fail(scotchCount, { method: 'GET', status: 500, times: 2 })
     await page.goto('/tonight')
 
-    await expect(rowLine(page, 'Campari')).toHaveText('Unlocks 1')
+    await expect(rowLine(page, 'Campari')).toHaveText('Unlocks 1·\u200A1 spirit-forward drink')
     await expect(rowLine(page, 'Tequila')).toHaveText('In 1 drink')
     await expect.poll(() => bar.calls('GET', scotchCount).length, { timeout: 10_000 }).toBe(2)
     await expect(rowLine(page, 'Scotch whisky')).toHaveCount(0)
@@ -209,10 +219,11 @@ test.describe('To buy after a check-off', () => {
     expect(bar.model.shelf.has(I.tequila)).toBe(true)
 
     await expect(rowNames(page)).toHaveText(['Campari', 'Cointreau', 'Mint', 'Coffee liqueur'])
+    // The Negroni is spirit-forward, the Margarita a sour, the Mojito a highball.
     await expect(rail(page).locator('.shopping-row-line .bb-shop__meta')).toHaveText([
-      'Unlocks 1',
-      'Unlocks 1',
-      'Unlocks 1',
+      'Unlocks 1·\u200A1 spirit-forward drink',
+      'Unlocks 1·\u200A1 sour',
+      'Unlocks 1·\u200A1 highball',
       'In 1 drink',
     ])
   })
@@ -237,7 +248,8 @@ test.describe('To buy while a check-off’s counts are read again', () => {
     await recordOrders(page)
     await page.goto('/tonight')
     await expect(rowNames(page)).toHaveText(['Gin', 'Mint', 'Campari', 'Dry vermouth'])
-    await expect(rowLine(page, 'Gin')).toHaveText('Unlocks 2')
+    // The Gimlet is a sour, the Gin Tonic a highball.
+    await expect(rowLine(page, 'Gin')).toHaveText('Unlocks 2·\u200A1 sour · 1 highball')
 
     // Dry vermouth's count, asked for again by the check-off, waits; its first
     // read has answered, so only the refresh is held.
@@ -256,12 +268,12 @@ test.describe('To buy while a check-off’s counts are read again', () => {
     // the order is still the one the rows held, Gin gone.
     await campariAgain
     await mintAgain
-    await expect(rowLine(page, 'Campari')).toHaveText('Unlocks 1')
-    await expect(rowLine(page, 'Mint')).toHaveText('Unlocks 1')
+    await expect(rowLine(page, 'Campari')).toHaveText('Unlocks 1·\u200A1 spirit-forward drink')
+    await expect(rowLine(page, 'Mint')).toHaveText('Unlocks 1·\u200A1 highball')
     await expect(rowNames(page)).toHaveText(['Mint', 'Campari', 'Dry vermouth'])
 
     dryVermouth.release()
-    await expect(rowLine(page, 'Dry vermouth')).toHaveText('Unlocks 1')
+    await expect(rowLine(page, 'Dry vermouth')).toHaveText('Unlocks 1·\u200A1 spirit-forward drink')
     await expect(rowNames(page)).toHaveText(['Campari', 'Dry vermouth', 'Mint'])
     // From one tap, one change of order beyond the bottle leaving.
     expect(await orders(page)).toEqual([
