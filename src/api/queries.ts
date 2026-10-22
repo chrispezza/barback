@@ -798,6 +798,21 @@ async function undoCheckOff(
  * self-healing), never vanished. Its Undo keeps the same rule the other way
  * round (undoCheckOff). The options are built here, apart from the hook, so
  * they can be driven without rendering (ADR-011).
+ *
+ * The check-off is pending until the list has been read back, not only until
+ * its writes have answered: the row leaves the rail only when that read lands,
+ * and until then it takes a tap, which Tonight drops only while the check-off
+ * is pending (its guard is checkOff.isPending). Freed on the writes' answer
+ * alone, a second tap in that round trip sends a second check-off and leaves
+ * a second "Moved to the shelf." with its own Undo (chrispezza/barback#142).
+ * TanStack awaits onSettled before it settles the mutation, so returning the
+ * wait is what holds it. It waits while any list read is under way, so a read
+ * that cancels this one and starts its own (an Undo's read-back, or a list
+ * write's) holds it too, until that one lands. It never rejects: a read that
+ * fails frees it and is not reported as the check-off failing, and a read that
+ * pauses (a retry while the tab is hidden) frees it. Only the list is waited
+ * on; the other read-backs move counts, not the row. The shelf toggle reads
+ * back as before, once its last toggle settles (shelfToggleOptions).
  */
 export function checkOffOptions(
   queryClient: QueryClient,
@@ -828,7 +843,23 @@ export function checkOffOptions(
         onAction: () => void undoCheckOff(queryClient, barId, userId, vars),
       });
     },
-    onSettled: () => readBackShelf(queryClient),
+    onSettled: () => {
+      readBackShelf(queryClient);
+      const cache = queryClient.getQueryCache();
+      const listReading = () =>
+        cache.findAll({ queryKey: ['shopping-list'], fetchStatus: 'fetching' }).length > 0;
+      return new Promise<void>((resolve) => {
+        if (!listReading()) {
+          resolve();
+          return;
+        }
+        const stop = cache.subscribe(() => {
+          if (listReading()) return;
+          stop();
+          resolve();
+        });
+      });
+    },
   };
 }
 
