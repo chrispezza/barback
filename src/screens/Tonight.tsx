@@ -28,7 +28,11 @@ import { ShoppingRow } from '../components/ShoppingRow';
 import {
   buyNextGroups,
   favoriteGaps,
+  forgetQueued,
+  forgetRestocked,
+  queuedThisSession,
   rankFavoriteNeeds,
+  rememberQueued,
   restockSuggestions,
   staplesToQueue,
 } from '../data/buy-next';
@@ -161,25 +165,40 @@ export function Tonight() {
 
   // Par-level staples: the curated file IS the standing order, so a staple
   // that leaves the shelf is queued automatically — with attribution (toast +
-  // 'Staple' detail on the row). Once per session per staple; opt out by
-  // editing data/staples.ts.
+  // 'Staple' detail on the row). Once per emptying: data/buy-next.ts holds a
+  // queued staple for the page session, so leaving Tonight does not forget it,
+  // until this screen reads it back on the shelf. Opt out by editing
+  // data/staples.ts.
   const staples = useStaples(barId, STAPLE_SLUGS);
   const stapleIds = new Set((staples.data ?? []).map((s) => s.id));
-  const autoQueued = useRef(new Set<number>());
-  const staplesOut = staplesToQueue(staples.data ?? [], listedIds, autoQueued.current);
+  // What this mount has sent. A failed write leaves the session memory so the
+  // next mount sends it again; this mount does not, or a lasting failure would
+  // loop (mutations do not retry).
+  const sentThisMount = useRef(new Set<number>());
+  const staplesOut = staplesToQueue(
+    staples.data ?? [],
+    listedIds,
+    new Set([...queuedThisSession, ...sentThisMount.current]),
+  );
+  useEffect(() => {
+    if (staples.data === undefined) return;
+    forgetRestocked(staples.data);
+    for (const s of staples.data) if (s.in_shelf) sentThisMount.current.delete(s.id);
+  }, [staples.data]);
   useEffect(() => {
     if (profile?.id === undefined || staplesOut.length === 0) return;
     if (shoppingList.data === undefined) return; // don't queue against a stale view
-    for (const s of staplesOut) autoQueued.current.add(s.id);
-    shoppingMutation.mutate(
-      { ingredientIds: staplesOut.map((s) => s.id), action: 'add' },
-      {
-        onSuccess: () =>
-          showToast({
-            message: `Staples out — queued: ${staplesOut.map((s) => s.name).join(', ')}.`,
-          }),
-      },
-    );
+    const ids = staplesOut.map((s) => s.id);
+    const queuedNames = staplesOut.map((s) => s.name).join(', ');
+    rememberQueued(ids);
+    for (const id of ids) sentThisMount.current.add(id);
+    shoppingMutation
+      .mutateAsync(
+        { ingredientIds: ids, action: 'add' },
+        { onSuccess: () => showToast({ message: `Staples out — queued: ${queuedNames}.` }) },
+      )
+      // The promise settles after Tonight unmounts too; mutate's onError would not.
+      .catch(() => forgetQueued(ids));
   }, [staplesOut.map((s) => s.id).join(','), profile?.id, shoppingList.data === undefined]);
 
   // What the favorited drinks still need — aspiration outranks the generic
