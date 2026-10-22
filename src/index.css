@@ -381,6 +381,15 @@ a {
   min-width: 0;
 }
 
+/* A group's heading takes the focus when Remove empties the group beside it
+   (Shelf.tsx focusAfterRemove; ADR-003). It is focusable only for that
+   (tabindex -1, never a Tab stop), and wears the system's one focus ring:
+   focus-visible only, 2px solid brass, 2px offset (Visual foundations). */
+.shelf-group h2:focus-visible {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 /* First pours: card + its explicit choose action */
 .first-pour-item {
   display: grid;
