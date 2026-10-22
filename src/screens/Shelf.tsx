@@ -46,6 +46,14 @@ export function Shelf() {
 
   const [q, setQ] = useState('');
   const results = useIngredientSearch(useDebounced(q, 200));
+  // The picker answers from Meilisearch or, failing that, the REST name filter
+  // (ADR-004). A search with neither answering, or one waiting paused for the
+  // network while the device is offline (chrispezza/barback#107), has no
+  // answer: the chip row says so in the error voice and shows no chip, not even
+  // one from an earlier query (ADR-007 Consequences; the Index's search rule).
+  // A paused search goes out again by itself on reconnect.
+  const searchUnanswered = results.isError || results.isPaused;
+  const hits = searchUnanswered ? undefined : results.data;
   const shelfIds = new Set(shelf.data?.data.map((i) => i.id) ?? []);
 
   const rows = shelf.data?.data ?? [];
@@ -99,7 +107,14 @@ export function Shelf() {
       />
       {q.trim().length >= 1 && (
         <div class="chip-row">
-          {results.data?.map((hit) => {
+          {searchUnanswered && (
+            <ErrorLine
+              onRetry={() => {
+                if (results.isError) void results.refetch();
+              }}
+            />
+          )}
+          {hits?.map((hit) => {
             const isOnShelf = shelfIds.has(hit.id);
             return (
               <IngredientChip
@@ -115,7 +130,7 @@ export function Shelf() {
               />
             );
           })}
-          {results.data?.length === 0 && (
+          {hits?.length === 0 && (
             <p class="recipe-aside">Nothing by that name.</p>
           )}
         </div>
