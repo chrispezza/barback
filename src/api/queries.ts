@@ -7,7 +7,7 @@ import {
   type QueryClient,
   type UseMutationOptions,
 } from '@tanstack/react-query';
-import { api } from './client';
+import { api, isApiError } from './client';
 import { decodeCocktailText } from './text';
 import { showToast } from '../components/toasts';
 import { reachFallbackParent, reachOf, type Reach } from '../data/hierarchy';
@@ -118,12 +118,23 @@ export function useCocktails(
  *  shape), and the screen reads instructions and garnish decoded from e(). */
 const selectCocktail = (r: ItemResponse<Cocktail>): Cocktail => decodeCocktailText(r.data);
 
+/** Upstream has no cocktail by that id or slug: firstOrFail in
+ *  CocktailController::show, rendered as 404 "Resource not found."
+ *  (bar-assistant-reference app/Http/Controllers/CocktailController.php:97-100,
+ *  app/Exceptions/Handler.php:64-67). */
+export function isCocktailNotFound(error: unknown): boolean {
+  return isApiError(error) && error.status === 404;
+}
+
 export function useCocktail(barId: number | undefined, idOrSlug: string) {
   return useQuery({
     queryKey: ['cocktail', barId, idOrSlug],
     queryFn: () => api<ItemResponse<Cocktail>>(`/cocktails/${idOrSlug}`, { barId }),
     enabled: barId !== undefined,
     select: selectCocktail,
+    // A 404 is the bar's answer, not a failure: asking again cannot change it.
+    // Anything else gets the app's one retry (src/app.tsx, retry: 1).
+    retry: (failureCount, error) => !isCocktailNotFound(error) && failureCount < 1,
   });
 }
 

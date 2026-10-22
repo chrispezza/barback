@@ -4,9 +4,12 @@ import { Button } from '@ds/core/Button';
 import { DrinkCard } from '@ds/drinks/DrinkCard';
 import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
+import { EmptyState } from '@ds/feedback/EmptyState';
 import { ShelfRow } from '@ds/inventory/ShelfRow';
 import {
+  isCocktailNotFound,
   useBarId,
+  useBars,
   useCocktail,
   useProfile,
   useShelf,
@@ -30,10 +33,15 @@ function measure(entry: CocktailIngredientEntry): string {
   return `${entry.amount} ${entry.units}`;
 }
 
+/** The screen's name when the bar has no drink by that slug. */
+const NOT_FOUND_TITLE = 'No such drink';
+
 export function DrinkDetail({ slug }: { slug: string }) {
+  const bars = useBars();
   const barId = useBarId();
   const { route } = useLocation();
-  const { data: cocktail, isLoading, isError, refetch } = useCocktail(barId, slug);
+  const recipe = useCocktail(barId, slug);
+  const cocktail = recipe.data;
   const { data: profile } = useProfile();
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
@@ -44,9 +52,13 @@ export function DrinkDetail({ slug }: { slug: string }) {
   const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
   const toggleFavorite = useToggleFavorite(barId);
 
+  // The bar's own 404: there is no such drink (CocktailController::show).
+  const notFound = recipe.isError && isCocktailNotFound(recipe.error);
+
   useEffect(() => {
-    if (cocktail) setScreenTitle(cocktail.name);
-  }, [cocktail?.name]);
+    if (notFound) setScreenTitle(NOT_FOUND_TITLE);
+    else if (cocktail) setScreenTitle(cocktail.name);
+  }, [notFound, cocktail?.name]);
 
   // Standalone PWA has no browser chrome — the screen carries its own way back.
   const goBack = () => {
@@ -61,27 +73,51 @@ export function DrinkDetail({ slug }: { slug: string }) {
     </p>
   );
 
-  if (isLoading) {
+  // Before there is a recipe, one of three things is true (ADR-007; frontend-spec
+  // §9 "quiet loading/error voices"; chrispezza/barback#68). The recipe read
+  // waits on /bars for the bar id and stays disabled until then, so a disabled
+  // read is never "missing": a bootstrap that failed is the error voice, and
+  // its Retry asks for the bootstrap again.
+  //
+  // Offline, TanStack's default networkMode ('online') pauses a read instead
+  // of failing it, and a paused read is neither loading nor in error. The bar
+  // cannot answer, so a paused read with nothing to show is the error voice
+  // too; it goes out again by itself on reconnect.
+  const barsFailed = barId === undefined && (bars.isError || bars.isPaused);
+  const recipePaused = recipe.isPending && recipe.isPaused;
+  if (barsFailed || recipePaused || (recipe.isError && !notFound)) {
+    return (
+      <main class="screen screen--narrow">
+        {backRow}
+        <ErrorLine onRetry={() => void (barsFailed ? bars.refetch() : recipe.refetch())} />
+      </main>
+    );
+  }
+  // Only the bar's own 404 says there is no such drink; the next move is the index.
+  // The heading names the screen for the outline and RouteEffects; the empty
+  // state says the rest.
+  if (notFound) {
+    return (
+      <main class="screen screen--narrow">
+        {backRow}
+        <h1 class="visually-hidden">{NOT_FOUND_TITLE}</h1>
+        <EmptyState
+          body="No drink by that name — the index has the rest."
+          action={
+            <Button variant="secondary" size="sm" onClick={() => route('/drinks')}>
+              Browse the index
+            </Button>
+          }
+        />
+      </main>
+    );
+  }
+  // The bar, or the recipe, is still on its way.
+  if (!cocktail) {
     return (
       <main class="screen screen--narrow" aria-busy="true">
         {backRow}
         <p class="recipe-aside">Fetching the recipe…</p>
-      </main>
-    );
-  }
-  if (isError) {
-    return (
-      <main class="screen screen--narrow">
-        {backRow}
-        <ErrorLine onRetry={() => void refetch()} />
-      </main>
-    );
-  }
-  if (!cocktail) {
-    return (
-      <main class="screen screen--narrow">
-        {backRow}
-        <p class="recipe-aside">Not found.</p>
       </main>
     );
   }
