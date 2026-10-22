@@ -138,13 +138,50 @@ async function failFirst(page: Page, matches: (url: URL) => boolean, times: numb
   return () => failed
 }
 
+/**
+ * Drop every API request `matches` picks out, until `lift` is called, and
+ * count those dropped (e2e/t-warm-stale.spec.ts). Playwright asks the route
+ * registered last first, so this one is asked before the fake, and passes
+ * every other request on to it.
+ */
+async function outage(page: Page, matches: (url: URL) => boolean) {
+  let down = true
+  let dropped = 0
+  await page.route(
+    (url) => url.pathname.startsWith('/bar/api/'),
+    (route) => {
+      if (!down || !matches(new URL(route.request().url()))) return route.fallback()
+      dropped += 1
+      return route.abort('connectionrefused')
+    },
+  )
+  return {
+    lift: () => {
+      down = false
+    },
+    dropped: () => dropped,
+  }
+}
+
+/** Client-side navigation through the visible main nav (rail or tab bar). */
+async function goTo(page: Page, label: string, heading: string) {
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: new RegExp(`^${label}`) }).click()
+  await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
+}
+
 /** GET /users/{id}/shopping-list: useShoppingList. */
 const listRead = (url: URL) => /^\/bar\/api\/users\/\d+\/shopping-list$/.test(url.pathname)
 /** GET /cocktails?filter[favorites]=true: Tonight's favourites read. */
 const favoritesRead = (url: URL) =>
   url.pathname === '/bar/api/cocktails' && url.searchParams.get('filter[favorites]') === 'true'
+/** GET /users/{id}/ingredients/recommend: the server's ranking. */
+const recommendRead = (url: URL) => /^\/bar\/api\/users\/\d+\/ingredients\/recommend$/.test(url.pathname)
 /** GET /ingredients/{slug}-{bar}: the useStaples lookups. */
 const stapleRead = (url: URL) => /^\/bar\/api\/ingredients\/[a-z]+(?:-[a-z]+)*-\d+$/.test(url.pathname)
+
+/** The rail's offer, by its three headings. */
+const offerHeadings = (page: Page) =>
+  rail(page).getByRole('heading', { name: /^(Buy next|For your favorites|Restock next)$/ })
 
 /**
  * Resolve once the fake has recorded no new request, API or search, for
@@ -336,6 +373,80 @@ test.describe('a staples read that fails', () => {
     await expect(page.getByText('Staples out — queued: Tonic.')).toBeVisible()
     expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
     expect(offered(await frames(page))).not.toContain('Tonic')
+  })
+})
+
+// The warm path (chrispezza/barback#144, item 3): Tonight has read the bar
+// once, then one of the offer's reads fails when it is asked again. TanStack
+// Query keeps that read's last answer beside the error, and the answer is
+// stale: nothing is decided from it (unlessFailed), as from a first read that
+// failed. The shelf, the list and both drink sections answer, so the rail's
+// line is the page's only one.
+test.describe('a read of the offer’s that fails when Tonight asks again', () => {
+  // A favourited Penicillin: Honey syrup is Buy next, ahead of the server's ranking.
+  test.use({ world: world(defaultWorld(), (w) => (w.favorites = [C.penicillin])) })
+
+  const RESTOCK = ['Scotch whisky', 'Dark rum', 'Rye whiskey', 'Tequila', 'Vodka']
+
+  /** Read Tonight once, then come back to it with `matches` down. */
+  async function comeBackWith(page: Page, matches: (url: URL) => boolean) {
+    await page.goto('/tonight')
+    await expect(buyNext(page).locator('.buy-next-name')).toHaveText('Honey syrup')
+    await expect(group(page, 'Restock next').locator('.restock-name')).toHaveText(RESTOCK)
+    await goTo(page, 'Shelf', 'Shelf')
+    const down = await outage(page, matches)
+    await goTo(page, 'Tonight', 'Tonight')
+    // The read and its one retry (src/app.tsx, retry: 1).
+    await expect.poll(down.dropped, { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
+    return down
+  }
+
+  test('the favourites: says so in the rail, offers nothing from the last answer, and Retry brings it back', async ({
+    page,
+  }) => {
+    const { lift } = await comeBackWith(page, favoritesRead)
+
+    const alert = await expectOneRailError(page)
+    // Not the favourite's pick, nor the ranking's in its place: Restock
+    // leaves out what the favourites claim, so it waits for them too.
+    await expect(offerHeadings(page)).toHaveCount(0)
+
+    lift()
+    await alert.getByRole('button', { name: 'Retry' }).click()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(buyNext(page).locator('.buy-next-name')).toHaveText('Honey syrup')
+    await expect(group(page, 'Restock next').locator('.restock-name')).toHaveText(RESTOCK)
+  })
+
+  test('the ranking: says so in the rail, the favourite’s pick stands, and Retry brings Restock next back', async ({
+    page,
+  }) => {
+    const { lift } = await comeBackWith(page, recommendRead)
+
+    const alert = await expectOneRailError(page)
+    await expect(buyNext(page).locator('.buy-next-name')).toHaveText('Honey syrup')
+    await expect(offerHeadings(page)).toHaveText(['Buy next'])
+
+    lift()
+    await alert.getByRole('button', { name: 'Retry' }).click()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(group(page, 'Restock next').locator('.restock-name')).toHaveText(RESTOCK)
+  })
+
+  test('the staples: says so in the rail, the favourite’s pick stands, and Retry brings Restock next back', async ({
+    page,
+  }) => {
+    const { lift } = await comeBackWith(page, stapleRead)
+
+    const alert = await expectOneRailError(page)
+    // Restock next leaves the staples out, so it waits for their read.
+    await expect(buyNext(page).locator('.buy-next-name')).toHaveText('Honey syrup')
+    await expect(offerHeadings(page)).toHaveText(['Buy next'])
+
+    lift()
+    await alert.getByRole('button', { name: 'Retry' }).click()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await expect(group(page, 'Restock next').locator('.restock-name')).toHaveText(RESTOCK)
   })
 })
 
