@@ -450,6 +450,73 @@ test.describe('a read of the offer’s that fails when Tonight asks again', () =
   })
 })
 
+// The standing orders are writes the user did not tap (ADR-008), so they are
+// decided only from a staples read that has answered, as they are only against
+// a list just read: not from the last answer while the staples are read again,
+// nor from the one a failed refetch leaves in hand. Either may say a staple is
+// off the shelf that is back on it, or on it when it has run out.
+test.describe('the standing orders, when the staples fail as Tonight asks again', () => {
+  test('send no write from the last answer, and Retry reads the staple back on the shelf', async ({ page, bar }) => {
+    // Tonic off the shelf, and its standing order's write fails, so the
+    // next Tonight would send it again (e2e/standing-orders.spec.ts).
+    bar.model.shelf.delete(I.tonic)
+    bar.fail(/\/shopping-list\/batch-store$/, { method: 'POST', status: 500, times: 1 })
+    await page.goto('/tonight')
+    await expect(page.getByText('The list didn’t take that change.')).toBeVisible()
+    await settled(bar)
+    expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+
+    await goTo(page, 'Shelf', 'Shelf')
+    // Tonic is back on the shelf (bought, and put there on another device),
+    // and the staples cannot be read again.
+    bar.model.shelf.add(I.tonic)
+    const { lift } = await outage(page, stapleRead)
+    await goTo(page, 'Tonight', 'Tonight')
+
+    const alert = await expectOneRailError(page)
+    await settled(bar)
+    // The last answer has Tonic off the shelf; the list and the shelf were read, and it is on the shelf.
+    expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+
+    lift()
+    await alert.getByRole('button', { name: 'Retry' }).click()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await settled(bar)
+    expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+    expect([...bar.model.list.keys()]).toEqual([])
+  })
+
+  test('hold a staple dropped meanwhile as dropped once they answer', async ({ page, bar }) => {
+    // Tonic on the shelf: the staples read says so.
+    await page.goto('/tonight')
+    await settled(bar)
+    expect(listStores(bar)).toEqual([])
+
+    await goTo(page, 'Shelf', 'Shelf')
+    // Used up and listed on another device, and the staples cannot be read again.
+    bar.model.shelf.delete(I.tonic)
+    bar.model.list.set(I.tonic, 1)
+    const { lift } = await outage(page, stapleRead)
+    await goTo(page, 'Tonight', 'Tonight')
+
+    const alert = await expectOneRailError(page)
+    // Taken off the list by hand while the staples are unknown (chrispezza/barback#55).
+    await page.getByRole('button', { name: 'Remove Tonic from the list' }).click()
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+    expect(listDeletes(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+
+    lift()
+    await alert.getByRole('button', { name: 'Retry' }).click()
+    await expect(page.getByRole('alert')).toHaveCount(0)
+    await settled(bar)
+    // Tonic is off the shelf and off the list: dropped by hand, it stays dropped.
+    expect(listStores(bar)).toEqual([])
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+    expect([...bar.model.list.keys()]).toEqual([])
+  })
+})
+
 test.describe('the bare shelf’s empty state, until its suggestions are ready', () => {
   const GENERIC = 'Add a spirit, a citrus and a sweetener and the first drinks open up.'
 
