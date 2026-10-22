@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { LocationProvider, Router, Route, useLocation } from 'preact-iso';
 import type { ComponentChildren, ComponentType } from 'preact';
-import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Button } from '@ds/core/Button';
 import { clearToken, isAuthenticated } from './auth';
 import { queryDefaults } from './api/client';
@@ -205,6 +205,7 @@ export function useLogout(): () => void {
 /** Desktop 212px rail: brand, fleuron, nav, shelf standing in the footer. */
 function RailNav() {
   const barId = useBarId();
+  const queryClient = useQueryClient();
   const shelf = useShelf(barId);
   const canMake = useCocktails(barId, { on_shelf: true }, 1);
   const home = useNavHref('/tonight');
@@ -217,6 +218,43 @@ function RailNav() {
   const shelfRead = unlessFailed(shelf);
   const bottles = shelfRead?.meta?.total ?? shelfRead?.data.length;
   const pourable = unlessFailed(canMake)?.meta?.total;
+
+  // The standing has no error line, so no Retry, of its own, and a screen's
+  // Retry asks again only for the screen's reads: the whole-bar can-pour count
+  // is read by the rail and Tonight's status line alone, and the classics read
+  // no shelf. So when a read that had failed answers (a Retry, or a refetch on
+  // reconnect), the bar is answering again, and the rail asks again for
+  // whichever of the standing's reads is still in error: the standing speaks
+  // again with the screen, not on the next navigation (ADR-007: the error
+  // voice clears once the bar answers; chrispezza/barback#145, Option 1).
+  // Only a recovery counts, not any read that answers: the rail's shelf read
+  // is the Shelf's and the Index's too, and asking for it again behind a
+  // screen whose shelf read failed would clear that screen's error line with
+  // no Retry tapped. A write's own cache update (setQueryData, `manual`) is
+  // not an answer. The reads are asked for after the render that follows the
+  // answer, so they are checked in the state it left; a read already under way
+  // is joined, not restarted.
+  const [recoveries, setRecoveries] = useState(0);
+  useEffect(() => {
+    const failed = new Set<string>();
+    return queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === 'removed') failed.delete(event.query.queryHash);
+      if (event.type !== 'updated') return;
+      const { query, action } = event;
+      if (query.state.status === 'error') {
+        failed.add(query.queryHash);
+      } else if (action.type === 'success' && failed.delete(query.queryHash) && !action.manual) {
+        setRecoveries((n) => n + 1);
+      }
+    });
+  }, [queryClient]);
+  useEffect(() => {
+    if (recoveries === 0) return;
+    for (const read of [shelf, canMake]) {
+      if (read.isError && !read.isFetching) void read.refetch({ cancelRefetch: false });
+    }
+  }, [recoveries]);
+
   return (
     <nav class="nav-rail" aria-label="Main">
       {/* A plain link, routed once by LocationProvider (see NavLink). */}

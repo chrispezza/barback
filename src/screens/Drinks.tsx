@@ -61,9 +61,12 @@ export function Drinks() {
   const searchHits = useCocktailSearch(useDebounced(searchQuery, 200));
   // A search with no answer says so and states nothing it once read
   // (ADR-007): no count, and no card left over from an earlier answer. It
-  // failed, or the device is offline and the read waits paused for the
-  // network (chrispezza/barback#107); a paused read goes out again by itself
-  // on reconnect.
+  // failed, or it waits paused. Every read is tried however the device looks
+  // (networkMode 'always', src/api/client.ts), so offline it fails; but a
+  // retry that comes due while the page is hidden waits, paused, until the
+  // page is shown again (query-core's retryer continues only while
+  // focusManager.isFocused()), and goes out by itself then
+  // (chrispezza/barback#143).
   const searchUnanswered = searchHits.isError || searchHits.isPaused;
   const answer = searchUnanswered ? undefined : searchHits.data;
   const hitIds = answer?.hits.map((h) => h.id) ?? [];
@@ -76,7 +79,8 @@ export function Drinks() {
   const hitRank = new Map(hitIds.map((id, i) => [id, i]));
   // The by-id read keeps its previous answer across a key change; only the
   // cards this answer ranked are listed, and none while that read has failed
-  // or waits offline: their stock marks would be cached answers (ADR-007).
+  // or waits paused (above): their stock marks would be cached answers
+  // (ADR-007).
   const hitsUnanswered = hitCocktails.isError || hitCocktails.isPaused;
   const hits = hitsUnanswered
     ? []
@@ -248,7 +252,14 @@ export function Drinks() {
               filter (ADR-004); the hits then come back as full cards, read
               against the shelf. One line for whichever failed. */}
           {searchFailed && <ErrorLine onRetry={() => retry(searchHits, hitCocktails, shelf)} />}
-          {answer?.total === 0 && <p class="recipe-aside">Nothing by that name.</p>}
+          {/* Directive, never apologetic: the line names what to do next
+              (DS readme, Content fundamentals). A family chosen above lists
+              its drinks once the search is cleared. */}
+          {answer?.total === 0 && (
+            <p class="recipe-aside">
+              Nothing by that name — try fewer letters, or clear the search and browse by family.
+            </p>
+          )}
           {partial && <p>{partial}</p>}
           <ul class="card-list">{hits.map(card)}</ul>
         </section>
@@ -271,10 +282,16 @@ export function Drinks() {
             </header>
           )}
 
+          {/* A toggle button (WAI-ARIA): one name in both states, with
+              aria-pressed carrying the state. Pressed, it is the filled
+              variant with the check, never the check on an outline: the ✓
+              always rides a fill (DS readme, Iconography; "State is never
+              colour alone"). As the classics' Choose (FirstPours.tsx). */}
           <p class="favorites-filter-row">
             <Button
-              variant={showFavorites ? 'secondary' : 'ghost'}
+              variant={showFavorites ? 'primary' : 'ghost'}
               size="sm"
+              aria-label="Favorites"
               aria-pressed={showFavorites}
               onClick={() => route(buildUrl(1, !showFavorites))}
             >

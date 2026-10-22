@@ -27,12 +27,13 @@ import { expect, test } from './support/test'
 // retry (src/app.tsx, retry: 1).
 
 const ERROR = 'The bar didn’t answer — try again.'
-const NOTHING = 'Nothing by that name.'
 const NAME_READ = /^\/ingredients$/
 
 interface Picker {
   screen: string
   label: string
+  /** What the picker says when a search that answered finds nothing. */
+  nothing: string
   /** Where the picker and its chips live on the screen. */
   scope: (page: Page) => Locator
   /** Open the screen and wait until its own reads have answered. */
@@ -115,6 +116,7 @@ const PICKERS: Picker[] = [
   {
     screen: 'the Shelf',
     label: 'Add a bottle',
+    nothing: 'Nothing by that name — try fewer letters, or the kind of bottle rather than its brand.',
     scope: (page) => page.getByRole('main'),
     open: async (page, bar) => {
       await page.goto('/shelf')
@@ -125,6 +127,7 @@ const PICKERS: Picker[] = [
   {
     screen: 'Tonight',
     label: 'Add to the list',
+    nothing: 'Nothing by that name.',
     scope: (page) => page.locator('#buy'),
     open: async (page, bar) => {
       await page.goto('/tonight')
@@ -176,7 +179,7 @@ for (const picker of PICKERS) {
 
       await expectPickerErrorLine(page)
       await expect(chips(page)).toHaveCount(0)
-      await expect(page.getByText(NOTHING)).toHaveCount(0)
+      await expect(page.getByText(picker.nothing)).toHaveCount(0)
       // Meilisearch was asked, then the REST name filter (ADR-004), twice
       // each: the first try and its retry. Nothing else read the ingredients.
       expect(
@@ -199,7 +202,7 @@ for (const picker of PICKERS) {
 
       await expectPickerErrorLine(page)
       await expect(chips(page)).toHaveCount(0)
-      await expect(page.getByText(NOTHING)).toHaveCount(0)
+      await expect(page.getByText(picker.nothing)).toHaveCount(0)
     })
 
     test('its Retry asks again, and the chips take the error line’s place', async ({ page, bar }) => {
@@ -230,7 +233,7 @@ for (const picker of PICKERS) {
 
       await expectPickerErrorLine(page)
       await expect(chips(page)).toHaveCount(0)
-      await expect(page.getByText(NOTHING)).toHaveCount(0)
+      await expect(page.getByText(picker.nothing)).toHaveCount(0)
       // Nothing reached the bar while the device was offline. Whatever the
       // network dropped was the picker's search for "tequila" and nothing
       // else: none if the search waits paused, its tries if it fails.

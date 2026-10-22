@@ -106,8 +106,14 @@ body {
   }
 }
 
+/* The way home from every screen: a 44px target like every other
+   (Visual foundations), the name centred in it, and the 8px it gains above
+   and below taken back by the margins so the name sits where it did. */
 .rail-brand {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  margin: -8px 0;
   font-family: var(--font-display);
   font-size: var(--display-3);
   line-height: 1.15;
@@ -192,10 +198,11 @@ body {
   padding-top: var(--space-5);
 }
 
+/* A count, so the interface face: italic Caslon is for ingredient names and
+   asides, "never for numbers" (Content fundamentals; chrispezza/barback#66). */
 .rail-standing {
   margin: 0 0 var(--space-2);
-  font-family: var(--font-serif);
-  font-style: italic;
+  font-family: var(--font-body);
   font-size: var(--caption);
   line-height: 1.4;
   color: var(--sage-600);
@@ -584,8 +591,12 @@ a {
   font-size: var(--body-1);
 }
 
+/* The Shelf's count, in the interface face (Content fundamentals: italic
+   Caslon "never for numbers"; chrispezza/barback#66), quiet as an aside. */
 .shelf-count {
   min-height: calc(var(--body-2) * var(--body-2-lh));
+  font-family: var(--font-body);
+  color: var(--cream-400);
 }
 
 /* Log out lives in the rail on desktop and at the end of Shelf on a phone */

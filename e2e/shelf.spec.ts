@@ -228,10 +228,10 @@ test.describe('adding a bottle', () => {
   test('a search with no match says so, and Clear empties the picker', async ({ page, hasTouch }) => {
     await openShelf(page)
     await picker(page).fill('zzz')
-    await expect(page.getByText('Nothing by that name.')).toBeVisible()
+    await expect(page.getByText('Nothing by that name — try fewer letters, or the kind of bottle rather than its brand.')).toBeVisible()
     await press(page.getByRole('button', { name: 'Clear search' }), hasTouch)
     await expect(picker(page)).toHaveValue('')
-    await expect(page.getByText('Nothing by that name.')).toHaveCount(0)
+    await expect(page.getByText('Nothing by that name — try fewer letters, or the kind of bottle rather than its brand.')).toHaveCount(0)
   })
 
   test('an add the bar refuses leaves the shelf as it was, and says so', async ({ page, bar, hasTouch }) => {
