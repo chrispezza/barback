@@ -55,7 +55,7 @@ test.describe('a list row after the shelf changes (§4, §6 journey 3)', () => {
 
     test('a bottle removed on the Shelf takes its unlock off the row on Tonight', async ({ page, bar }) => {
       await page.goto('/tonight')
-      await expect(meta(page, 'Campari')).toHaveText('Unlocks 1')
+      await expect(meta(page, 'Campari')).toHaveText('Unlocks 1·\u200A1 spirit-forward drink')
       const extraReads = bar.calls('GET', campariExtra).length
 
       await navLink(page, 'Shelf').click()
@@ -91,7 +91,7 @@ test.describe('a list row after the shelf changes (§4, §6 journey 3)', () => {
       // The Undo outlives the Shelf screen; it is tapped on Tonight.
       await undoButton(page).click()
       await expect.poll(() => bar.model.shelf.has(I.gin)).toBe(true)
-      await expect(meta(page, 'Campari')).toHaveText('Unlocks 1')
+      await expect(meta(page, 'Campari')).toHaveText('Unlocks 1·\u200A1 spirit-forward drink')
       expect(bar.calls('GET', campariExtra).length).toBeGreaterThan(extraReads)
     })
   })
@@ -118,7 +118,7 @@ test.describe('a list row after the shelf changes (§4, §6 journey 3)', () => {
       await expect.poll(() => bar.model.shelf.has(I.gin)).toBe(true)
 
       await navLink(page, 'Tonight').click()
-      await expect(meta(page, 'Campari')).toHaveText('Unlocks 1')
+      await expect(meta(page, 'Campari')).toHaveText('Unlocks 1·\u200A1 spirit-forward drink')
       expect(bar.calls('GET', campariExtra).length).toBeGreaterThan(extraReads)
     })
   })
