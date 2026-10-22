@@ -378,4 +378,32 @@ test.describe('To buy after an unlock count’s read fails', () => {
     await expect(rail(page).getByText(/unlocks \d/i)).toHaveCount(0)
     await expect(rail(page).getByText(/^opens \d+ drinks? tonight$/)).toHaveCount(0)
   })
+
+  // The journey above changes the pick (Gin, once off the shelf, ranks first),
+  // and a new pick's count is never read, so it states none either way. Here
+  // the toggle leaves the pick where it is, with a count it has read once.
+  test('Buy next states no count for the same pick once its count could not be read again', async ({
+    page,
+    bar,
+  }) => {
+    const buyNext = rail(page).locator('.buy-next')
+    await page.goto('/tonight')
+    await expect(buyNext.locator('.buy-next-name')).toHaveText('Scotch whisky')
+    await expect(buyNext.locator('.buy-next-reason')).toHaveText('opens 2 drinks tonight')
+
+    await goTo(page, 'Shelf', 'Shelf')
+    const scotchExtra = new RegExp(`^/ingredients/${I.scotch}/extra$`)
+    const { dropped } = await outage(page, (url) => scotchExtra.test(url.pathname.slice('/bar/api'.length)))
+    // Egg white is optional in the one drink that calls it, and ranks below
+    // Scotch once off the shelf; the toggle still asks every count again
+    // (chrispezza/barback#102).
+    await page.getByRole('button', { name: 'Remove Egg white from the shelf', exact: true }).click()
+    await expect.poll(() => bar.model.shelf.has(I.eggWhite)).toBe(false)
+    await goTo(page, 'Tonight', 'Tonight')
+
+    // The count is asked for, and its one retry, and both fail.
+    await expect.poll(() => dropped(scotchExtra), { timeout: 10_000 }).toBeGreaterThanOrEqual(2)
+    await expect(buyNext.locator('.buy-next-name')).toHaveText('Scotch whisky')
+    await expect(buyNext.locator('.buy-next-reason')).toHaveText('ranked highest for your shelf')
+  })
 })
