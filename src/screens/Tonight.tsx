@@ -459,7 +459,13 @@ export function Tonight() {
   const recommendationsAnswer = unlessFailed(recommendations);
   const staplesAnswer = unlessFailed(staples);
   const favoriteNeeds = rankFavoriteNeeds(
-    favoriteGaps(favoritesAnswer?.data ?? [], ownedOrListed, shelfIdx),
+    favoriteGaps(
+      favoritesAnswer?.data ?? [],
+      ownedOrListed,
+      shelfIdx,
+      // Off-shelf staples are on their way by standing order (#151).
+      new Set((staplesAnswer ?? []).filter((s) => !s.in_shelf).map((s) => s.id)),
+    ),
   );
   // Staples and favorite gaps own their groups; both stay out of the
   // general suggestions, as does a parent a held brand already covers.
