@@ -51,19 +51,23 @@ export interface BuyNextPick {
  * leaves no gap; chrispezza/barback#20), it is not optional, and its bottle is
  * neither owned nor already listed. A listed bottle is set aside as already on
  * its way, so a drink whose other gaps are all listed is completed by the one
- * bottle left.
+ * bottle left. So is a staple off the shelf (`staplesOut`): its standing order
+ * queues it by itself (ADR-008), so offering it would be a tap for a write the
+ * app makes anyway (chrispezza/barback#151).
  */
 export function favoriteGaps(
   favorites: readonly Cocktail[],
   ownedOrListed: ReadonlySet<number>,
   shelf?: ShelfIndex,
+  staplesOut: ReadonlySet<number> = new Set(),
 ): FavoriteNeed[] {
   const gaps = new Map<number, FavoriteNeed>();
   for (const c of favorites) {
     // This drink's gaps, one per bottle however many lines call it.
     const missing = new Map<number, string>();
     for (const e of c.ingredients) {
-      if (!lineHeld(c, e, shelf) && !e.optional && !ownedOrListed.has(e.ingredient.id)) {
+      const id = e.ingredient.id;
+      if (!lineHeld(c, e, shelf) && !e.optional && !ownedOrListed.has(id) && !staplesOut.has(id)) {
         missing.set(e.ingredient.id, e.ingredient.name);
       }
     }

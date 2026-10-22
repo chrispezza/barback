@@ -735,3 +735,35 @@ describe('To buy, ranked by what each bottle unlocks (frontend-spec §6 Journey 
     expect(rankList([], new Map())).toEqual({ rows: [], settled: true })
   })
 })
+
+describe('a staple off the shelf in a favourite (chrispezza/barback#151)', () => {
+  // Gin Tonic is favourited with Tonic, a staple (src/data/staples.ts), off the
+  // shelf. The standing order queues Tonic by itself (ADR-008), so it is on its
+  // way exactly as a listed bottle is: offering it as Buy next, or under For
+  // your favorites, would be a tap for a write the app makes anyway, and the
+  // pick would swap once the standing order's write is read back.
+  const world = (): WorldSeed => {
+    const w = defaultWorld()
+    w.shelf = w.shelf.filter((id) => id !== I.tonic)
+    w.favorites = [C.ginTonic]
+    return w
+  }
+
+  it('is not a favourite gap while its standing order stands', () => {
+    const t = inputs(world())
+    const staplesOut = new Set(t.staples.filter((s) => !s.in_shelf).map((s) => s.id))
+    expect(staplesOut.has(I.tonic)).toBe(true)
+    const gaps = favoriteGaps(t.favorites, t.ownedOrListed, t.shelf, staplesOut)
+    expect(gaps.map((g) => g.id)).not.toContain(I.tonic)
+    expect(buyNextGroups(rankFavoriteNeeds(gaps), []).pick).toBeUndefined()
+  })
+
+  it('completes a favourite with the one bottle left when the rest is a staple on its way', () => {
+    const w = world()
+    w.shelf = w.shelf.filter((id) => id !== I.gin)
+    const t = inputs(w)
+    const staplesOut = new Set(t.staples.filter((s) => !s.in_shelf).map((s) => s.id))
+    const gaps = favoriteGaps(t.favorites, t.ownedOrListed, t.shelf, staplesOut)
+    expect(gaps).toEqual([{ id: I.gin, name: 'Gin', count: 1, completes: 1 }])
+  })
+})
