@@ -22,8 +22,8 @@ import { expect, test } from './support/test'
 // type-ahead does while Meilisearch is down is chrispezza/barback#76, not this
 // spec's.
 //
-// Every failed read below fails its first try and its one retry (src/app.tsx,
-// retry: 1).
+// Every failed read below fails its first try and its one retry
+// (src/api/client.ts queryDefaults, retry: 1).
 //
 // The store aisle (ADR-007) is the device offline, not only the bar out of
 // reach: the browser reports navigator.onLine false. A search asked for then
@@ -178,15 +178,21 @@ test.describe('the device is offline', () => {
     await openIndex(page)
     // Route interception still answers while the context is offline, so this
     // handler, asked before the fake, drops what the page asks of the bar and
-    // of search while the device is offline, as the network would, and keeps
-    // the path of each. Unlike takeApiDown and takeSearchDown, it can be lifted.
+    // of search while the device is offline, as the network would. It keeps
+    // each one as "METHOD /path?query", with the body when there is one: the
+    // Index's own list is also GET /bar/api/cocktails, so the path alone cannot
+    // tell the search's REST fallback from it. Unlike takeApiDown and
+    // takeSearchDown, it can be lifted.
     let online = true
     const dropped: string[] = []
     await page.route(
       (url) => url.pathname.startsWith('/bar/') || url.pathname.startsWith('/search/'),
       (route) => {
         if (online) return route.fallback()
-        dropped.push(new URL(route.request().url()).pathname)
+        const req = route.request()
+        const { pathname, search } = new URL(req.url())
+        const body = req.postData()
+        dropped.push(`${req.method()} ${pathname}${search}${body ? ` ${body}` : ''}`)
         return route.abort('internetdisconnected')
       },
     )
@@ -196,11 +202,15 @@ test.describe('the device is offline', () => {
 
     await searchBox(page).fill('daiq')
     await expectSearchErrorLine(page)
-    // Failed, not held: the search was asked of Meilisearch and then of the
-    // REST name filter (ADR-004), and the network dropped both. Nothing
-    // reached the bar while the device was offline.
-    expect(dropped).toContain('/search/indexes/cocktails/search')
-    expect(dropped).toContain('/bar/api/cocktails')
+    // Failed, not held: the search for "daiq" was asked of Meilisearch and
+    // then of the REST name filter (ADR-004; src/api/search.ts), and the
+    // network dropped both.
+    expect(dropped).toContain('POST /search/indexes/cocktails/search {"q":"daiq","limit":12}')
+    expect(dropped).toContain('GET /bar/api/cocktails?filter[name]=daiq&per_page=12')
+    // The original journey's line, kept. It now holds by construction while
+    // the route above matches every /bar/ and /search/ path: it checks that
+    // this journey's dropped network took every request ahead of the fake, not
+    // anything the app did.
     expect(bar.requests.slice(asked)).toEqual([])
 
     online = true
