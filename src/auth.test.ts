@@ -18,6 +18,24 @@ describe('safeNext', () => {
     }
   })
 
+  // The WHATWG URL parser reads a backslash in an http(s) URL as a slash and
+  // strips tabs and newlines, so each of these starts with one "/" as written
+  // and resolves to //evil.example: another host. history.pushState refuses it
+  // with a SecurityError, after the token is already stored.
+  it('sends a next the URL parser resolves to another host to Tonight', () => {
+    for (const next of ['/\\evil.example', '/\\evil.example/tonight', '/\t/evil.example', '/\n/evil.example', '/\\/evil.example']) {
+      expect(safeNext(next), JSON.stringify(next)).toBe('/tonight')
+    }
+  })
+
+  // Dot segments can collapse to a path that starts "//": same origin as
+  // written, but a string that would read as another host if handed on.
+  it('never hands on a destination that reads as another host', () => {
+    for (const next of ['/.//evil.example', '/..//evil.example', '/drinks/..//evil.example']) {
+      expect(safeNext(next), next).toBe('/tonight')
+    }
+  })
+
   it('never sends a login back to the door, however the door is written', () => {
     for (const next of [
       '/login',

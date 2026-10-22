@@ -38,14 +38,17 @@ export function Login() {
     e.preventDefault();
     setIsSubmitting(true);
     setFailure(null);
+    // Only the login is tried here. Going on to `next` comes after, so a fault
+    // in navigating is never reported as a login that did not take.
     try {
       await login(email, password);
-      route(next);
     } catch (err) {
       setFailure(loginFailure(err));
+      return;
     } finally {
       setIsSubmitting(false);
     }
+    route(next);
   }
 
   return (
