@@ -13,22 +13,7 @@ import { isStocked, type Cocktail } from '../api/types';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
 import { FIRST_POUR_SLUGS } from '../data/first-pours';
-
-function toCardIngredients(cocktail: Cocktail) {
-  return cocktail.ingredients.map((entry) => ({
-    name: entry.ingredient.name,
-    have: isStocked(entry),
-    optional: entry.optional,
-  }));
-}
-
-function cardMatch(cocktail: Cocktail): 'full' | 'partial' | 'near' {
-  if (cocktail.in_shelf) return 'full';
-  const missing = cocktail.ingredients.filter(
-    (i) => !isStocked(i) && !i.optional,
-  ).length;
-  return missing === 1 ? 'near' : 'partial';
-}
+import { cardIngredients, rosterMatchState } from '../data/match';
 
 /**
  * Onboarding step 2 (aspiration): pick the drinks the bar should pour and
@@ -94,8 +79,8 @@ export function FirstPours() {
               name={c.name}
               favorited={c.is_favorited}
               href={`/drinks/${c.slug}`}
-              ingredients={toCardIngredients(c)}
-              match={cardMatch(c)}
+              ingredients={cardIngredients(c)}
+              match={rosterMatchState(c)}
             />
             <Button
               variant={c.is_favorited ? 'ghost' : 'secondary'}

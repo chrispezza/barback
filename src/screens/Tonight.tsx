@@ -19,22 +19,15 @@ import {
   useShoppingMutation,
   useStaples,
 } from '../api/queries';
-import { isStocked, type Cocktail, type RecommendedIngredient } from '../api/types';
+import { isStocked, type RecommendedIngredient } from '../api/types';
 import { useIngredientSearch } from '../api/search';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
 import { ShoppingRow } from '../components/ShoppingRow';
+import { cardIngredients } from '../data/match';
 import { STAPLE_SLUGS } from '../data/staples';
 import { useDebounced } from '../hooks';
-
-function toCardIngredients(cocktail: Cocktail) {
-  return cocktail.ingredients.map((entry) => ({
-    name: entry.ingredient.name,
-    have: isStocked(entry),
-    optional: entry.optional,
-  }));
-}
 
 /** On one column the pour stack is capped; this many cards show before "Show all". */
 const POUR_PREVIEW = 4;
@@ -266,7 +259,7 @@ export function Tonight() {
                   name={c.name}
                   favorited={c.is_favorited}
                   href={`/drinks/${c.slug}`}
-                  ingredients={toCardIngredients(c)}
+                  ingredients={cardIngredients(c)}
                   match="full"
                 />
               </li>
@@ -318,7 +311,7 @@ export function Tonight() {
                   name={c.name}
                   favorited={c.is_favorited}
                   href={`/drinks/${c.slug}`}
-                  ingredients={toCardIngredients(c)}
+                  ingredients={cardIngredients(c)}
                   match="near"
                 />
               </li>
