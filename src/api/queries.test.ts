@@ -730,4 +730,58 @@ describe('the ledger’s root names', () => {
     expect(otherBar.result().isPlaceholderData).toBe(false)
     otherBar.stop()
   })
+
+  // useQuery builds the options afresh on every render of the Shelf, reads the
+  // observer's optimistic result during the render, and hands the options to
+  // setOptions in an effect after it (useBaseQuery). TanStack keeps a stand-in
+  // from one render to the next only while placeholderData is the same function
+  // (QueryObserver.createResult). A new stand-in on every render is a new map,
+  // an update, and another render, for as long as the lookup is out.
+  it('holds one stand-in for a set of roots, render after render, while its lookup is out', async () => {
+    const client = new QueryClient()
+    const updates = vi.fn()
+    /** The options one render of the Shelf hands useQuery, defaulted as useQuery defaults them. */
+    const built = (ids: number[]) => {
+      const options = client.defaultQueryOptions(ingredientNamesOptions(client, BAR_ID, ids))
+      options._optimisticResults = 'optimistic'
+      return options
+    }
+    const observer = new QueryObserver(client, built(six))
+    /** One render of the Shelf over these roots, as useQuery runs it; what the render saw. */
+    const render = (ids: number[]) => {
+      const options = built(ids)
+      const seen = observer.getOptimisticResult(options)
+      if (!observer.hasListeners()) observer.subscribe(updates)
+      observer.setOptions(options)
+      return seen
+    }
+    const current = () => observer.getCurrentResult()
+
+    render(six)
+    await answer(six)
+    await vi.waitFor(() => expect(current().data?.size).toBe(6))
+
+    // The render that brings in the first Liqueurs bottle: one update, to the stand-in.
+    const seven = [...six, I.liqueurs]
+    render(seven)
+    const standIn = current()
+    expect(standIn.isPlaceholderData).toBe(true)
+    expect(standIn.fetchStatus).toBe('fetching')
+    expect(standIn.data?.size).toBe(6)
+    updates.mockClear()
+
+    // Every render after it, while the lookup is out, sees the same names and starts no update.
+    const next = render(seven)
+    const after = render(seven)
+    expect(updates).not.toHaveBeenCalled()
+    expect(next.data).toBe(standIn.data)
+    expect(after.data).toBe(standIn.data)
+    expect(current().data).toBe(standIn.data)
+    expect(lookups.filter((l) => l.ids === sorted(seven))).toHaveLength(1)
+
+    await answer(seven)
+    await vi.waitFor(() => expect(current().isPlaceholderData).toBe(false))
+    expect(current().data?.get(I.liqueurs)).toBe('Liqueurs')
+    observer.destroy()
+  })
 })
