@@ -8,6 +8,7 @@ import {
   type UseMutationOptions,
 } from '@tanstack/react-query';
 import { api } from './client';
+import { decodeCocktailText } from './text';
 import { showToast } from '../components/toasts';
 import { reachFallbackParent, reachOf, type Reach } from '../data/hierarchy';
 import type {
@@ -112,12 +113,17 @@ export function useCocktails(
   });
 }
 
+/** The recipe as written: the cache keeps the response as upstream sent it
+ *  (entities and all, so the optimistic favourite flip spreads the same
+ *  shape), and the screen reads instructions and garnish decoded from e(). */
+const selectCocktail = (r: ItemResponse<Cocktail>): Cocktail => decodeCocktailText(r.data);
+
 export function useCocktail(barId: number | undefined, idOrSlug: string) {
   return useQuery({
     queryKey: ['cocktail', barId, idOrSlug],
     queryFn: () => api<ItemResponse<Cocktail>>(`/cocktails/${idOrSlug}`, { barId }),
     enabled: barId !== undefined,
-    select: (r) => r.data,
+    select: selectCocktail,
   });
 }
 
