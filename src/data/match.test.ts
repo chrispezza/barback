@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { shelfIndex, type Cocktail, type ShelfIndex } from '../api/types'
 import { BarModel, cocktailResource, ingredientResource, type Endpoint } from '../../test/fixtures/upstream'
-import { C, I, defaultWorld } from '../../test/fixtures/world'
-import { cardIngredients, matchState, oneBottleAway, type MatchState } from './match'
+import { C, I, T, defaultWorld, type CocktailSeed, type WorldSeed } from '../../test/fixtures/world'
+import {
+  cardIngredients,
+  countInWords,
+  familyGap,
+  familyGapLine,
+  familyHoldsNoDrinks,
+  familyNextStep,
+  matchState,
+  oneBottleAway,
+  type MatchState,
+} from './match'
 
 // Card match state (frontend-spec §2 "Per-ingredient stock color", §7
 // DrinkCard). Cocktails are built by the fixture builders in the shape Bar
@@ -482,5 +492,172 @@ describe('the one bottle a near-miss card names', () => {
         expect(oneBottleAway(card, shelf), seed.name).toEqual(line?.ingredient)
       }
     }
+  })
+})
+
+// What opens a family where nothing pours (frontend-spec §6 Journey 2,
+// "Family-aware empty states ... come from this journey's gap data";
+// chrispezza/barback#74). The family's drinks are read as the screens read
+// them: the index shape, every drink carrying the family's tag, in the
+// server's name order (GET /cocktails?filter[tag_id]=…).
+
+/** A family's drinks as the tag-filtered index read returns them. */
+function familyOf(m: BarModel, tagId: number): Cocktail[] {
+  return m.world.cocktails
+    .filter((c) => c.tagIds?.includes(tagId))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => cocktailResource(m, c, 'index'))
+}
+
+/** A drink of one family, built from the world's own ingredients. */
+function seed(id: number, name: string, tagId: number, ingredients: number[]): CocktailSeed {
+  return {
+    id,
+    name,
+    tagIds: [tagId],
+    lines: ingredients.map((ingredientId) => ({ ingredientId, amount: 30, units: 'ml' })),
+    instructions: 'Stir.',
+  }
+}
+
+/**
+ * The default bar, without the staples spirit-forward drinks lean on, plus a
+ * Boulevardier, and with the Martini moved out of the family: nothing in it
+ * pours or is one bottle away, and two drinks wait on the same two bottles.
+ *
+ *   Boulevardier   Campari, Sweet vermouth             (bourbon held)
+ *   Manhattan      Rye, Sweet vermouth, Angostura
+ *   Negroni        Campari, Sweet vermouth             (gin held)
+ *   Old Fashioned  Simple syrup, Angostura             (bourbon held)
+ *   Rob Roy        Scotch, Sweet vermouth, Angostura   (Laphroaig 10 is no Scotch's child)
+ */
+function spiritForwardWorld(): WorldSeed {
+  const w = defaultWorld()
+  w.shelf = w.shelf.filter((id) => id !== I.sweetVermouth && id !== I.simpleSyrup && id !== I.angostura)
+  w.cocktails.push(seed(16, 'Boulevardier', T.spiritForward, [I.bourbon, I.campari, I.sweetVermouth]))
+  const martini = w.cocktails.find((c) => c.id === C.martini)
+  if (martini) martini.tagIds = []
+  return w
+}
+
+const names = (gap: ReturnType<typeof familyGap>) => gap?.bottles.map((b) => b.name)
+
+describe('what opens a family where nothing pours', () => {
+  it('names the bottles two drinks wait on alone, the most common gap first, and counts both', () => {
+    const m = new BarModel(spiritForwardWorld())
+    const drinks = familyOf(m, T.spiritForward)
+    // Guard: nothing in the family pours.
+    expect(drinks.filter((d) => d.in_shelf)).toEqual([])
+    const gap = familyGap(drinks, shelfOf(m))
+    // Sweet vermouth: four drinks wait on it; Campari: two.
+    expect(names(gap)).toEqual(['Sweet vermouth', 'Campari'])
+    expect(gap?.opens).toBe(2)
+    expect(gap && familyGapLine(gap, 'spirit-forward drinks')).toBe(
+      'Add Sweet vermouth and Campari and two spirit-forward drinks open up.',
+    )
+  })
+
+  it('names the bottles of the one drink in reach, in recipe order where none is more common', () => {
+    // The default dessert family: the Espresso Martini, three bottles away.
+    const m = new BarModel(defaultWorld())
+    const gap = familyGap(familyOf(m, T.dessert), shelfOf(m))
+    expect(names(gap)).toEqual(['Vodka', 'Coffee liqueur', 'Espresso'])
+    expect(gap?.opens).toBe(1)
+    expect(gap && familyGapLine(gap, 'dessert drinks')).toBe(
+      'Add Vodka, Coffee liqueur and Espresso and one dessert drink opens up.',
+    )
+  })
+
+  it('takes the fewest bottles first: one that opens a drink before two that open more', () => {
+    // Gin alone: the Gin Tonic waits on Tonic; the Dark 'n' Stormy on two.
+    const world = defaultWorld()
+    world.shelf = [I.gin]
+    const m = new BarModel(world)
+    const gap = familyGap(familyOf(m, T.highball), shelfOf(m))
+    expect(names(gap)).toEqual(['Tonic'])
+    expect(gap && familyGapLine(gap, 'highballs')).toBe('Add Tonic and one highball opens up.')
+  })
+
+  it('among as few bottles, takes the set that opens the most drinks over the more common one', () => {
+    // Vodka and Espresso open two drinks. Coffee liqueur is the more common
+    // gap (four drinks), but with Campari it opens one.
+    const world = defaultWorld()
+    world.shelf = []
+    world.cocktails = [
+      seed(31, 'A', T.tiki, [I.vodka, I.espresso]),
+      seed(32, 'B', T.tiki, [I.vodka, I.espresso]),
+      seed(33, 'C', T.tiki, [I.coffeeLiqueur, I.campari]),
+      seed(34, 'D', T.tiki, [I.coffeeLiqueur, I.tequila, I.cognac]),
+      seed(35, 'E', T.tiki, [I.coffeeLiqueur, I.tequila, I.cognac]),
+      seed(36, 'F', T.tiki, [I.coffeeLiqueur, I.tequila, I.cognac]),
+    ]
+    const m = new BarModel(world)
+    const gap = familyGap(familyOf(m, T.tiki))
+    expect(names(gap)).toEqual(['Vodka', 'Espresso'])
+    expect(gap?.opens).toBe(2)
+  })
+
+  it('names the bottle a held brand leaves missing, never the parent the brand covers', () => {
+    // Laphroaig 10 and lemon juice: the Penicillin's Islay Scotch is covered by
+    // its child brand, so it waits on honey syrup alone (chrispezza/barback#20).
+    const world = defaultWorld()
+    world.shelf = [I.laphroaig10, I.lemonJuice]
+    const m = new BarModel(world)
+    const drinks = familyOf(m, T.sour)
+    expect(names(familyGap(drinks, shelfOf(m)))).toEqual(['Honey syrup'])
+    expect(familyNextStep(drinks, shelfOf(m), 'sours')).toBe('Add Honey syrup and one sour opens up.')
+    // Without the shelf the card flags alone would name the parent the brand
+    // covers: why the screens wait for the shelf.
+    expect(names(familyGap(drinks))).not.toEqual(['Honey syrup'])
+  })
+
+  it('never names an optional line', () => {
+    // Bourbon and lemon juice: the Whiskey Sour waits on simple syrup; its egg
+    // white is optional.
+    const world = defaultWorld()
+    world.shelf = [I.bourbon, I.lemonJuice]
+    const m = new BarModel(world)
+    const gap = familyGap(familyOf(m, T.sour), shelfOf(m))
+    expect(names(gap)).toEqual(['Simple syrup'])
+    expect(gap?.opens).toBe(1)
+  })
+
+  it('passes over a drink that pours, and names what the rest wait on', () => {
+    // The default sours: three pour; the Penicillin waits on honey syrup, the
+    // Margarita on tequila and Cointreau.
+    const m = new BarModel(defaultWorld())
+    expect(names(familyGap(familyOf(m, T.sour), shelfOf(m)))).toEqual(['Honey syrup'])
+  })
+
+  it('names nothing when every drink pours', () => {
+    const world = defaultWorld()
+    world.shelf.push(I.honeySyrup, I.tequila, I.cointreau)
+    const m = new BarModel(world)
+    const drinks = familyOf(m, T.sour)
+    expect(drinks.every((d) => d.in_shelf)).toBe(true)
+    expect(familyGap(drinks, shelfOf(m))).toBeUndefined()
+    expect(familyNextStep(drinks, shelfOf(m), 'sours')).toBeUndefined()
+  })
+
+  it('says a family that holds no drinks points at another family', () => {
+    const m = new BarModel(defaultWorld())
+    expect(familyOf(m, T.tiki)).toEqual([])
+    expect(familyNextStep([], shelfOf(m), 'tiki drinks')).toBe(familyHoldsNoDrinks('tiki drinks'))
+    expect(familyHoldsNoDrinks('tiki drinks')).toBe('The index holds no tiki drinks yet — pick another family.')
+  })
+})
+
+describe('a count in the empty state’s words', () => {
+  it.each([
+    [1, 'one'],
+    [2, 'two'],
+    [12, 'twelve'],
+    [19, 'nineteen'],
+    [20, 'twenty'],
+    [21, 'twenty-one'],
+    [99, 'ninety-nine'],
+    [100, '100'],
+  ])('%i is %s', (n, words) => {
+    expect(countInWords(n)).toBe(words)
   })
 })

@@ -13,7 +13,11 @@ import { expect, test } from './support/test'
 // family, not to stock the shelf.
 //
 // In the default world no tiki or dessert drink pours or is one bottle away;
-// the shelf holds eleven bottles.
+// the shelf holds eleven bottles. The family's empty state says what to do
+// from the family's own gap data (§6 Journey 2; chrispezza/barback#74, and
+// e2e/b-family-empty.spec.ts): the tiki family holds no drinks, so it points
+// at another family; the one dessert drink, the Espresso Martini, waits on
+// three bottles, which it names.
 
 const pour = (page: Page) => page.locator('#pour')
 const near = (page: Page) => page.locator('#near')
@@ -22,9 +26,21 @@ const near = (page: Page) => page.locator('#near')
  *  drink cards do). */
 const emptyTitle = (page: Page) => pour(page).locator('.bb-empty').getByRole('heading', { level: 3 })
 
-for (const { suffix, plural, segment, tagId } of [
-  { suffix: 'tiki', plural: 'tiki drinks', segment: 'TIKI', tagId: T.tiki },
-  { suffix: 'dessert', plural: 'dessert drinks', segment: 'DESSERT', tagId: T.dessert },
+for (const { suffix, plural, segment, tagId, body } of [
+  {
+    suffix: 'tiki',
+    plural: 'tiki drinks',
+    segment: 'TIKI',
+    tagId: T.tiki,
+    body: 'The index holds no tiki drinks yet — pick another family.',
+  },
+  {
+    suffix: 'dessert',
+    plural: 'dessert drinks',
+    segment: 'DESSERT',
+    tagId: T.dessert,
+    body: 'Add Vodka, Coffee liqueur and Espresso and one dessert drink opens up.',
+  },
 ]) {
   test.describe(`a stocked shelf under ?family=${suffix}, with nothing in it within reach`, () => {
     test('names the family and points at it, never calling the shelf bare', async ({ page }) => {
@@ -36,9 +52,7 @@ for (const { suffix, plural, segment, tagId } of [
       await expect(page.locator('.bar-status')).toHaveText('You can pour 5 · 7 one bottle away · 0 to buy')
 
       await expect(emptyTitle(page)).toHaveText(`No ${plural} pour yet`)
-      await expect(pour(page).locator('.bb-empty__body')).toHaveText(
-        'None is one bottle away either — browse them to see what they call for.',
-      )
+      await expect(pour(page).locator('.bb-empty__body')).toHaveText(body)
       await expect(page.getByRole('heading', { name: 'The shelf is bare' })).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Stock the shelf' })).toHaveCount(0)
       // Nor the line that points at near misses, when there are none below it.

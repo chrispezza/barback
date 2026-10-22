@@ -6,16 +6,20 @@ import { familyByTag } from '../data/families'
 import {
   answeredCounts,
   drinkTagsOptions,
+  familyDrinksOf,
+  familyPageOptions,
   indexPageOptions,
+  laterPages,
   unlockFamilies,
   unlockedDrinksOptions,
   unlocksByFamily,
   unlocksOptions,
   type ExtraCocktail,
+  type FamilyPageRead,
   type TaggedDrink,
 } from './unlocks'
 import type { CocktailFilters } from './queries'
-import type { ListResponse } from './types'
+import type { Cocktail, ListResponse } from './types'
 
 // The read To buy is ranked on (frontend-spec §6 Journey 3; §2 Tonight,
 // "unlocks 4" per item). It is driven through TanStack's own QueryObserver —
@@ -527,5 +531,122 @@ describe('the Index list page (indexPageOptions)', () => {
     expect(observer.getCurrentResult().fetchStatus).toBe('idle')
     expect(observer.getCurrentResult().data).toBeUndefined()
     expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
+describe('a family’s drinks, for the gap its empty state names', () => {
+  // useFamilyDrinks (chrispezza/barback#74; frontend-spec §6 Journey 2) reads
+  // the family's drinks a page at a time as the Index lists them, and joins the
+  // pages once all have answered. The hook is two useQuery calls; what it
+  // returns is familyDrinksOf over their results, pinned here.
+
+  it('is the Index’s own first page under the family: one read when both show', () => {
+    expect(familyPageOptions(BAR_ID, T.sour, 1, true).queryKey).toEqual(
+      indexPageOptions(BAR_ID, { tag_id: T.sour }, 50, 1, true).queryKey,
+    )
+    expect(familyPageOptions(BAR_ID, T.sour, 3, true).queryKey).toEqual(['cocktails', BAR_ID, { tag_id: T.sour }, 50, 3])
+  })
+
+  it('is asked for filtered by the family’s tag alone (ADR-002 filter parity), with the bar header', async () => {
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => {
+      const items = m.world.cocktails.filter((c) => c.tagIds?.includes(T.sour))
+      return new Response(
+        JSON.stringify({
+          data: items.map((c) => cocktailResource(m, c, 'index')),
+          meta: { total: items.length, current_page: 1, last_page: 1 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetch)
+    const observer = new QueryObserver(client, familyPageOptions(BAR_ID, T.sour, 1, true))
+    unsubscribes.push(observer.subscribe(() => {}))
+    await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true))
+    const url = new URL(String(fetch.mock.calls[0]?.[0]))
+    expect(url.pathname).toBe('/api/cocktails')
+    expect([...url.searchParams]).toEqual([
+      ['per_page', '50'],
+      ['filter[tag_id]', String(T.sour)],
+      ['page', '1'],
+    ])
+    expect(fetch.mock.calls[0]?.[1]?.headers).toMatchObject({ 'Bar-Assistant-Bar-Id': String(BAR_ID) })
+  })
+
+  it('is not read again when the Index’s list has just read the same page', async () => {
+    const fetch = vi.fn(async (_url: string, _init?: RequestInit) => {
+      const items = m.world.cocktails.filter((c) => c.tagIds?.includes(T.dessert))
+      return new Response(
+        JSON.stringify({
+          data: items.map((c) => cocktailResource(m, c, 'index')),
+          meta: { total: items.length, current_page: 1, last_page: 1 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    })
+    vi.stubGlobal('fetch', fetch)
+    // The list mounts first (Drinks.tsx useIndexPage, 50 a page) and answers;
+    // the family's read follows once the counts say nothing pours.
+    const list = new QueryObserver(client, indexPageOptions(BAR_ID, { tag_id: T.dessert }, 50, 1, true))
+    unsubscribes.push(list.subscribe(() => {}))
+    await vi.waitFor(() => expect(list.getCurrentResult().isSuccess).toBe(true))
+    const family = new QueryObserver(client, familyPageOptions(BAR_ID, T.dessert, 1, true))
+    unsubscribes.push(family.subscribe(() => {}))
+    expect(family.getCurrentResult().data?.data.map((c) => c.id)).toEqual([C.espressoMartini])
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    // A shelf write invalidates every cocktail read: the page is read again.
+    await client.invalidateQueries({ queryKey: ['cocktails'] })
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('is not asked for while not enabled', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const observer = new QueryObserver(client, familyPageOptions(BAR_ID, T.sour, 1, false))
+    unsubscribes.push(observer.subscribe(() => {}))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(observer.getCurrentResult().fetchStatus).toBe('idle')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  /** A page's read as the hook holds it: answered with these drinks, of `lastPage` pages. */
+  function page(drinks: number[], lastPage: number, read: Partial<FamilyPageRead> = {}): FamilyPageRead {
+    const data: ListResponse<Cocktail> = {
+      data: drinks.map((id) => cocktailResource(m, m.cocktail(id)!, 'index')),
+      meta: { total: drinks.length, current_page: 1, last_page: lastPage },
+    }
+    return { data, isError: false, isPlaceholderData: false, ...read }
+  }
+  const unread: FamilyPageRead = { data: undefined, isError: false, isPlaceholderData: false }
+  const ids = (drinks: ReturnType<typeof familyDrinksOf>) => (typeof drinks === 'string' ? drinks : drinks.map((d) => d.id))
+
+  it('asks for every page the first says there are, and none before it answers', () => {
+    expect(laterPages(unread)).toEqual([])
+    expect(laterPages(page([C.daiquiri], 1))).toEqual([])
+    expect(laterPages(page([C.daiquiri], 3))).toEqual([2, 3])
+    expect(laterPages(page([C.daiquiri], 3, { isPlaceholderData: true }))).toEqual([])
+    expect(laterPages(page([C.daiquiri], 3, { isError: true }))).toEqual([])
+  })
+
+  it('is every page’s drinks, first page first, once all have answered', () => {
+    const first = page([C.daiquiri, C.gimlet], 2)
+    expect(ids(familyDrinksOf([]))).toBe('pending')
+    expect(ids(familyDrinksOf([unread]))).toBe('pending')
+    expect(ids(familyDrinksOf([first]))).toBe('pending')
+    expect(ids(familyDrinksOf([first, unread]))).toBe('pending')
+    expect(ids(familyDrinksOf([first, page([C.margarita], 2)]))).toEqual([C.daiquiri, C.gimlet, C.margarita])
+    // A family that holds none answers with no drinks: a fact, not a wait.
+    expect(ids(familyDrinksOf([page([], 1)]))).toEqual([])
+  })
+
+  it('is no answer from another question’s page held as a placeholder', () => {
+    expect(ids(familyDrinksOf([page([C.ginTonic], 1, { isPlaceholderData: true })]))).toBe('pending')
+  })
+
+  it('fails whole when any page failed, with an older answer in hand or none', () => {
+    expect(ids(familyDrinksOf([page([C.daiquiri], 1, { isError: true })]))).toBe('failed')
+    expect(ids(familyDrinksOf([{ ...unread, isError: true }]))).toBe('failed')
+    expect(ids(familyDrinksOf([page([C.daiquiri], 2), { ...unread, isError: true }]))).toBe('failed')
   })
 })

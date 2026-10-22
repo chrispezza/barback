@@ -9,10 +9,10 @@ import { SearchField } from '@ds/forms/SearchField';
 import { useBarId, useBars, useCocktails, useShelf } from '../api/queries';
 import { useCocktailSearch } from '../api/search';
 import { shelfIndex, type Cocktail, type ListResponse } from '../api/types';
-import { useIndexPage } from '../api/unlocks';
+import { useFamilyDrinks, useIndexPage } from '../api/unlocks';
 import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
-import { cardIngredients, matchState } from '../data/match';
+import { cardIngredients, familyHoldsNoDrinks, familyNextStep, matchState } from '../data/match';
 import { useDebounced } from '../hooks';
 
 /**
@@ -134,10 +134,14 @@ export function Drinks() {
   const total = countOf(familyTotal);
   const canMake = countOf(familyCanMake);
   const nearMiss = countOf(familyNearMiss);
+  // A family that holds no drinks states no "0 of 0": the header says so, and
+  // where to go instead (frontend-spec §5 "Empty states are directive";
+  // chrispezza/barback#74).
   const summary =
     family !== undefined &&
     hasFamilyTag &&
     total !== undefined &&
+    total > 0 &&
     canMake !== undefined &&
     nearMiss !== undefined
       ? `You can pour ${canMake} of ${total} ${familyNoun(family.def.plural, total)} · ${
@@ -151,6 +155,32 @@ export function Drinks() {
   // off the shelf (chrispezza/barback#20).
   const shelf = useShelf(barId);
   const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
+
+  // Where nothing in the family pours, the header names what opens it, from
+  // the gaps the family's cards name (frontend-spec §6 Journey 2,
+  // "Family-aware empty states ... come from this journey's gap data";
+  // chrispezza/barback#74): the sentence Tonight's family empty state says.
+  // Its drinks are every page of the family, the first the list's own read;
+  // they are asked for only once the counts say nothing pours. Only against a
+  // shelf that answered: without it, a bottle a held child brand covers would
+  // be named (chrispezza/barback#20).
+  const nothingPours = summary !== null && canMake === 0;
+  const familyDrinks = useFamilyDrinks(barId, family?.tagId, nothingPours);
+  const answeredShelf = shelfIdx !== undefined && !shelf.isError ? shelfIdx : undefined;
+  let nextStep: string | undefined;
+  if (family !== undefined && hasFamilyTag && total === 0) {
+    nextStep = familyHoldsNoDrinks(family.def.plural);
+  } else if (
+    family !== undefined &&
+    nothingPours &&
+    answeredShelf !== undefined &&
+    typeof familyDrinks !== 'string' &&
+    // The count says the family holds drinks: a read that lists none says
+    // nothing beside it.
+    familyDrinks.length > 0
+  ) {
+    nextStep = familyNextStep(familyDrinks, answeredShelf, family.def.plural);
+  }
 
   const card = (c: Cocktail) => (
     <li key={c.id}>
@@ -207,6 +237,7 @@ export function Drinks() {
                   ' — dev: family not yet tagged upstream; showing all drinks.'}
               </p>
               {summary && <p>{summary}</p>}
+              {nextStep && <p class="recipe-aside">{nextStep}</p>}
             </header>
           )}
 

@@ -254,3 +254,87 @@ export function useIndexPage(
 ) {
   return useQuery(indexPageOptions(barId, filters, perPage, page, enabled));
 }
+
+/**
+ * A family's drinks are read a page at a time, as the Index lists them
+ * (Drinks.tsx asks for 50 a page), so their first page is the Index's own
+ * first page under the family with the favourites filter off: the two share
+ * one read.
+ */
+const FAMILY_PAGE = 50;
+
+/**
+ * One page of the family's drinks (indexPageOptions), filtered by its tag
+ * alone. The Index's list reads its first page as it mounts, and the family's
+ * counts ask for it here a moment later, once they say nothing pours: fresh
+ * for as long as the unlock counts are (UNLOCKS_STALE_MS), the page in hand is
+ * not read a second time then. A shelf write reads it again whatever its age:
+ * every one invalidates ['cocktails'] (useCheckOff, shelfToggleOptions).
+ */
+export function familyPageOptions(
+  barId: number | undefined,
+  tagId: number,
+  page: number,
+  enabled: boolean,
+) {
+  return queryOptions({
+    ...indexPageOptions(barId, { tag_id: tagId }, FAMILY_PAGE, page, enabled),
+    staleTime: UNLOCKS_STALE_MS,
+  });
+}
+
+/** What the family's drinks need of one page's read. */
+export type FamilyPageRead = Pick<
+  QueryObserverResult<ListResponse<Cocktail>>,
+  'data' | 'isError' | 'isPlaceholderData'
+>;
+
+/** Every drink of a family, once read; 'pending' while any page is on its way; 'failed' once any page failed. */
+export type FamilyDrinks = readonly Cocktail[] | 'pending' | 'failed';
+
+/** The pages after the first that the first page says there are, once it has answered. */
+export function laterPages(first: FamilyPageRead): number[] {
+  if (first.isError || first.isPlaceholderData || first.data === undefined) return [];
+  const last = first.data.meta?.last_page ?? 1;
+  return Array.from({ length: Math.max(0, last - 1) }, (_, i) => i + 2);
+}
+
+/**
+ * The family's drinks from its pages' reads, first page first. A page that
+ * failed fails the whole, the answer a failed refetch leaves in hand included
+ * (ADR-007: no stock answer is served stale): what a bottle opens is counted
+ * over the whole family, never a part of it. A page in hand as a placeholder
+ * is another question's answer, not this family's (chrispezza/barback#73), so
+ * it waits like a page not yet read.
+ */
+export function familyDrinksOf(reads: readonly FamilyPageRead[]): FamilyDrinks {
+  const [first] = reads;
+  if (first === undefined) return 'pending';
+  if (reads.some((r) => r.isError)) return 'failed';
+  if (reads.some((r) => r.isPlaceholderData || r.data === undefined)) return 'pending';
+  if (reads.length < 1 + laterPages(first).length) return 'pending';
+  return reads.flatMap((r) => r.data?.data ?? []);
+}
+
+/**
+ * Every drink of one family, for the gap its empty state names
+ * (data/match.ts familyNextStep; frontend-spec §6 Journey 2): the cocktail
+ * index filtered by the family's tag alone (ADR-002 filter parity), every page
+ * of it (familyDrinksOf). Asked for only while `enabled` and the tag is known:
+ * a screen asks only once the family's counts say nothing in it pours.
+ */
+export function useFamilyDrinks(
+  barId: number | undefined,
+  tagId: number | undefined,
+  enabled: boolean,
+): FamilyDrinks {
+  const on = enabled && tagId !== undefined;
+  // A disabled read under a key that names no tag would still hand back the
+  // whole index's cached first page; it is never read while the tag is unknown.
+  const tag = tagId ?? -1;
+  const first = useQuery(familyPageOptions(barId, tag, 1, on));
+  const rest = useQueries({
+    queries: laterPages(first).map((page) => familyPageOptions(barId, tag, page, on)),
+  });
+  return on ? familyDrinksOf([first, ...rest]) : 'pending';
+}
