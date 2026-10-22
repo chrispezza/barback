@@ -82,19 +82,24 @@ function BuyNextCard({
   );
 }
 
+/** The shelf read as the pour section's empty states use it: its total once read. */
+type ShelfRead = number | 'pending' | 'failed';
+
 /**
- * Which empty state the pour section shows, if any. Bare is decided by the
- * shelf alone (`shelfTotal`); the others wait until the shelf and both counts
- * are known, and say only what those counts support.
+ * Which empty state the pour section shows, if any. Only bare needs the
+ * shelf, and is decided by it alone. The others say only what the two counts
+ * support, which holds whether or not the shelf is bare, so a failed shelf
+ * read does not hold them back. While the shelf is on its way they wait, so a
+ * bare shelf never shows another state first.
  */
 function pourEmptyState(
-  shelfTotal: number | undefined,
+  shelf: ShelfRead,
   canMakeTotal: number | undefined,
   nearMissTotal: number | undefined,
   familyActive: boolean,
 ): 'bare' | 'near' | 'family' | 'bar' | undefined {
-  if (shelfTotal === 0) return 'bare';
-  if (shelfTotal === undefined || canMakeTotal !== 0 || nearMissTotal === undefined) return undefined;
+  if (shelf === 0) return 'bare';
+  if (shelf === 'pending' || canMakeTotal !== 0 || nearMissTotal === undefined) return undefined;
   if (nearMissTotal > 0) return 'near';
   return familyActive ? 'family' : 'bar';
 }
@@ -147,11 +152,11 @@ export function Tonight() {
   const bars = useBars();
   const barsFailed = barId === undefined && bars.isError;
   const profileFailed = profile?.id === undefined && profileQuery.isError;
-  /** Ask again for what failed: the bootstrap a section waits on, and its own read. */
-  function retry(own: { isError: boolean; refetch: () => Promise<unknown> }) {
+  /** Ask again for what failed: the bootstrap a section waits on, and its own reads. */
+  function retry(...own: { isError: boolean; refetch: () => Promise<unknown> }[]) {
     if (barsFailed) void bars.refetch();
     if (profileFailed) void profileQuery.refetch();
-    if (own.isError) void own.refetch();
+    for (const read of own) if (read.isError) void read.refetch();
   }
 
   const canMakeTotal = canMake.data?.meta?.total;
@@ -194,10 +199,16 @@ export function Tonight() {
   // fact about the shelf, never about the counts under a family: the family
   // only refines Tonight's stock axis (§6), so a stocked shelf with nothing in
   // the family within reach is pointed at the family, not told to stock up.
+  // A shelf read that failed says nothing about bareness, even with an older
+  // answer in hand; the section says the read failed instead.
   // A count still on screen from the previous family (placeholderData, while
   // the new family's read is under way) says nothing about this one.
   const pourEmpty = pourEmptyState(
-    shelf.data ? (shelf.data.meta?.total ?? shelf.data.data.length) : undefined,
+    shelf.isError
+      ? 'failed'
+      : shelf.data
+        ? (shelf.data.meta?.total ?? shelf.data.data.length)
+        : 'pending',
     canMake.isPlaceholderData ? undefined : canMakeTotal,
     nearMiss.isPlaceholderData ? undefined : nearMiss.data?.meta?.total,
     scope !== undefined,
@@ -313,7 +324,11 @@ export function Tonight() {
       <div class="tonight-grid">
         <section class="tonight-pour" id="pour" tabIndex={-1}>
           <MatchHeader label={scope ? `${scope} you can pour` : 'You can pour'} count={canMakeTotal} />
-          {(canMake.isError || barsFailed) && <ErrorLine onRetry={() => retry(canMake)} />}
+          {/* The shelf is this section's too: it decides a bare shelf, and the
+              cards read held child brands off it. One line for whatever failed. */}
+          {(canMake.isError || shelf.isError || barsFailed) && (
+            <ErrorLine onRetry={() => retry(canMake, shelf)} />
+          )}
           {pourEmpty === 'near' && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
           )}
