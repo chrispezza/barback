@@ -214,6 +214,8 @@ describe('a shelf toggle', () => {
       ['shelf'],
       ['shopping-list'],
       ['cocktails'],
+      ['ingredient-extra'],
+      ['ingredient-reach'],
       ['recommend'],
       ['staples'],
     ])
@@ -292,6 +294,8 @@ describe('the Undo a removal offers', () => {
       ['shelf'],
       ['shopping-list'],
       ['cocktails'],
+      ['ingredient-extra'],
+      ['ingredient-reach'],
       ['recommend'],
       ['staples'],
     ])
@@ -341,6 +345,8 @@ describe('the Undo a removal offers', () => {
       ['shelf'],
       ['shopping-list'],
       ['cocktails'],
+      ['ingredient-extra'],
+      ['ingredient-reach'],
       ['recommend'],
       ['staples'],
     ])
