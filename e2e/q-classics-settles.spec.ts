@@ -1,4 +1,5 @@
 import type { Locator, Page, Request } from '@playwright/test'
+import { FIRST_POUR_SLUGS } from '../src/data/first-pours'
 import { C, I } from '../test/fixtures/world'
 import { expect, test } from './support/test'
 
@@ -60,12 +61,12 @@ const isRosterRead = (req: Request): boolean =>
  * Hold the API calls `match` picks until released; the fake then answers them
  * as upstream would. Playwright runs the newest route first, so this sits in
  * front of the fake and falls back to it. `arrived` resolves once the first
- * held call has been sent by the page.
+ * held call has been sent by the page; `held` lists every call it has picked.
  */
 async function hold(
   page: Page,
   match: (req: Request) => boolean,
-): Promise<{ arrived: Promise<void>; release: () => void }> {
+): Promise<{ arrived: Promise<void>; release: () => void; held: Request[] }> {
   let release = () => {}
   const gate = new Promise<void>((resolve) => {
     release = resolve
@@ -74,14 +75,27 @@ async function hold(
   const arrived = new Promise<void>((resolve) => {
     arrive = resolve
   })
+  const held: Request[] = []
   await page.route('**/bar/api/**', async (route) => {
     if (match(route.request())) {
+      held.push(route.request())
       arrive()
       await gate
     }
     await route.fallback()
   })
-  return { arrived, release }
+  return { arrived, release, held }
+}
+
+/**
+ * Let the page act on what it has just been answered. TanStack tells its
+ * observers on a zero timeout and Preact renders after that, so two frames
+ * cover both.
+ */
+async function settled(page: Page): Promise<void> {
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  )
 }
 
 test.describe('a Choose says what the bar answered without waiting for the roster (ADR-003; §1, §5)', () => {
@@ -131,6 +145,57 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     await expect(button).toBeEnabled()
     await expect(button).toHaveAttribute('aria-pressed', 'true')
     expect(bar.model.favorites.has(C.daiquiri)).toBe(true)
+  })
+
+  // A Choose made while the last Choose's roster read-back is still out. That
+  // read was answered from the bar as it stood before this tap, so it carries
+  // the drink as not a favourite. Landing while the favourite is out, it would
+  // put the button back to Choose until the bar answers. The flip cancels any
+  // roster read already out (useToggleFavorite, onMutate), as it does the
+  // recipe read.
+  test('a drink chosen while the last roster read-back is out still reads Chosen when that read lands', async ({
+    page,
+    bar,
+  }) => {
+    await openRoster(page)
+    // Hold every roster read from here on: the read-back after each favourite.
+    const roster = await hold(page, isRosterRead)
+
+    // Daiquiri pours: nothing is missing, so the favourite is the whole change.
+    const daiquiri = chooseButton(page, 'Daiquiri')
+    await daiquiri.click()
+    await expect(toast(page)).toHaveText('Daiquiri — favorited.')
+    await roster.arrived
+    // The whole read-back is out, one read per slug, before any of it is answered.
+    await expect.poll(() => roster.held.length).toBe(FIRST_POUR_SLUGS.length)
+
+    const favourite = await hold(page, isFavouriteWrite)
+    const negroni = chooseButton(page, 'Negroni')
+    await expect(negroni).toBeEnabled()
+    await negroni.click()
+    await favourite.arrived
+    await expect(negroni).toHaveAttribute('aria-pressed', 'true', { timeout: 1000 })
+    await expect(negroni).toHaveText('✓ Chosen')
+
+    // Daiquiri's read-back lands while Negroni's favourite is still out.
+    roster.release()
+    await Promise.all(roster.held.map(async (req) => (await req.response())?.finished()))
+    await settled(page)
+    expect(bar.model.favorites.has(C.negroni)).toBe(false)
+    await expect(negroni).toHaveText('✓ Chosen', { timeout: 1000 })
+    await expect(negroni).toHaveAttribute('aria-pressed', 'true')
+    await expect(negroni).toBeDisabled()
+
+    favourite.release()
+    // Toasts queue: Negroni's receipt follows Daiquiri's.
+    await expect(toast(page)).toHaveText('Negroni — favorited, 1 bottle queued.', { timeout: 10_000 })
+    await expect(negroni).toBeEnabled()
+    await expect(negroni).toHaveText('✓ Chosen')
+    await expect(negroni).toHaveAttribute('aria-pressed', 'true')
+    await expect(daiquiri).toHaveAttribute('aria-pressed', 'true')
+    expect(bar.model.favorites.has(C.negroni)).toBe(true)
+    expect(bar.model.favorites.has(C.daiquiri)).toBe(true)
+    expect([...bar.model.list.keys()]).toEqual([I.campari])
   })
 
   test('an un-choose reads Choose once its button is free, before the roster is read back', async ({ page, bar }) => {
