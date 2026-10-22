@@ -14,7 +14,9 @@ import { expect, test } from './support/test'
 // - Choose decides what to queue from the list as read, so it waits until the
 //   list has been read: upstream batch-store resets a listed row's quantity to
 //   the one sent, or 1 (ShoppingListController::batchStore,
-//   ShoppingListController.php 76-79);
+//   ShoppingListController.php 76-79). A later read under way (the tab coming
+//   back into view) holds no button, since that would take a keyboard user's
+//   focus; a Choose made during it waits for it before deciding;
 // - un-choosing speaks of bottles only when one of the drink's missing bottles
 //   is on the list.
 
@@ -104,6 +106,44 @@ async function recordToasts(page: Page): Promise<() => Promise<string[]>> {
     }).observe(document, { subtree: true, childList: true, characterData: true })
   })
   return () => page.evaluate(() => [...((window as unknown as { toastsSeen?: string[] }).toastsSeen ?? [])])
+}
+
+/**
+ * Record, by drink, every Choose that is disabled from now on. A disabled
+ * button drops the focus it holds, and the focus does not come back when it is
+ * enabled again, so a keyboard or screen-reader user loses their place.
+ */
+async function recordDisabled(page: Page): Promise<() => Promise<string[]>> {
+  await page.evaluate(() => {
+    const seen: string[] = []
+    Object.assign(window, { disabledSeen: seen })
+    const roster = document.querySelector('.card-list')
+    if (roster === null) throw new Error('the roster is not on the page')
+    new MutationObserver((records) => {
+      for (const r of records) {
+        // No old value: the attribute was added, whatever came after it.
+        if (r.oldValue === null && r.target instanceof Element) {
+          seen.push(r.target.closest('.first-pour-item')?.querySelector('h3')?.textContent ?? '')
+        }
+      }
+    }).observe(roster, { subtree: true, attributes: true, attributeFilter: ['disabled'], attributeOldValue: true })
+  })
+  return () => page.evaluate(() => [...((window as unknown as { disabledSeen?: string[] }).disabledSeen ?? [])])
+}
+
+/**
+ * Let the page act on a request it has just sent. TanStack tells its observers
+ * on a zero timeout and Preact renders after that, so two frames cover both.
+ */
+async function settled(page: Page): Promise<void> {
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  )
+}
+
+/** The tab comes back into view: TanStack's focusManager refetches stale queries, the list among them. */
+async function returnToTab(page: Page): Promise<void> {
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
 }
 
 /** Wait until no toast is showing or queued: the host empties only when the queue does. */
@@ -291,6 +331,83 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
     await expect(toast(page)).toHaveText('Paloma — favorited.', { timeout: 10_000 })
     expect(bar.calls('POST', /\/shopping-list\/batch-store$/)).toHaveLength(1)
     expect(bar.model.favorites.has(90)).toBe(true)
+  })
+
+  test('a read under way leaves a focused Choose as it is, and Enter waits for that read to decide', async ({
+    page,
+    bar,
+  }) => {
+    const listed = listLoaded(page)
+    await openRoster(page)
+    await listed
+    const button = chooseButton(page, 'Margarita')
+    await button.focus()
+    await expect(button).toBeFocused()
+    // Listed elsewhere (Tonight, another device) after this screen read the list.
+    bar.model.list.set(I.tequila, 2)
+    const read = await hold(page, isListRead)
+    const disabled = await recordDisabled(page)
+
+    await returnToTab(page)
+    await read.arrived
+    await settled(page)
+    // Rows from a read that succeeded are in hand, so nothing is held.
+    expect(await disabled(), 'a read under way holds no Choose').toEqual([])
+    await expect(button).toBeFocused()
+    await expect(button).toBeEnabled()
+
+    const mark = bar.calls().length
+    await page.keyboard.press('Enter')
+    // The rows in hand say tequila is unlisted; the read under way says it is listed.
+    read.release()
+    await expect(toast(page)).toHaveText('Margarita — favorited, 1 bottle queued.')
+    const stores = bar.calls('POST', /\/shopping-list\/batch-store$/)
+    expect(stores).toHaveLength(1)
+    expect(listedIds(stores[0]?.body)).toEqual([I.cointreau])
+    expect(bar.model.list.get(I.tequila)).toBe(2)
+    // The fake records a held call when it answers it: the read landed before the favourite went out.
+    const sent = bar
+      .calls()
+      .slice(mark)
+      .map((r) => `${r.method} ${r.path}`)
+      .filter((call) => call.startsWith('POST') || call === 'GET /users/1/shopping-list')
+    expect(sent.slice(0, 3)).toEqual([
+      'GET /users/1/shopping-list',
+      `POST /cocktails/${C.margarita}/toggle-favorite`,
+      'POST /users/1/shopping-list/batch-store',
+    ])
+  })
+
+  test('a read that lands leaves a focused Choose focused, and Enter decides against its rows', async ({
+    page,
+    bar,
+  }) => {
+    const listed = listLoaded(page)
+    await openRoster(page)
+    await listed
+    const button = chooseButton(page, 'Margarita')
+    await button.focus()
+    await expect(button).toBeFocused()
+    bar.model.list.set(I.tequila, 2)
+    const read = await hold(page, isListRead)
+    const disabled = await recordDisabled(page)
+
+    await returnToTab(page)
+    await read.arrived
+    const landed = listLoaded(page)
+    read.release()
+    await landed
+    await settled(page)
+    expect(await disabled(), 'a read that lands holds no Choose').toEqual([])
+    await expect(button).toBeFocused()
+    await expect(button).toBeEnabled()
+
+    await page.keyboard.press('Enter')
+    await expect(toast(page)).toHaveText('Margarita — favorited, 1 bottle queued.')
+    const stores = bar.calls('POST', /\/shopping-list\/batch-store$/)
+    expect(stores).toHaveLength(1)
+    expect(listedIds(stores[0]?.body)).toEqual([I.cointreau])
+    expect(bar.model.list.get(I.tequila)).toBe(2)
   })
 
   test('a list that cannot be read holds Choose and says so; Retry reads it', async ({ page, bar }) => {
