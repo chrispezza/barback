@@ -334,7 +334,15 @@ export function useIngredientReach(
   return reachOf(own.data, parentQuery.data);
 }
 
-/** First-pours roster (data/first-pours.ts): full cocktails resolved by slug. */
+/**
+ * First-pours roster (data/first-pours.ts): full cocktails resolved by slug.
+ * Only a 404 means the bar does not hold a slug: CocktailController::show ends
+ * in firstOrFail (CocktailController.php 97-100; Handler.php 64-67 renders the
+ * 404, at v5.15.3). That slug is dropped (reported in dev). Anything else, a
+ * 500, a 403 or a connection that never answered, fails the roster, so the
+ * Classics says the bar did not answer rather than listing fewer drinks
+ * (ADR-007; chrispezza/barback#68).
+ */
 export function useFirstPours(barId: number | undefined, slugs: string[]) {
   return useQuery({
     queryKey: ['first-pours', barId],
@@ -347,7 +355,8 @@ export function useFirstPours(barId: number | undefined, slugs: string[]) {
               { barId },
             );
             return r.data;
-          } catch {
+          } catch (e) {
+            if (!isApiError(e) || e.status !== 404) throw e;
             if (import.meta.env.DEV) {
               console.warn(`[barback] first-pour slug did not resolve: ${slug}`);
             }
@@ -451,8 +460,12 @@ export function useIngredientsByIds(barId: number | undefined, ids: number[]) {
 /**
  * Par-level staples (data/staples.ts) resolved against this bar: id, name and
  * live shelf state per slug. Slugs carry the bar-id suffix upstream, so the
- * canonical slug is completed at runtime. Missing slugs are dropped (and
- * reported in dev) rather than failing the whole set.
+ * canonical slug is completed at runtime. A slug the bar answers 404 is not
+ * in this bar (IngredientController::show ends in firstOrFail,
+ * IngredientController.php 79-94 at v5.15.3) and is dropped (reported in dev)
+ * rather than failing the whole set. Any other failure fails the set: a bar
+ * that did not answer is never read as a shorter list of standing orders
+ * (chrispezza/barback#68).
  */
 export function useStaples(barId: number | undefined, slugs: string[]) {
   return useQuery({
@@ -466,7 +479,8 @@ export function useStaples(barId: number | undefined, slugs: string[]) {
               { barId },
             );
             return r.data;
-          } catch {
+          } catch (e) {
+            if (!isApiError(e) || e.status !== 404) throw e;
             if (import.meta.env.DEV) {
               console.warn(`[barback] staple slug did not resolve: ${slug}`);
             }

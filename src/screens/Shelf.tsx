@@ -7,6 +7,7 @@ import { IngredientChip } from '@ds/inventory/IngredientChip';
 import { SearchField } from '@ds/forms/SearchField';
 import {
   useBarId,
+  useBars,
   useIngredientsByIds,
   useProfile,
   useShelf,
@@ -21,10 +22,27 @@ import { useDebounced } from '../hooks';
 
 export function Shelf() {
   const barId = useBarId();
-  const { data: profile } = useProfile();
+  const profileQuery = useProfile();
+  const profile = profileQuery.data;
   const shelf = useShelf(barId);
   const mutation = useShelfMutation(barId, profile?.id);
   const logout = useLogout();
+
+  // A cold start with the API out of reach (ADR-007; chrispezza/barback#68):
+  // /bars and /profile fail first, and the reads keyed on them stay disabled,
+  // so they never error on their own. The ledger is keyed on the bar id; every
+  // shelf write is a /users/{id}/* call (frontend-spec §2), so the picker and
+  // Remove wait on the profile. Either failing is said in the error voice, as
+  // the shelf's own read failing is, and Retry asks again for what failed.
+  const bars = useBars();
+  const barsFailed = barId === undefined && bars.isError;
+  const profileFailed = profile?.id === undefined && profileQuery.isError;
+  const shelfFailed = shelf.isError || barsFailed;
+  function retry() {
+    if (barsFailed) void bars.refetch();
+    if (profileFailed) void profileQuery.refetch();
+    if (shelf.isError) void shelf.refetch();
+  }
 
   const [q, setQ] = useState('');
   const results = useIngredientSearch(useDebounced(q, 200));
@@ -101,12 +119,17 @@ export function Shelf() {
           )}
         </div>
       )}
-      <p class="recipe-aside shelf-count" aria-busy={!shelf.data}>
-        {shelf.data
-          ? `${shelf.data.meta?.total ?? rows.length} bottles on the shelf.`
-          : 'Counting the shelf…'}
-      </p>
-      {shelf.isError && <ErrorLine onRetry={() => void shelf.refetch()} />}
+      {/* "Counting the shelf…" only while the count is under way: a shelf
+          that cannot be read, its own read or the bar's having failed, is
+          answered by the error line alone. */}
+      {(shelf.data || !shelfFailed) && (
+        <p class="recipe-aside shelf-count" aria-busy={!shelf.data}>
+          {shelf.data
+            ? `${shelf.data.meta?.total ?? rows.length} bottles on the shelf.`
+            : 'Counting the shelf…'}
+        </p>
+      )}
+      {(shelfFailed || profileFailed) && <ErrorLine onRetry={retry} />}
 
       {groups ? (
         groups.map(({ label, rows: groupRows }) => (

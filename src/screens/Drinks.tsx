@@ -6,7 +6,7 @@ import { MatchHeader } from '@ds/drinks/MatchHeader';
 import { RatioDevice } from '@ds/drinks/RatioDevice';
 import { EmptyState } from '@ds/feedback/EmptyState';
 import { SearchField } from '@ds/forms/SearchField';
-import { useBarId, useCocktails, useShelf } from '../api/queries';
+import { useBarId, useBars, useCocktails, useShelf } from '../api/queries';
 import { useCocktailSearch } from '../api/search';
 import { shelfIndex, type Cocktail, type ListResponse } from '../api/types';
 import { ErrorLine } from '../components/ErrorLine';
@@ -33,6 +33,18 @@ export function Drinks() {
   const barId = useBarId();
   const family = useActiveFamily();
   const { route, url, query } = useLocation();
+
+  // A cold start with the API out of reach (ADR-007; chrispezza/barback#68):
+  // /bars fails first, and every read keyed on the bar, search included, stays
+  // disabled and never errors on its own. The index and the matches say so as
+  // a read of their own that failed does, and Retry asks again for /bars too.
+  const bars = useBars();
+  const barsFailed = barId === undefined && bars.isError;
+  /** Ask again for what failed: the bar the section waits on, and its own reads. */
+  function retry(...own: { isError: boolean; refetch: () => Promise<unknown> }[]) {
+    if (barsFailed) void bars.refetch();
+    for (const read of own) if (read.isError) void read.refetch();
+  }
 
   // Search is a filter on the index, not a second list: Meilisearch (or the
   // REST name filter) ranks the ids, then the full resources come back with
@@ -145,7 +157,12 @@ export function Drinks() {
             label="Matches"
             count={searchHits.data ? searchHits.data.length : undefined}
           />
-          {hitCocktails.isError && <ErrorLine onRetry={() => void hitCocktails.refetch()} />}
+          {/* Search answers from Meilisearch or, failing that, the REST name
+              filter (ADR-004); the hits then come back as full cards. One line
+              for whichever failed. */}
+          {(searchHits.isError || hitCocktails.isError || barsFailed) && (
+            <ErrorLine onRetry={() => retry(searchHits, hitCocktails)} />
+          )}
           {searchHits.data?.length === 0 && (
             <p class="recipe-aside">Nothing by that name.</p>
           )}
@@ -193,7 +210,7 @@ export function Drinks() {
               }
             />
           )}
-          {cocktails.isError && <ErrorLine onRetry={() => void cocktails.refetch()} />}
+          {(cocktails.isError || barsFailed) && <ErrorLine onRetry={() => retry(cocktails)} />}
           <ul class="card-list">{cocktails.data?.data.map(card)}</ul>
 
           {lastPage > 1 && (
