@@ -173,8 +173,8 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     // Upstream batch-store resets an existing row's quantity to the one sent,
     // or 1 (ShoppingListController::batchStore, ShoppingListController.php 76-79).
     bar.model.list.set(I.tequila, 2)
-    // Choose is not held while the list loads (divergence 4 in the PR), so the
-    // list must have reached the page before the tap for this to mean anything.
+    // Choose is held until the list has been read; waiting for that read here
+    // mirrors the screen's own hold, so the tap lands on an enabled button.
     const listed = listLoaded(page)
     await openRoster(page)
     await listed
