@@ -50,10 +50,33 @@ for (const path of ['/bar/', '/search/']) {
   }
 }
 
+// ADR-011: test tooling never ships, and the build keeps running the unit tests.
+const pkg = JSON.parse(read('package.json'))
+const isTestTool = (name) =>
+  ['vitest', 'jsdom', '@playwright/test', 'playwright'].includes(name) ||
+  /^@(testing-library|vitest|axe-core)\//.test(name)
+for (const name of Object.keys(pkg.dependencies ?? {}).filter(isTestTool)) {
+  failures.push(
+    `ADR-011: ${name} is in "dependencies". Test tooling is devDependencies only (zero bundle impact).\n` +
+      `  Move it with \`pnpm add -D ${name}\`. If production code imports it, that import is the bug.`,
+  )
+}
+if (pkg.devDependencies?.vitest) {
+  for (const script of ['build', 'build:deploy']) {
+    if (!/\bvitest run\b/.test(pkg.scripts?.[script] ?? '')) {
+      failures.push(
+        `ADR-011: the "${script}" script no longer runs \`vitest run\`.\n` +
+          `  Unit tests are part of the build gate. Restore it before \`vite build\`; a failing test is\n` +
+          `  fixed (or the code is), never dropped from the gate.`,
+      )
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`\nscripts/check.mjs: ${failures.length} decision check(s) failed\n`)
   for (const f of failures) console.error(`- ${f}\n`)
   console.error('See CLAUDE.md "Decisions". Do not edit an ADR or this check to make a change pass.\n')
   process.exit(1)
 }
-console.log('scripts/check.mjs: decision checks passed (ADR-001, ADR-007, ADR-010)')
+console.log('scripts/check.mjs: decision checks passed (ADR-001, ADR-007, ADR-010, ADR-011)')

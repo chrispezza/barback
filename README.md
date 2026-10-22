@@ -26,6 +26,7 @@ Decisions live in [docs/adr/](docs/adr/):
 | [008](docs/adr/008-purchasing-intelligence-standing-orders.md) | Staples are standing orders (auto-queue); app suggestions require a tap; aspiration outranks server rank |
 | [009](docs/adr/009-remote-access-cloudflare-tunnel-access.md) | Public at barback.pezza.dev via Cloudflare Tunnel + Access; gated on migration to an always-on host |
 | [010](docs/adr/010-agent-governance-index-and-records.md) | `CLAUDE.md` indexes the ADRs; records and the build check change only through a maintainer-merged PR |
+| [011](docs/adr/011-test-gate-vitest-playwright.md) | Vitest in `pnpm build`; Playwright against fixtures as `pnpm verify` before every PR; all local, devDependencies only |
 
 ## Running the stack
 
