@@ -64,6 +64,11 @@ export class FakeBar {
     this.failures.push({ path, method: opts.method, status: opts.status, abort: opts.abort, times: opts.times ?? 1 })
   }
 
+  /** Stop failing: every pending fail() is spent, so the next read answers. */
+  clearFailures(): void {
+    this.failures = []
+  }
+
   /** The store aisle: every /bar/ request drops (ADR-007). */
   takeApiDown(): void {
     this.apiDown = true
