@@ -347,6 +347,11 @@ export function Tonight() {
   // Free-form add: same type-ahead the Shelf uses, writing to the list.
   const [listQuery, setListQuery] = useState('');
   const listResults = useIngredientSearch(useDebounced(listQuery, 200));
+  // A search with no answer, failed or paused offline, says so in the chip row
+  // and shows no chip, as the Shelf's picker and the Index's search do
+  // (ADR-007 Consequences; chrispezza/barback#107).
+  const listSearchUnanswered = listResults.isError || listResults.isPaused;
+  const listHits = listSearchUnanswered ? undefined : listResults.data;
   const listedIds = new Set(listItems.map((item) => item.ingredient.id));
 
   // Listing a bottle from a suggestion moves it out of that group and into the
@@ -686,7 +691,8 @@ export function Tonight() {
                   as not, and a tap would list it again rather than take it off. */}
               {listKnown && listQuery.trim().length >= 1 && (
                 <div class="chip-row">
-                  {listResults.data?.map((hit) => {
+                  {listSearchUnanswered && <ErrorLine onRetry={() => retry(listResults)} />}
+                  {listHits?.map((hit) => {
                     const isListed = listedIds.has(hit.id);
                     return (
                       <IngredientChip
@@ -702,7 +708,7 @@ export function Tonight() {
                       />
                     );
                   })}
-                  {listResults.data?.length === 0 && (
+                  {listHits?.length === 0 && (
                     <p class="recipe-aside">Nothing by that name.</p>
                   )}
                 </div>
