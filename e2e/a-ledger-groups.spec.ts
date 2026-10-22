@@ -50,6 +50,14 @@ const navLink = (page: Page, label: string) =>
 const listItem = (page: Page, name: string) =>
   page.locator('#buy').locator('.shopping-row-line').getByRole('button', { name: new RegExp(`^${name}`) })
 
+/** Every bottle in the ledger, grouped or not, in name order. */
+const ledgerBottles = async (page: Page): Promise<string[]> =>
+  (await page.getByRole('main').locator('.bb-row__name').allTextContents()).map((n) => n.trim()).sort()
+
+/** Every bottle the fake bar has on its shelf, in name order. */
+const shelvedBottles = (bar: FakeBar): string[] =>
+  [...bar.model.shelf].map((id) => bar.model.ingredient(id)?.name ?? `#${id}`).sort()
+
 /** Whether a response URL is the shelf read, GET /ingredients?filter[on_shelf]=true. */
 const shelfRead = (href: string): boolean => {
   const url = new URL(href)
@@ -195,5 +203,41 @@ test.describe('the shelf ledger after a check-off on Tonight', () => {
     const moments = await seen()
     expect(moments.length).toBeGreaterThan(0)
     expect(collapsed(moments, seven)).toEqual([])
+  })
+
+  // ADR-007: the installed app opens with no connection to the API, in a store
+  // aisle. The lookup that would name the group the check-off opened cannot go
+  // out, so nothing names Liqueurs until the device reconnects. A bottle may
+  // wait outside the ledger for one round trip, not for as long as the device
+  // is offline: every bottle the count names is in the ledger.
+  test('shows every bottle the count names when it opens offline before the new group is named', async ({
+    page,
+    context,
+    bar,
+  }) => {
+    await page.goto('/shelf')
+    await expect(count(page)).toHaveText('12 bottles on the shelf.')
+    await expect(groupHeaders(page)).toHaveText([...SIX.slice(0, 4), 'Juices · 2', 'Other · 1', 'Sweeteners · 1'])
+
+    await navLink(page, 'Tonight').click()
+    const shelfReadBack = page.waitForResponse(
+      async (res) => shelfRead(res.url()) && (await res.text()).includes('"Campari"'),
+    )
+    await listItem(page, 'Campari').click()
+    await shelfReadBack
+    expect(bar.model.shelf.has(I.campari)).toBe(true)
+
+    await context.setOffline(true)
+    // Route interception still answers while the context is offline, so the
+    // fake drops the connection as the network would.
+    bar.takeApiDown()
+    await navLink(page, 'Shelf').click()
+    await expect(count(page)).toHaveText('13 bottles on the shelf.')
+    await expect.poll(() => ledgerBottles(page)).toEqual(shelvedBottles(bar))
+    expect(shelvedBottles(bar)).toHaveLength(13)
+    expect(shelvedBottles(bar)).toContain('Campari')
+
+    // Nothing will name Liqueurs while offline: its lookup never went out.
+    expect(nameLookups(bar).filter((ids) => ids.split(',').includes(String(I.liqueurs)))).toEqual([])
   })
 })
