@@ -28,7 +28,10 @@ import { deriveRatio, ratioForSlug } from '../data/ratios';
 /** The screen's name when the bar has no drink by that slug. */
 const NOT_FOUND_TITLE = 'No such drink';
 
-/** The screen's name while there is no drink to name it by (frontend-spec §1). */
+/**
+ * The screen's name while there is no drink to name it by (frontend-spec §1):
+ * the tab while the recipe is read or in error, and the error view's heading.
+ */
 const SCREEN_TITLE = 'Recipe';
 
 export function DrinkDetail({ slug }: { slug: string }) {
@@ -86,9 +89,13 @@ export function DrinkDetail({ slug }: { slug: string }) {
   }, [title]);
 
   if (failed) {
+    // As in the not-found view, the heading names the screen for the outline
+    // and RouteEffects, which moves focus to it after a route change; the
+    // error line says the rest.
     return (
       <main class="screen screen--narrow">
         {backRow}
+        <h1 class="visually-hidden">{SCREEN_TITLE}</h1>
         <ErrorLine onRetry={() => void (barsFailed ? bars.refetch() : recipe.refetch())} />
       </main>
     );
