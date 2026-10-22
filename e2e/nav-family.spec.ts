@@ -33,7 +33,7 @@ async function expectSourDrinks(page: Page) {
   // over the five sours in the fixture world.
   await expect(page.getByRole('group', { name: '2 SPIRIT, ¾ CITRUS, ¾ SWEET' })).toBeVisible()
   await expect(page.getByText('Spirit brightened by citrus, balanced by sweet.')).toBeVisible()
-  await expect(page.getByText(/^You can pour \d+ of 5 · /)).toBeVisible()
+  await expect(page.getByText(/^You can pour \d+ of 5 sours · /)).toBeVisible()
   await expect(navLink(page, 'Drinks')).toHaveAttribute('aria-current', 'page')
   await expect(navLink(page, 'Tonight')).not.toHaveAttribute('aria-current')
 }
