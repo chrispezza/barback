@@ -16,7 +16,7 @@ import { useIngredientSearch } from '../api/search';
 import type { Ingredient } from '../api/types';
 import { useLogout } from '../app';
 import { ErrorLine } from '../components/ErrorLine';
-import { isPlaced, ledgerGroups, rootIdsOf } from '../data/hierarchy';
+import { isPlaced, ledgerGroups, rootIdOf, rootIdsOf } from '../data/hierarchy';
 import { useDebounced } from '../hooks';
 
 export function Shelf() {
@@ -34,9 +34,13 @@ export function Shelf() {
 
   // Ledger grouping: bottles under their root ancestor (Spirits, Liqueurs…).
   // A bottle just tapped on has no place in the hierarchy until the shelf is
-  // read back; its chip and the count carry it until then.
-  const ledgerRows = rows.filter(isPlaced);
-  const rootNames = useIngredientsByIds(barId, rootIdsOf(ledgerRows));
+  // read back; its chip and the count carry it until then. So does a bottle
+  // whose group is still being named, so the groups already named stay put.
+  const placedRows = rows.filter(isPlaced);
+  const rootNames = useIngredientsByIds(barId, rootIdsOf(placedRows));
+  const ledgerRows = rootNames.isPlaceholderData
+    ? placedRows.filter((r) => rootNames.data.has(rootIdOf(r)))
+    : placedRows;
   const groups = ledgerGroups(ledgerRows, rootNames.data);
 
   function removeRow(ingredient: Ingredient) {

@@ -344,26 +344,59 @@ export function useFirstPours(barId: number | undefined, slugs: string[]) {
   });
 }
 
+type NameList = ListResponse<Ingredient>;
+
 /**
- * Batch name lookup (filter[id] is exact/comma) — shelf ledger group headers.
- * The set of roots changes whenever a bottle opens or empties a group; the
- * names already held stay valid, so they carry over while the new set loads
- * and an emptied group closes without the ledger dropping every header.
+ * The names any lookup has read for this bar, of the ids asked for. Undefined
+ * when none of them is known, so a first read is still a first read.
  */
-export function useIngredientsByIds(barId: number | undefined, ids: number[]) {
+function knownNames(
+  queryClient: QueryClient,
+  barId: number | undefined,
+  ids: number[],
+): NameList | undefined {
+  const wanted = new Set(ids);
+  const known = new Map<number, Ingredient>();
+  for (const [, list] of queryClient.getQueriesData<NameList>({
+    queryKey: ['ingredient-names', barId],
+  })) {
+    for (const i of list?.data ?? []) if (wanted.has(i.id)) known.set(i.id, i);
+  }
+  return known.size > 0 ? { data: [...known.values()] } : undefined;
+}
+
+/**
+ * Batch name lookup (filter[id] is exact/comma) — the shelf ledger's group
+ * headers (frontend-spec §9). The set of roots changes whenever a bottle opens
+ * or empties a group, and the lookup's key with it. A name already read stays
+ * valid, so the new set starts from every name this bar has read, on this
+ * screen or before it was last shown, while the lookup is out. A root none of
+ * them names is missing from that map until the answer lands, and
+ * isPlaceholderData says the map may be partial: the ledger holds that root's
+ * bottles back rather than read flat (Shelf). The options are built here,
+ * apart from the hook, so they can be driven without rendering (ADR-011).
+ */
+export function ingredientNamesOptions(
+  queryClient: QueryClient,
+  barId: number | undefined,
+  ids: number[],
+) {
   const key = [...ids].sort((a, b) => a - b).join(',');
-  return useQuery({
+  return {
     queryKey: ['ingredient-names', barId, key],
     queryFn: () =>
-      api<ListResponse<Ingredient>>(
-        `/ingredients?filter[id]=${key}&per_page=${ids.length}`,
-        { barId },
-      ),
+      api<NameList>(`/ingredients?filter[id]=${key}&per_page=${ids.length}`, { barId }),
     enabled: barId !== undefined && ids.length > 0,
     staleTime: BOOTSTRAP_STALE_MS,
-    placeholderData: keepPreviousData,
-    select: (r) => new Map(r.data.map((i) => [i.id, i.name])),
-  });
+    placeholderData: () => knownNames(queryClient, barId, ids),
+    select: (r: NameList) => new Map(r.data.map((i) => [i.id, i.name])),
+  };
+}
+
+/** The ledger's root names (ingredientNamesOptions). */
+export function useIngredientsByIds(barId: number | undefined, ids: number[]) {
+  const queryClient = useQueryClient();
+  return useQuery(ingredientNamesOptions(queryClient, barId, ids));
 }
 
 /**

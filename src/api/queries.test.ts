@@ -1,11 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MutationObserver as QueryMutationObserver, QueryClient, onlineManager } from '@tanstack/react-query'
+import {
+  MutationObserver as QueryMutationObserver,
+  QueryClient,
+  QueryObserver,
+  onlineManager,
+} from '@tanstack/react-query'
 import { BarModel, ingredientResource } from '../../test/fixtures/upstream'
 import { BAR_ID, I, USER_ID, defaultWorld } from '../../test/fixtures/world'
 import type { ToastMessage } from '../components/toasts'
 import { isPlaced } from '../data/hierarchy'
 import {
   checkOffOptions,
+  ingredientNamesOptions,
   isShelfTogglePending,
   shelfToggleOptions,
   toggleShelf,
@@ -585,5 +591,143 @@ describe('what a shelf toggle reads back', () => {
     ;(await written(2)).answer(204)
     await vi.waitFor(() => expect(isShelfTogglePending(client, BAR_ID, I.gin)).toBe(false))
     expect(readBack()).toEqual([...expected, ...expected])
+  })
+})
+
+// The shelf ledger's group headers (frontend-spec §9; Visual foundations: no
+// layout motion). A write that opens or empties a group changes the set of
+// roots the lookup asks for, and its key. The names already read hold while
+// the new set is out, whichever lookup read them, and the result says it is a
+// stand-in until the answer lands, so the ledger can hold back a bottle whose
+// group is not yet named instead of reading flat. Driven through TanStack's
+// own QueryObserver, what useQuery wraps (see the note at the top). The screen
+// is driven end to end in e2e/a-ledger-groups.spec.ts.
+describe('the ledger’s root names', () => {
+  const m = new BarModel(defaultWorld())
+
+  /** A name lookup the test answers by hand: GET /ingredients?filter[id]=…. */
+  interface Lookup {
+    ids: string
+    answer: () => void
+  }
+  let lookups: Lookup[] = []
+
+  beforeEach(() => {
+    lookups = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (url: string) =>
+          new Promise<Response>((resolve) => {
+            const ids = new URL(url).searchParams.get('filter[id]') ?? ''
+            lookups.push({
+              ids,
+              // IngredientController::index over filter[id], index resources.
+              answer: () =>
+                resolve(
+                  new Response(
+                    JSON.stringify({
+                      data: ids.split(',').map((id) => ingredientResource(m, Number(id), 'index')),
+                    }),
+                    { status: 200, headers: { 'Content-Type': 'application/json' } },
+                  ),
+                ),
+            })
+          }),
+      ),
+    )
+  })
+
+  const sorted = (ids: number[]) => [...ids].sort((a, b) => a - b).join(',')
+
+  /** What the Shelf would see, as useQuery would see it, for these roots. */
+  function watch(client: QueryClient, ids: number[], barId = BAR_ID) {
+    const observer = new QueryObserver(client, ingredientNamesOptions(client, barId, ids))
+    const stop = observer.subscribe(() => {})
+    const result = () => observer.getCurrentResult()
+    /** The Shelf re-rendered over a new set of roots. */
+    const rootsBecome = (next: number[]) => observer.setOptions(ingredientNamesOptions(client, barId, next))
+    return { result, rootsBecome, stop }
+  }
+
+  /** Wait for the lookup for exactly these ids, then answer it. */
+  async function answer(ids: number[]): Promise<void> {
+    await vi.waitFor(() => expect(lookups.map((l) => l.ids)).toContain(sorted(ids)))
+    lookups.find((l) => l.ids === sorted(ids))?.answer()
+  }
+
+  const six = [I.spirits, I.wines, I.juices, I.syrups, I.bitters, I.beverages]
+
+  it('keeps every name it holds while a set with a new root is read, and says it stands in', async () => {
+    const client = new QueryClient()
+    const names = watch(client, six)
+    await answer(six)
+    await vi.waitFor(() => expect(names.result().data?.size).toBe(6))
+
+    // The first Liqueurs bottle is read back onto the shelf.
+    names.rootsBecome([...six, I.liqueurs])
+    expect(names.result().isPlaceholderData).toBe(true)
+    expect([...(names.result().data?.keys() ?? [])].sort((a, b) => a - b)).toEqual(
+      [...six].sort((a, b) => a - b),
+    )
+    expect(names.result().data?.get(I.spirits)).toBe('Spirits')
+    expect(names.result().data?.has(I.liqueurs)).toBe(false)
+
+    await answer([...six, I.liqueurs])
+    await vi.waitFor(() => expect(names.result().isPlaceholderData).toBe(false))
+    expect(names.result().data?.get(I.liqueurs)).toBe('Liqueurs')
+    expect(names.result().data?.size).toBe(7)
+    names.stop()
+  })
+
+  it('names a set that lost a root at once, from the names it holds', async () => {
+    const client = new QueryClient()
+    const names = watch(client, six)
+    await answer(six)
+    await vi.waitFor(() => expect(names.result().data?.size).toBe(6))
+
+    // The last bitters bottle comes off the shelf.
+    const five = six.filter((id) => id !== I.bitters)
+    names.rootsBecome(five)
+    expect(names.result().isPlaceholderData).toBe(true)
+    expect(names.result().data).toEqual(new Map(five.map((id) => [id, ingredientResource(m, id, 'index').name])))
+
+    await answer(five)
+    await vi.waitFor(() => expect(names.result().isPlaceholderData).toBe(false))
+    expect(names.result().data?.size).toBe(5)
+    names.stop()
+  })
+
+  it('starts a reader on another screen visit from every name the bar has read', async () => {
+    const client = new QueryClient()
+    // The Shelf read the six roots, then was left; a check-off on Tonight
+    // opened Liqueurs, and the Shelf is opened again.
+    const before = watch(client, six)
+    await answer(six)
+    await vi.waitFor(() => expect(before.result().data?.size).toBe(6))
+    before.stop()
+
+    const names = watch(client, [...six, I.liqueurs])
+    expect(names.result().isPlaceholderData).toBe(true)
+    expect(names.result().data?.size).toBe(6)
+    expect(names.result().data?.has(I.liqueurs)).toBe(false)
+    await answer([...six, I.liqueurs])
+    await vi.waitFor(() => expect(names.result().data?.get(I.liqueurs)).toBe('Liqueurs'))
+    names.stop()
+  })
+
+  it('has no stand-in for a first read, nor names read for another bar', async () => {
+    const client = new QueryClient()
+    const first = watch(client, six)
+    expect(first.result().data).toBeUndefined()
+    expect(first.result().isPlaceholderData).toBe(false)
+    await answer(six)
+    await vi.waitFor(() => expect(first.result().data?.size).toBe(6))
+    first.stop()
+
+    const otherBar = watch(client, six, BAR_ID + 1)
+    expect(otherBar.result().data).toBeUndefined()
+    expect(otherBar.result().isPlaceholderData).toBe(false)
+    otherBar.stop()
   })
 })
