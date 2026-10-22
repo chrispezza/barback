@@ -329,10 +329,22 @@ describe('the tags of the drinks a bottle unlocks (drinkTagsOptions)', () => {
     ])
   })
 
+  /** The cache's entry for the tags of these drinks, as drinkTagsOptions keys it. */
+  const tagsQuery = (barId: number | undefined, ids: number[]) =>
+    client.getQueryCache().find({ queryKey: drinkTagsOptions(barId, ids).queryKey, exact: true })
+
   it('is not asked for no drinks, nor before the bar is known', async () => {
     const fetch = serveIndex()
     const none = observeTags(BAR_ID, [])
     const early = observeTags(undefined, [C.daiquiri])
+    // A subscribing observer that may fetch starts at once, so neither entry
+    // being idle now is no accident of timing.
+    expect(tagsQuery(BAR_ID, [])?.state.fetchStatus).toBe('idle')
+    expect(tagsQuery(undefined, [C.daiquiri])?.state.fetchStatus).toBe('idle')
+    // refetchQueries asks again every entry not disabled and resolves once
+    // they answer: neither is asked.
+    await client.refetchQueries({ queryKey: ['drink-tags'] })
+    expect(fetch).not.toHaveBeenCalled()
     await new Promise((resolve) => setTimeout(resolve, 10))
     for (const o of [none, early]) {
       expect(o.getCurrentResult().fetchStatus).toBe('idle')
@@ -345,8 +357,17 @@ describe('the tags of the drinks a bottle unlocks (drinkTagsOptions)', () => {
     const fetch = serveIndex()
     const tags = observeTags(BAR_ID, [C.daiquiri])
     await vi.waitFor(() => expect(tags.getCurrentResult().isSuccess).toBe(true))
+    const answered = tagsQuery(BAR_ID, [C.daiquiri])?.state.dataUpdatedAt
     // useCheckOff invalidates ['ingredient-extra'], among the shelf-derived reads.
     await client.invalidateQueries({ queryKey: ['ingredient-extra'] })
+    // invalidateQueries resolves once every read it asks again has answered,
+    // so these need no wait: the tags read was neither marked stale nor asked
+    // again, and holds the answer it had.
+    const after = tagsQuery(BAR_ID, [C.daiquiri])?.state
+    expect(after?.isInvalidated).toBe(false)
+    expect(after?.fetchStatus).toBe('idle')
+    expect(after?.dataUpdatedAt).toBe(answered)
+    expect(fetch).toHaveBeenCalledTimes(1)
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(fetch).toHaveBeenCalledTimes(1)
   })
