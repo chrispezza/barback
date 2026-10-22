@@ -157,7 +157,7 @@ test.describe('one tap on a nav link is one step back (ADR-003, ADR-007)', () =>
     await expect(h1(page, 'Daiquiri')).toBeVisible()
 
     // The recipe carries its own way back (frontend-spec §9; DrinkDetail goBack).
-    await tap(page.getByRole('main').getByRole('button', { name: '← Back' }), hasTouch)
+    await tap(page.getByRole('main').getByRole('button', { name: 'Back', exact: true }), hasTouch)
     await expect(page).toHaveURL(/\/drinks$/)
     await expect(h1(page, 'Drinks')).toBeVisible()
 

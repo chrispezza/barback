@@ -23,7 +23,7 @@ import { expect, test } from './support/test'
 //   again on reconnect.
 
 const main = (page: Page) => page.getByRole('main')
-const back = (page: Page) => page.getByRole('button', { name: '← Back' })
+const back = (page: Page) => page.getByRole('button', { name: 'Back', exact: true })
 const notFoundLine = (page: Page) =>
   main(page).getByText('No drink by that name — the index has the rest.', { exact: true })
 const toIndex = (page: Page) => main(page).getByRole('button', { name: 'Browse the index' })

@@ -32,7 +32,7 @@ const card = (scope: Locator, name: string) => scope.getByRole('link', { name: n
 const similarSection = (page: Page) =>
   main(page).locator('section', { has: page.getByRole('heading', { level: 2, name: 'In the same vein' }) })
 const errorLine = (page: Page) => main(page).getByRole('alert')
-const back = (page: Page) => main(page).getByRole('button', { name: '← Back' })
+const back = (page: Page) => main(page).getByRole('button', { name: 'Back', exact: true })
 
 /** The focused element as markup, or "BODY" when nothing has focus. */
 const focused = (page: Page) =>

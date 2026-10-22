@@ -40,6 +40,43 @@ export function setScreenTitle(title: string): void {
   document.title = `${title} · Barback`;
 }
 
+/** Where RouteEffects marks, in each history entry, whether one of the app's own entries is behind it. */
+const APP_BEHIND = 'barback.appBehind';
+
+function readAppBehind(state: unknown): boolean | undefined {
+  if (typeof state !== 'object' || state === null) return undefined;
+  const mark: unknown = (state as Record<string, unknown>)[APP_BEHIND];
+  return typeof mark === 'boolean' ? mark : undefined;
+}
+
+/**
+ * Whether the history entry behind this one is one of the app's own, so a
+ * step back stays in the app. history.length cannot say: it counts the whole
+ * tab, so a recipe opened into a tab that has been somewhere first has a
+ * length over one and nothing of the app's behind it. Read by the recipe's
+ * Back (src/screens/DrinkDetail.tsx; frontend-spec §9).
+ */
+export function appScreenBehind(): boolean {
+  return readAppBehind(window.history.state) === true;
+}
+
+/**
+ * Mark the entry on screen, once, with whether one of the app's own entries is
+ * behind it. The mark lives on the entry, so it holds through the browser's
+ * Back and Forward and through a reload. The first entry this document shows
+ * was opened from outside (a launch, a shared link, an address typed into a
+ * tab that has been somewhere first): nothing of the app's is known to be
+ * behind it. Every later one was reached from inside the app, by a link, a
+ * button or the door, on top of the entry it was reached from. The app's
+ * replace navigations (Landing, the door's redirect) run in the commit that
+ * reached the entry they replace, before it is marked, so what they leave is
+ * marked as that entry would have been.
+ */
+function markEntry(reachedInApp: boolean): void {
+  if (readAppBehind(window.history.state) !== undefined) return;
+  window.history.replaceState({ [APP_BEHIND]: reachedInApp }, '');
+}
+
 /** What the reader does that ends a wait for the heading: they have moved on. */
 const READER_MOVES = ['focusin', 'keydown', 'pointerdown'] as const;
 
@@ -81,11 +118,17 @@ function focusHeadingOnArrival(): () => void {
  * After a client-side navigation the browser announces nothing and focus stays
  * on whatever was tapped. Name the screen in the tab/history and move focus to
  * its heading, once it renders, so assistive tech reads where it landed (ADR-003
- * Consequences). Skips the initial load.
+ * Consequences). Skips the initial load. Every entry shown, a screen or not,
+ * is marked with whether the app is behind it (markEntry).
  */
 function RouteEffects() {
-  const { path } = useLocation();
+  const { path, url } = useLocation();
   const previous = useRef<string | null>(null);
+  const opened = useRef(false);
+  useLayoutEffect(() => {
+    markEntry(opened.current);
+    opened.current = true;
+  }, [url]);
   useLayoutEffect(() => {
     // A path no screen answers is left at once (Landing). It shows nothing to
     // name or to focus, and it is not where the reader was: landing on Tonight
