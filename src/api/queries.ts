@@ -438,12 +438,68 @@ export function useSimilarCocktails(
   });
 }
 
-/** Optimistic favorite flip on the detail cache; rolled back on error (§5). */
+/**
+ * What POST /cocktails/{id}/toggle-favorite answers: which way the toggle went.
+ * Upstream toggles what it holds rather than setting what the tap meant
+ * (CocktailController::toggleFavorite, CocktailController.php 221-228 in the
+ * reference clone), so a drink favourited or taken off elsewhere since it was
+ * read goes the other way from the tap.
+ */
+export interface FavoriteAnswer {
+  id: number;
+  is_favorited: boolean;
+}
+
+/** The list with the drink's favourite set to `favorited`, or undefined when nothing changes. */
+function withFavorite(list: Cocktail[], id: number, favorited: boolean): Cocktail[] | undefined {
+  if (!list.some((c) => c.id === id && c.is_favorited !== favorited)) return undefined;
+  return list.map((c) => (c.id === id ? { ...c, is_favorited: favorited } : c));
+}
+
+/**
+ * Put the bar's answer on every cached read that draws the drink: the recipe
+ * (by slug or id), the cards "In the same vein" on other recipes, the index and
+ * Tonight lists, the Classics roster. An updater that answers undefined leaves
+ * a read alone.
+ */
+function settleFavorite(
+  queryClient: QueryClient,
+  barId: number | undefined,
+  { id, is_favorited }: FavoriteAnswer,
+): void {
+  queryClient.setQueriesData<ItemResponse<Cocktail>>({ queryKey: ['cocktail', barId] }, (r) =>
+    r && r.data.id === id && r.data.is_favorited !== is_favorited
+      ? { ...r, data: { ...r.data, is_favorited } }
+      : undefined,
+  );
+  for (const key of ['similar', 'cocktails'] as const) {
+    queryClient.setQueriesData<ListResponse<Cocktail>>({ queryKey: [key, barId] }, (r) => {
+      const data = r && withFavorite(r.data, id, is_favorited);
+      return data && { ...r, data };
+    });
+  }
+  queryClient.setQueriesData<Cocktail[]>({ queryKey: ['first-pours', barId] }, (list) =>
+    list && withFavorite(list, id, is_favorited),
+  );
+}
+
+/**
+ * Favourite toggle (frontend-spec §2, §5; ADR-003 "reflects in UI in < 50 ms
+ * (optimistic), reconciles with API in the background"): flip the recipe
+ * before the write goes out, roll it back if the write is refused, and settle
+ * every read that draws the drink to the bar's answer once it comes, then read
+ * the recipe and the similar-drink cards that carry it back. A refusal reads
+ * neither back: the rollback is the last answer, and a recipe re-read with the
+ * bar gone would put the error line where the recipe stood.
+ */
 export function useToggleFavorite(barId: number | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ cocktailId }: { cocktailId: number; slug: string }) =>
-      api(`/cocktails/${cocktailId}/toggle-favorite`, { method: 'POST', barId }),
+      api<ItemResponse<FavoriteAnswer>>(`/cocktails/${cocktailId}/toggle-favorite`, {
+        method: 'POST',
+        barId,
+      }),
     onMutate: async ({ slug }) => {
       await queryClient.cancelQueries({ queryKey: ['cocktail', barId, slug] });
       const prev = queryClient.getQueryData<ItemResponse<Cocktail>>([
@@ -461,6 +517,25 @@ export function useToggleFavorite(barId: number | undefined) {
     onError: (_err, { slug }, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(['cocktail', barId, slug], ctx.prev);
       showToast({ message: 'The favorite didn’t take.' });
+    },
+    onSuccess: (answer, { cocktailId }) => {
+      const favorited = answer?.data?.is_favorited;
+      if (typeof favorited === 'boolean') {
+        settleFavorite(queryClient, barId, { id: cocktailId, is_favorited: favorited });
+      }
+      // The recipe under any slug or id it was read by, and the similar lists
+      // that carry the drink: /similar holds for five minutes, and no other
+      // list of it changed. Not awaited, so the button frees on the answer.
+      void queryClient.invalidateQueries({
+        queryKey: ['cocktail', barId],
+        predicate: (q) => (q.state.data as ItemResponse<Cocktail> | undefined)?.data.id === cocktailId,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ['similar', barId],
+        predicate: (q) =>
+          (q.state.data as ListResponse<Cocktail> | undefined)?.data.some((c) => c.id === cocktailId) ??
+          false,
+      });
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['first-pours'] });
