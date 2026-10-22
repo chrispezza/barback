@@ -224,9 +224,16 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     expect([...bar.model.list.entries()]).toEqual([[I.tequila, 1]])
   })
 
-  // The hold covers the pending favourite and list writes only. The window
-  // after they settle, before the roster refetch lands, is divergence 7 in the
-  // PR and is deliberately not asserted here.
+  // This case holds Choose while the favourite and list writes are pending,
+  // and asserts nothing after they settle. The PR that added this file
+  // (chrispezza/barback#31) found two divergences in that later window.
+  // Divergence 7: the roster's is_favorited stayed false until the
+  // first-pours refetch landed, so the button read "Choose" for a drink just
+  // favourited and a second tap undid the favourite. The code now writes the
+  // toggle answer into the roster cache (settleFavorite, chrispezza/barback#110),
+  // but no journey pins that yet: chrispezza/barback#137. Divergence 4: Choose
+  // was not held while the list was read, so it resent bottles already listed.
+  // e2e/d-classics-choose.spec.ts ("Choose waits for the list") pins that half.
   test('a second tap while the favourite and list writes are pending writes nothing more', async ({ page, bar }) => {
     await openRoster(page)
     bar.slowDown(600)

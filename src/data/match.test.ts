@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { shelfIndex, type Cocktail, type ShelfIndex } from '../api/types'
-import { BarModel, cocktailResource, ingredientResource, type Endpoint } from '../../test/fixtures/upstream'
+import { BarModel, cocktailResource, ingredientResource, sqliteBinaryCompare, type Endpoint } from '../../test/fixtures/upstream'
 import { C, I, T, defaultWorld, type CocktailSeed, type WorldSeed } from '../../test/fixtures/world'
 import {
   cardIngredients,
@@ -505,7 +505,7 @@ describe('the one bottle a near-miss card names', () => {
 function familyOf(m: BarModel, tagId: number): Cocktail[] {
   return m.world.cocktails
     .filter((c) => c.tagIds?.includes(tagId))
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => sqliteBinaryCompare(a.name, b.name))
     .map((c) => cocktailResource(m, c, 'index'))
 }
 

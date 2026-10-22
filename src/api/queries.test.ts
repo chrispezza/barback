@@ -5,7 +5,7 @@ import {
   QueryObserver,
   onlineManager,
 } from '@tanstack/react-query'
-import { BarModel, ingredientResource } from '../../test/fixtures/upstream'
+import { BarModel, ingredientResource, orderByName } from '../../test/fixtures/upstream'
 import { BAR_ID, I, USER_ID, defaultWorld } from '../../test/fixtures/world'
 import type { ToastMessage } from '../components/toasts'
 import { isPlaced } from '../data/hierarchy'
@@ -69,11 +69,10 @@ beforeEach(() => {
 const SHELF_KEY = ['shelf', BAR_ID]
 
 /** GET /ingredients?filter[on_shelf]=true as upstream sends it: index
- *  resources in name order (IngredientQueryFilter defaultSort('name')). */
+ *  resources in SQL name order (IngredientQueryFilter defaultSort('name');
+ *  orderByName). */
 function shelfList(m: BarModel): ListResponse<Ingredient> {
-  const data = [...m.shelf]
-    .map((id) => ingredientResource(m, id, 'index'))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  const data = orderByName([...m.shelf].map((id) => ingredientResource(m, id, 'index')))
   return { data, meta: { total: data.length, current_page: 1, last_page: 1 } }
 }
 

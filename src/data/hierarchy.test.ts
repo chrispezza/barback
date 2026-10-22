@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Ingredient } from '../api/types'
-import { BarModel, ingredientResource } from '../../test/fixtures/upstream'
+import { BarModel, ingredientResource, orderByName } from '../../test/fixtures/upstream'
 import { C, I, defaultWorld, type CocktailSeed } from '../../test/fixtures/world'
 import {
   isPlaced,
@@ -18,12 +18,10 @@ import {
 
 const model = () => new BarModel(defaultWorld())
 
-/** GET /ingredients?filter[on_shelf]=true rows: index resources, name order
- *  (IngredientQueryFilter defaultSort('name')). */
+/** GET /ingredients?filter[on_shelf]=true rows: index resources in SQL name
+ *  order (IngredientQueryFilter defaultSort('name'); orderByName). */
 function shelfRows(m: BarModel) {
-  return [...m.shelf]
-    .map((id) => ingredientResource(m, id, 'index'))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  return orderByName([...m.shelf].map((id) => ingredientResource(m, id, 'index')))
 }
 
 /** What useIngredientsByIds selects from GET /ingredients?filter[id]=…. */

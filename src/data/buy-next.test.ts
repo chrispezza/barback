@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { shelfIndex } from '../api/types'
-import { BarModel, cocktailResource, ingredientResource } from '../../test/fixtures/upstream'
+import { BarModel, cocktailResource, ingredientResource, shoppingListResource } from '../../test/fixtures/upstream'
 import { C, I, bareWorld, defaultWorld, type WorldSeed } from '../../test/fixtures/world'
 import { STAPLE_SLUGS } from './staples'
 import {
@@ -610,9 +610,7 @@ describe('To buy, ranked by what each bottle unlocks (frontend-spec §6 Journey 
   /** The list Tonight reads with these bottles on it, and their counts. */
   function toBuy(ids: number[] = listed) {
     const m = new BarModel(world((w) => (w.shelf.push(I.eggWhite), (w.list = ids))))
-    const items = [...m.list.entries()]
-      .map(([id, quantity]) => ({ ingredient: m.basic(id), quantity }))
-      .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name))
+    const items = shoppingListResource(m)
     const unlocks = (id: number) => {
       const before = m.canMake()
       return [...m.canMakeWith(new Set([...m.shelf, id]))].filter((c) => !before.has(c)).length
@@ -700,10 +698,7 @@ describe('To buy, ranked by what each bottle unlocks (frontend-spec §6 Journey 
         w.list = [I.campari, I.dryVermouth, I.gin, I.mint]
       }),
     )
-    const listOf = () =>
-      [...m.list.entries()]
-        .map(([id, quantity]) => ({ ingredient: m.basic(id), quantity }))
-        .sort((a, b) => a.ingredient.name.localeCompare(b.ingredient.name))
+    const listOf = () => shoppingListResource(m)
     const unlocks = (id: number) => {
       const before = m.canMake()
       return [...m.canMakeWith(new Set([...m.shelf, id]))].filter((c) => !before.has(c)).length

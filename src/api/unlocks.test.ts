@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
-import { BarModel, cocktailResource } from '../../test/fixtures/upstream'
+import { BarModel, cocktailResource, sqliteBinaryCompare } from '../../test/fixtures/upstream'
 import { BAR_ID, C, I, T, defaultWorld } from '../../test/fixtures/world'
 import { familyByTag } from '../data/families'
 import {
@@ -283,7 +283,7 @@ describe('the tags of the drinks a bottle unlocks (drinkTagsOptions)', () => {
       const perPage = Number(u.searchParams.get('per_page') ?? 25)
       const data = m.world.cocktails
         .filter((c) => ids.has(c.id))
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => sqliteBinaryCompare(a.name, b.name))
         .slice(0, perPage)
         .map((c) => cocktailResource(m, c, 'index', { includeTags }))
       return new Response(JSON.stringify({ data }), {
@@ -413,7 +413,7 @@ describe('the Index list page (indexPageOptions)', () => {
       const items = m.world.cocktails
         .filter((c) => tagId === null || (c.tagIds ?? []).includes(Number(tagId)))
         .filter((c) => u.searchParams.get('filter[favorites]') !== 'true' || m.favorites.has(c.id))
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => sqliteBinaryCompare(a.name, b.name))
       const body = {
         data: items.slice((page - 1) * perPage, page * perPage).map((c) => cocktailResource(m, c, 'index')),
         meta: { total: items.length, current_page: page, last_page: Math.max(1, Math.ceil(items.length / perPage)) },
