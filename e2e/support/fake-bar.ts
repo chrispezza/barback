@@ -195,6 +195,9 @@ export class FakeBar {
     }
 
     // EnsureRequestHasBarQuery (app/Http/Middleware) on the bar-scoped routes.
+    // This guards every path under these prefixes. Upstream guards only some
+    // of them (routes/api.php), so the fake is stricter here
+    // (chrispezza/barback#141).
     if (/^\/(tags|ingredients|cocktails|users)(\/|$)/.test(p) && this.needsBar(headers)) {
       return json(400, {
         message: `Missing required bar reference while requesting 'api${p}'. Use 'Bar-Assistant-Bar-Id' header to specify bar id.`,
@@ -282,8 +285,11 @@ export class FakeBar {
     if (r.method === 'POST' && (match = p.match(/^\/cocktails\/(\d+)\/toggle-favorite$/))) {
       const id = Number(match[1])
       // CocktailService::toggleFavorite starts with Cocktail::findOrFail
-      // (app/Services/CocktailService.php:228): a drink the bar does not have
-      // is a 404, and nothing is favourited.
+      // (app/Services/CocktailService.php:228): a drink id that does not
+      // exist is a 404, and nothing is favourited. findOrFail is not scoped to
+      // a bar; a drink in another bar is found, and getBarMembership (:230)
+      // decides what follows. This fake models one bar, so an id it does not
+      // hold is an id that does not exist.
       if (!m.cocktail(id)) return notFound()
       if (m.favorites.has(id)) m.favorites.delete(id)
       else m.favorites.add(id)
@@ -435,6 +441,12 @@ function tokensOf(value: unknown): string[] {
  * ingredient match. Lower ranks first; equal ranks keep index order. The
  * typo, proximity, word-position and exactness rules are not modelled.
  * Undefined when the document does not match.
+ *
+ * Known gaps against Meilisearch's defaults, which upstream leaves unchanged:
+ * every query word is a prefix here, where Meilisearch prefixes only the last,
+ * so this is kinder (chrispezza/barback#139); and matchingStrategy "last",
+ * typo tolerance and diacritic folding are missing, and tokensOf drops
+ * accented letters (chrispezza/barback#140).
  */
 function attributeRank(q: string, doc: Record<string, unknown>, attributes: readonly string[]): number | undefined {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)

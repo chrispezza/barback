@@ -317,10 +317,12 @@ describe('POST /cocktails/{id}/toggle-favorite (CocktailController::toggleFavori
     expect(off).toEqual({ status: 200, body: { data: { id: C.negroni, is_favorited: false } } })
   })
 
-  it('answers 404 for a drink the bar does not have, and favourites nothing', async () => {
+  it('answers 404 for a drink id that does not exist, and favourites nothing', async () => {
     // CocktailService::toggleFavorite starts with Cocktail::findOrFail
     // (app/Services/CocktailService.php:228); the ModelNotFoundException
     // renders as NotFoundHttpException (app/Exceptions/Handler.php:64-67).
+    // findOrFail is not scoped to a bar: a drink in another bar is found. The
+    // fake models one bar, so 999 is an id that does not exist.
     const bar = fake()
     const { status, body } = await served(bar, '/cocktails/999/toggle-favorite', { method: 'POST' })
     expect(status).toBe(404)
