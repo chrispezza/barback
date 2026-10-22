@@ -378,11 +378,14 @@ export class FakeBar {
       match[1] === 'cocktails'
         ? m.world.cocktails.map((c) => cocktailDocument(m, c))
         : m.world.ingredients.map((i) => ingredientDocument(m, i))
-    const hits = docs.filter((d) => prefixMatches(q, d.name)).slice(0, limit)
-    // Meilisearch's public search response (POST /indexes/{uid}/search).
-    return route.fulfill(
-      json(200, { hits, query: q, processingTimeMs: 1, limit, offset: 0, estimatedTotalHits: hits.length }),
-    )
+    const matched = docs.filter((d) => prefixMatches(q, d.name))
+    const hits = matched.slice(0, limit)
+    // Meilisearch's public search response (POST /indexes/{uid}/search; v1.15,
+    // deploy/docker-compose.yml:58). With limit/offset, estimatedTotalHits counts
+    // every match, not the page, up to the index's pagination.maxTotalHits —
+    // 1000 by default, and upstream sets no pagination (config/scout.php 135-157).
+    const estimatedTotalHits = Math.min(matched.length, 1000)
+    return route.fulfill(json(200, { hits, query: q, processingTimeMs: 1, limit, offset: 0, estimatedTotalHits }))
   }
 }
 
