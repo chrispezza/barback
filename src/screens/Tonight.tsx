@@ -213,9 +213,14 @@ export function Tonight() {
     forgetRestocked(staples.data);
     for (const s of staples.data) if (s.in_shelf) sentThisMount.current.delete(s.id);
   }, [staples.data]);
+  // Queue only against a list just read (ADR-008 with ADR-007). Not while the
+  // list cannot be read: the rail shows the snapshot alone. Nor while a read
+  // is under way: the rows in hand may be the stale ones a failing refetch
+  // leaves behind, and that failure is known only once its retry fails.
+  const listRead = shoppingList.isSuccess && !shoppingList.isFetching && !listUnavailable;
   useEffect(() => {
     if (profile?.id === undefined || staplesOut.length === 0) return;
-    if (shoppingList.data === undefined) return; // don't queue against a stale view
+    if (!listRead) return; // don't queue against a stale view
     const ids = staplesOut.map((s) => s.id);
     const queuedNames = staplesOut.map((s) => s.name).join(', ');
     rememberQueued(ids);
@@ -227,7 +232,7 @@ export function Tonight() {
       )
       // The promise settles after Tonight unmounts too; mutate's onError would not.
       .catch(() => forgetQueued(ids));
-  }, [staplesOut.map((s) => s.id).join(','), profile?.id, shoppingList.data === undefined]);
+  }, [staplesOut.map((s) => s.id).join(','), profile?.id, listRead]);
 
   // What the favorited drinks still need — aspiration outranks the generic
   // server ranking, so these pin above Restock next (data/buy-next.ts).
