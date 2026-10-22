@@ -169,6 +169,16 @@ export function Drinks() {
   // line flags (chrispezza/barback#104).
   const shelf = useShelf(barId);
   const shelfIdx = shelf.data && !shelf.isError ? shelfIndex(shelf.data.data) : undefined;
+  // The index draws on the list, the shelf its cards are read against, and the
+  // family's three counts. One line for whatever failed, and Retry asks for
+  // each of them again, or the list comes back alone: the cards against no
+  // shelf, or no summary, with nothing to say why (ADR-007 Consequences, "say
+  // so in the error voice"; chrispezza/barback#104 Option 1, the fallback
+  // cards only under an error line).
+  const indexReads = [cocktails, shelf, familyTotal, familyCanMake, familyNearMiss];
+  const indexFailed = barsFailed || indexReads.some((read) => read.isError);
+  // A search's hits are read against the same shelf.
+  const searchFailed = searchUnanswered || hitsUnanswered || barsFailed || shelf.isError;
 
   // Where nothing in the family pours, the header names what opens it, from
   // the gaps the family's cards name (frontend-spec §6 Journey 2,
@@ -226,11 +236,9 @@ export function Drinks() {
               numbers are stated flatly). */}
           <MatchHeader label="Matches" count={answer?.total} />
           {/* Search answers from Meilisearch or, failing that, the REST name
-              filter (ADR-004); the hits then come back as full cards. One line
-              for whichever failed. */}
-          {(searchUnanswered || hitsUnanswered || barsFailed) && (
-            <ErrorLine onRetry={() => retry(searchHits, hitCocktails)} />
-          )}
+              filter (ADR-004); the hits then come back as full cards, read
+              against the shelf. One line for whichever failed. */}
+          {searchFailed && <ErrorLine onRetry={() => retry(searchHits, hitCocktails, shelf)} />}
           {answer?.total === 0 && <p class="recipe-aside">Nothing by that name.</p>}
           {partial && <p>{partial}</p>}
           <ul class="card-list">{hits.map(card)}</ul>
@@ -276,7 +284,7 @@ export function Drinks() {
               }
             />
           )}
-          {(cocktails.isError || barsFailed) && <ErrorLine onRetry={() => retry(cocktails)} />}
+          {indexFailed && <ErrorLine onRetry={() => retry(...indexReads)} />}
           <ul class="card-list">{listed?.data.map(card)}</ul>
 
           {lastPage > 1 && (
