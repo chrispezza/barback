@@ -81,7 +81,12 @@ function BuyNextCard({
           <span class="buy-next-name">{name}</span>
           <span class="buy-next-reason">{line}</span>
         </div>
-        <Button variant="secondary" size="sm" disabled={disabled} onClick={onList}>
+        {/* The card's one action is the system's brass-fill button, green-900
+            on brass. The brass outline would set its 11px caps in brass on
+            the card surface, 4.46:1: brass never carries small copy on a
+            card, and every text pair passes AA (the design system's
+            "Visual foundations"; WCAG 1.4.3). */}
+        <Button variant="primary" size="sm" disabled={disabled} onClick={onList}>
           List it
         </Button>
       </div>

@@ -558,12 +558,62 @@ a {
 }
 
 .bar-status a {
+  position: relative;
   color: var(--brass-500);
   text-decoration: underline;
   text-decoration-color: var(--rule-strong);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
   transition: var(--transition-state);
+}
+
+/* Each count's target reaches the system's 44px (--tap-min; WCAG 2.5.8),
+   though its glyphs are a digit or two of the line's type, some 12 × 29: an
+   empty box that is the link's, out of the flow, so the line keeps its
+   layout and type and the focus ring stays on the glyphs. Centred on them,
+   it reaches no further than a phone's gutter.
+
+   The boxes sit under every count's digits, so a count's own digits are
+   always its own: the line is its own stacking context, the boxes are
+   behind its text, and the line's words let a tap through to them (only the
+   links take one). That matters where a narrow line wraps one count under
+   another at the 28px line pitch ("24 · 38 one / bottle away · 3"): two 44px
+   boxes cannot both fit, so they share the strip between the two counts,
+   and that strip goes to the later count. Each count is then 44px wide but
+   not 44px tall. WCAG 2.5.8 excepts a target in a sentence, whose size the
+   line height constrains; the system's 44px floor states no such exception
+   (chrispezza/barback#177). */
+.bar-status {
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.bar-status a {
+  pointer-events: auto;
+}
+
+.bar-status a::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: calc(50% - var(--tap-min) / 2) min(0px, calc(50% - var(--tap-min) / 2));
+}
+
+/* On one line the first two counts sit one "·" apart ("5 · 7"), closer
+   than 44px centre to centre, so those two boxes are not centred: each
+   reaches over the words its count belongs to, "You can pour" before the
+   first and "one bottle away" after the second, so the two do not
+   overlap. */
+.bar-status a[href='#pour']::after {
+  left: auto;
+  right: 0;
+  width: max(100%, var(--tap-min));
+}
+
+.bar-status a[href='#near']::after {
+  left: 0;
+  right: auto;
+  width: max(100%, var(--tap-min));
 }
 
 .bar-status a:hover {
