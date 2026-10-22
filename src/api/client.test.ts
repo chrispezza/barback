@@ -72,6 +72,32 @@ describe('api() errors', () => {
     )
   })
 
+  it('end the session once on a burst of 401s, keeping the first place', async () => {
+    // Opening the app on a stale token: the bootstrap's /profile and /bars
+    // are in flight together and both 401.
+    window.localStorage.setItem('barback.token', 'stale')
+    window.history.replaceState(null, '', '/tonight')
+    const before = window.history.length
+    vi.stubGlobal('fetch', respond(401, JSON.stringify({ message: 'Unauthenticated.' })))
+    const errors = await Promise.all([rejection(api('/profile')), rejection(api('/bars'))])
+    for (const e of errors) expect(isApiError(e) && e.status).toBe(401)
+    expect(window.location.pathname + window.location.search).toBe(
+      `/login?reason=expired&next=${encodeURIComponent('/tonight')}`,
+    )
+    // One step onto the door, not one per refused call.
+    expect(window.history.length).toBe(before + 1)
+  })
+
+  it('leave the door as it is when a 401 answers there', async () => {
+    window.history.replaceState(null, '', '/login?reason=expired&next=%2Fshelf')
+    const before = window.history.length
+    vi.stubGlobal('fetch', respond(401, JSON.stringify({ message: 'Unauthenticated.' })))
+    const e = await rejection(api('/profile'))
+    expect(isApiError(e) && e.status).toBe(401)
+    expect(window.location.pathname + window.location.search).toBe('/login?reason=expired&next=%2Fshelf')
+    expect(window.history.length).toBe(before)
+  })
+
   it('are not confused with any other Error', () => {
     expect(isApiError(new Error('API 500 on /x'))).toBe(false)
     expect(isApiError(Object.assign(new Error('x'), { name: 'ApiError' }))).toBe(false)
