@@ -339,7 +339,6 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
     const reread = await hold(page, isListRead)
 
     await chooseButton(page, 'Margarita').click()
-    await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
     await reread.arrived
     // The rows in hand predate the write: Paloma's tequila would read as unlisted.
     await expect(chooseButton(page, 'Paloma')).toBeDisabled()
@@ -348,6 +347,9 @@ test.describe('Choose waits for the list (§1, ADR-008)', () => {
     const listedAgain = listLoaded(page)
     reread.release()
     await listedAgain
+    // The list write is pending until its read-back lands (useShoppingMutation),
+    // so the receipt follows the new rows rather than the write's answer.
+    await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
     await expect(chooseButton(page, 'Paloma')).toBeEnabled()
     expect(bar.calls('POST', /\/shopping-list\/batch-store$/)).toHaveLength(1)
 

@@ -640,7 +640,20 @@ export function useToggleFavorite(barId: number | undefined) {
   });
 }
 
-/** Add or remove shopping-list entries. Payload keys differ from the shelf batch. */
+/**
+ * Add or remove shopping-list entries. Payload keys differ from the shelf batch.
+ *
+ * The write is pending until the list has been read back, not only until it
+ * has answered: every + List and List it holds while the mutation is pending,
+ * and whether a bottle is listed is drawn from that read. Freed on the answer
+ * alone, a control still offers the bottle for one round trip, and a second
+ * tap sends a second batch-store, which upstream answers by setting a listed
+ * row's quantity back to the one sent, or 1 (ShoppingListController::batchStore,
+ * ShoppingListController.php 76-79 at v5.15.3), and Tonight leaves a second
+ * receipt.
+ * TanStack awaits onSettled before it settles the mutation, so returning the
+ * read-back is what holds it; a read-back that fails does not reject it.
+ */
 export function useShoppingMutation(
   barId: number | undefined,
   userId: number | undefined,
@@ -660,9 +673,7 @@ export function useShoppingMutation(
             body: { ingredients: ingredientIds.map((id) => ({ id })) },
           }),
     onError: () => showToast({ message: 'The list didn’t take that change.' }),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['shopping-list'] });
-    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['shopping-list'] }),
   });
 }
 
