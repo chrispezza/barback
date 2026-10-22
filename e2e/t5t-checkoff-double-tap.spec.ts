@@ -182,4 +182,80 @@ test.describe('a check-off on Tonight’s To buy (§5)', () => {
     })
     expect(writes(bar)).toEqual([...checkOffWrites(I.campari), ...checkOffWrites(I.scotch)])
   })
+
+  // The hold is the row's own. A press on another row while the first
+  // check-off is read back is a second decision, not a double tap: it checks
+  // that bottle off. Dropped, it would be dropped silently, from a row that
+  // looks and reports itself as live (WCAG 4.1.2), and ticking bottles off in
+  // turn is the store-aisle use of the list.
+  test('a tap on another row while the list is read back checks that bottle off, and the first row still takes none', async ({
+    page,
+    bar,
+  }) => {
+    await page.goto('/tonight')
+    await expect(status(page)).toHaveText('You can pour 5 · 6 one bottle away · 2 to buy')
+    const campari = listRow(page, 'Campari')
+    const scotch = listRow(page, 'Scotch whisky')
+    const campariTaps = await countTaps(campari)
+    const scotchTaps = await countTaps(scotch)
+    bar.slowDown(LATENCY)
+
+    const readBack = page.waitForRequest((r) => r.method() === 'GET' && isListRead(r.url()))
+    await campari.click()
+    await readBack
+    await settled(page)
+    // Both land while Campari's list read is out, so its row is still there.
+    await scotch.click({ force: true })
+    await campari.click({ force: true })
+    await page.mouse.move(0, 0)
+    expect({ campari: await campariTaps(), scotch: await scotchTaps() }).toEqual({ campari: 2, scotch: 1 })
+
+    // Scotch whisky's pair follows Campari's, and nothing follows it.
+    await expect
+      .poll(() => writes(bar), { timeout: 10_000 })
+      .toEqual([...checkOffWrites(I.campari), ...checkOffWrites(I.scotch)])
+    await expect(campari).toHaveCount(0, { timeout: 10_000 })
+    await expect(scotch).toHaveCount(0, { timeout: 10_000 })
+    await expect(rail(page).getByText('Nothing to buy yet — a near miss puts its bottle here.')).toBeVisible({
+      timeout: 10_000,
+    })
+    expect(writes(bar)).toEqual([...checkOffWrites(I.campari), ...checkOffWrites(I.scotch)])
+    expect([...bar.model.list.keys()]).toEqual([])
+  })
+
+  test('Enter on another row while the list is read back checks that bottle off, and the first row still takes none', async ({
+    page,
+    bar,
+  }) => {
+    await page.goto('/tonight')
+    await expect(status(page)).toHaveText('You can pour 5 · 6 one bottle away · 2 to buy')
+    const campari = listRow(page, 'Campari')
+    const scotch = listRow(page, 'Scotch whisky')
+    const campariPresses = await countTaps(campari)
+    const scotchPresses = await countTaps(scotch)
+    bar.slowDown(LATENCY)
+
+    const readBack = page.waitForRequest((r) => r.method() === 'GET' && isListRead(r.url()))
+    await campari.focus()
+    await page.keyboard.press('Enter')
+    await readBack
+    await settled(page)
+    await scotch.focus()
+    await page.keyboard.press('Enter')
+    await campari.focus()
+    await page.keyboard.press('Enter')
+    // Enter on a button is a click, so the same count holds for a key.
+    expect({ campari: await campariPresses(), scotch: await scotchPresses() }).toEqual({ campari: 2, scotch: 1 })
+
+    await expect
+      .poll(() => writes(bar), { timeout: 10_000 })
+      .toEqual([...checkOffWrites(I.campari), ...checkOffWrites(I.scotch)])
+    await expect(campari).toHaveCount(0, { timeout: 10_000 })
+    await expect(scotch).toHaveCount(0, { timeout: 10_000 })
+    await expect(rail(page).getByText('Nothing to buy yet — a near miss puts its bottle here.')).toBeVisible({
+      timeout: 10_000,
+    })
+    expect(writes(bar)).toEqual([...checkOffWrites(I.campari), ...checkOffWrites(I.scotch)])
+    expect([...bar.model.list.keys()]).toEqual([])
+  })
 })
