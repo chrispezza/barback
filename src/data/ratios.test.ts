@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Cocktail } from '../api/types'
-import { BarModel, cocktailResource, slugify, type Endpoint } from '../../test/fixtures/upstream'
+import {
+  BarModel,
+  cocktailIngredientResource,
+  cocktailResource,
+  slugify,
+  type Endpoint,
+} from '../../test/fixtures/upstream'
 import { C, I, defaultWorld, type CocktailLineSeed, type CocktailSeed } from '../../test/fixtures/world'
 import { RATIOS, deriveRatio, fractionGlyph, normalizeSlug, ratioForSlug, type RatioTemplate } from './ratios'
 
@@ -302,6 +308,22 @@ describe('deriveRatio', () => {
     expect(deriveRatio(cocktail(m, flip.id))).toBeUndefined()
   })
 
+  it('prints a metric spec’s 25 ml as a glyph, not a decimal', () => {
+    // A UK-style sour: 50 / 25 / 25 ml arrives as 1.6667 / 0.8333 / 0.8333 oz.
+    const ginSour = seed('Gin sour', [
+      { ingredientId: I.londonDryGin, amount: 50, units: 'ml' },
+      { ingredientId: I.lemonJuice, amount: 25, units: 'ml' },
+      { ingredientId: I.simpleSyrup, amount: 25, units: 'ml' },
+    ])
+    const c = cocktail(bar({ extra: [ginSour] }), ginSour.id)
+    expect(c.ingredients[1]?.formatted.oz.amount).toBe(0.8333)
+    expect(parts(deriveRatio(c))).toEqual([
+      ['1⅔', 'London dry gin'],
+      ['⅚', 'Lemon juice'],
+      ['⅚', 'Simple syrup'],
+    ])
+  })
+
   it('keys the derived skeleton by the normalized slug, year kept', () => {
     const samWard = seed('Sam Ward (1884)', [
       { ingredientId: I.cognac, amount: 30, units: 'ml' },
@@ -358,6 +380,64 @@ describe('fractionGlyph', () => {
     [3.3333, '3⅓'],
   ])('prints the mixed number %s as %s', (n, text) => {
     expect(fractionGlyph(n)).toBe(text)
+  })
+
+  /** The oz amount upstream sends for a line authored in ml (AmountFormats:
+   *  ml ÷ 30, rounded to four places), as the fixture model builds it. */
+  const ozFor = (ml: number) =>
+    cocktailIngredientResource(bar(), { ingredientId: I.limeJuice, amount: ml, units: 'ml' }, 1, 'show')
+      .formatted.oz.amount
+
+  it.each([
+    [25, 0.8333, '⅚'],
+    [5, 0.1667, '⅙'],
+    [35, 1.1667, '1⅙'],
+    [55, 1.8333, '1⅚'],
+    [11.25, 0.375, '⅜'],
+    [18.75, 0.625, '⅝'],
+    [26.25, 0.875, '⅞'],
+    [41.25, 1.375, '1⅜'],
+    [6, 0.2, '⅕'],
+    [12, 0.4, '⅖'],
+    [18, 0.6, '⅗'],
+    [24, 0.8, '⅘'],
+    [36, 1.2, '1⅕'],
+    [3, 0.1, '⅒'],
+  ])('prints %s ml, which upstream sends as %s oz, as %s', (ml, oz, text) => {
+    expect(ozFor(ml)).toBe(oz)
+    expect(fractionGlyph(oz)).toBe(text)
+  })
+
+  // Every vulgar fraction Unicode encodes: Latin-1 ¼ ½ ¾ and U+2150–215E.
+  // (U+215F ⅟ is a bare numerator and U+2189 ↉ is zero; neither is a measure.)
+  // Each glyph's value comes from its own compatibility decomposition
+  // ("⅚" → "5⁄6"), not from the table under test.
+  const VULGAR = [
+    '¼',
+    '½',
+    '¾',
+    ...Array.from({ length: 0x215e - 0x2150 + 1 }, (_, i) => String.fromCodePoint(0x2150 + i)),
+  ]
+  const round4 = (n: number) => Math.round(n * 10000) / 10000
+
+  it.each(VULGAR)('prints the four-place value of %s as that glyph, alone and after a whole', (glyph) => {
+    const [p = NaN, q = NaN] = glyph.normalize('NFKD').split('⁄').map(Number)
+    expect(Number.isInteger(p) && Number.isInteger(q) && p < q, glyph).toBe(true)
+    expect(fractionGlyph(round4(p / q))).toBe(glyph)
+    expect(fractionGlyph(round4(2 + p / q))).toBe(`2${glyph}`)
+  })
+
+  it('gives no glyph to 5⁄12, 1⁄12, 1 5⁄12, 3⁄10 or 7⁄30 oz', () => {
+    // 12.5, 2.5, 42.5, 9 and 7 ml; Unicode has a glyph for none of them.
+    // This is not a general guarantee against rounding onto a neighbour:
+    // values within two places of a key do take its glyph (see FRACTIONS).
+    expect(ozFor(12.5)).toBe(0.4167)
+    expect(ozFor(2.5)).toBe(0.0833)
+    expect(ozFor(9)).toBe(0.3)
+    expect(ozFor(7)).toBe(0.2333)
+    for (const oz of [0.4167, 0.0833, 1.4167, 0.3, 0.2333]) {
+      expect(fractionGlyph(oz), String(oz)).not.toMatch(new RegExp(`[${VULGAR.join('')}]`))
+    }
   })
 })
 
