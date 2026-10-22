@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Locator, Page } from '@playwright/test'
-import { I, bareWorld, defaultWorld, type WorldSeed } from '../test/fixtures/world'
+import { C, I, bareWorld, defaultWorld, type WorldSeed } from '../test/fixtures/world'
 import { expect, test } from './support/test'
 
 // Tonight's marks and copy against the design system's "Content fundamentals"
@@ -177,19 +177,47 @@ test.describe('a near-miss card’s list action', () => {
 })
 
 test.describe('the names a bare shelf starts with', () => {
-  test.use({ world: bareWorld() })
+  // The names are the ranking's first three once the staples (standing orders,
+  // ADR-008), the favourites' bottles and what is owned or listed are set
+  // aside. So the line may say how they were ranked, never that the most
+  // recipes call for them: on the bare default shelf the staples Lime juice
+  // and Simple syrup are called for by more recipes than any of them, and
+  // beside a favourited Negroni, Gin and Sweet vermouth by more than White rum.
+  // Nor that White rum outranks Scotch whisky and Bourbon whiskey: the three
+  // are called for by as many recipes.
+  for (const { label, favorites, names } of [
+    { label: 'with no favourite', favorites: [], names: ['Gin', 'Sweet vermouth', 'White rum'] },
+    {
+      label: 'beside a favourite that claims the first bottles',
+      favorites: [C.negroni],
+      names: ['White rum', 'Scotch whisky', 'Bourbon whiskey'],
+    },
+  ]) {
+    test.describe(label, () => {
+      test.use({ world: { ...bareWorld(), favorites } })
 
-  test('say what the ranking counts, the recipes that call for them, not the drinks they open', async ({
-    page,
-  }) => {
-    await page.goto('/tonight')
-    await expect(emptyState(page).getByRole('heading', { name: 'The shelf is bare', exact: true })).toBeVisible()
-    await expect(emptyState(page).locator('.bb-empty__body')).toHaveText(
-      'Start with Gin, Sweet vermouth, White rum — the most recipes call for them.',
-    )
-    await expect(page.getByText(/open the most drinks/)).toHaveCount(0)
-    await expectNoViolationsBesideFleuron(page, '#pour')
-  })
+      test('say what the ranking counts, the recipes that call for them, and claim no rank it does not give', async ({
+        page,
+        bar,
+      }) => {
+        await page.goto('/tonight')
+        await expect(emptyState(page).getByRole('heading', { name: 'The shelf is bare', exact: true })).toBeVisible()
+        await expect(emptyState(page).locator('.bb-empty__body')).toHaveText(
+          `Start with ${names.join(', ')} — ranked by how many recipes call for them.`,
+        )
+        await expect(page.getByText(/open the most drinks|the most recipes/)).toHaveCount(0)
+        // What the line says, against the ranking it is drawn from
+        // (IngredientService::getIngredientsForPossibleCocktails, as the fake
+        // models it): recipes call for each name, and the names come in the
+        // ranking's order.
+        const ranking = bar.model.recommendFor(bar.model.shelf)
+        const counts = names.map((name) => ranking.find((r) => r.name === name)?.potential_cocktails ?? 0)
+        expect(counts.every((n) => n > 0), JSON.stringify(counts)).toBe(true)
+        expect(counts).toEqual([...counts].sort((a, b) => b - a))
+        await expectNoViolationsBesideFleuron(page, '#pour')
+      })
+    })
+  }
 })
 
 test.describe('the offline line', () => {
