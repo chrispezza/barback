@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { showToast } from '../components/toasts';
+import { reachFallbackParent, reachOf, type Reach } from '../data/hierarchy';
 import type {
   Bar,
   Cocktail,
@@ -175,13 +176,14 @@ export function useIngredientUnlocks(
  * How far a bottle reaches when it unlocks nothing outright: how many recipes
  * reference it — or, for a brand-level child (Laphroaig 10), its parent
  * (Islay Scotch), since upstream matching walks the hierarchy (ADR-001 clone,
- * CocktailService::getCocktailsByIngredients).
+ * CocktailService::getCocktailsByIngredients). The decision is reachOf
+ * (data/hierarchy.ts); this hook only fetches what it needs.
  */
 export function useIngredientReach(
   barId: number | undefined,
   ingredientId: number,
   enabled: boolean,
-): { count: number; via?: string } | undefined {
+): Reach | undefined {
   const own = useQuery({
     queryKey: ['ingredient-reach', barId, ingredientId],
     queryFn: () =>
@@ -201,24 +203,13 @@ export function useIngredientReach(
         `/ingredients/${parent?.id}?include=cocktailsCount`,
         { barId },
       ),
-    enabled:
-      barId !== undefined &&
-      enabled &&
-      own.data?.cocktails_count === 0 &&
-      parent !== null,
+    enabled: barId !== undefined && enabled && reachFallbackParent(own.data) !== null,
     staleTime: BOOTSTRAP_STALE_MS,
     select: (r) => r.data,
   });
 
   if (!enabled) return undefined;
-  const ownCount = own.data?.cocktails_count;
-  if (ownCount === undefined) return undefined;
-  if (ownCount > 0) return { count: ownCount };
-  const parentCount = parentQuery.data?.cocktails_count;
-  if (parentCount !== undefined && parentCount > 0 && parent) {
-    return { count: parentCount, via: parent.name };
-  }
-  return undefined;
+  return reachOf(own.data, parentQuery.data);
 }
 
 /** First-pours roster (data/first-pours.ts): full cocktails resolved by slug. */
