@@ -13,10 +13,9 @@ import { expect, test } from './support/test'
 // src/api/snapshot.test.ts; the last describe here pins how Tonight words the
 // stamp, with the reader's locale and time zone fixed.
 //
-// Not asserted here, by design: a cold start with the API unreachable (the
-// snapshot never shows, chrispezza/barback#63), and what else the rail shows
-// beside the snapshot (#62). Those are known defects for later PRs, and
-// this spec must not pin the current behaviour as correct.
+// A cold start with the API unreachable (chrispezza/barback#63), and that the
+// rail shows the snapshot alone with nothing in it that writes (#62), are
+// pinned in e2e/offline-tonight.spec.ts.
 
 function listing(ids: number[]): WorldSeed {
   const w = defaultWorld()
