@@ -26,10 +26,11 @@ import { expect, test } from './support/test'
 // retry: 1).
 //
 // The store aisle (ADR-007) is the device offline, not only the bar out of
-// reach: the browser reports navigator.onLine false, and TanStack Query's
-// default networkMode pauses a read asked for then instead of failing it
-// (chrispezza/barback#107). A paused search has no answer either, and says so
-// the same way; it goes out again by itself when the device reconnects.
+// reach: the browser reports navigator.onLine false. A search asked for then
+// is tried and fails, as it does with the bar out of reach, and says so the
+// same way: never held until the device reconnects (src/api/client.ts
+// queryDefaults; chrispezza/barback#107). It is asked again by itself when the
+// device reconnects.
 
 const ERROR = 'The bar didn’t answer — try again.'
 
@@ -169,20 +170,40 @@ test.describe('the device is offline', () => {
     await expect(cards(page)).toHaveCount(0)
   })
 
-  test('the paused search goes out on reconnect, and the matches take the error line’s place', async ({
+  test('a search made offline fails, is asked again on reconnect, and the matches take the error line’s place', async ({
     page,
     bar,
     context,
   }) => {
     await openIndex(page)
+    // Route interception still answers while the context is offline, so this
+    // handler, asked before the fake, drops what the page asks of the bar and
+    // of search while the device is offline, as the network would, and keeps
+    // the path of each. Unlike takeApiDown and takeSearchDown, it can be lifted.
+    let online = true
+    const dropped: string[] = []
+    await page.route(
+      (url) => url.pathname.startsWith('/bar/') || url.pathname.startsWith('/search/'),
+      (route) => {
+        if (online) return route.fallback()
+        dropped.push(new URL(route.request().url()).pathname)
+        return route.abort('internetdisconnected')
+      },
+    )
+    online = false
     await context.setOffline(true)
     const asked = bar.requests.length
 
     await searchBox(page).fill('daiq')
     await expectSearchErrorLine(page)
-    // Paused, not failed: nothing was sent while the device was offline.
+    // Failed, not held: the search was asked of Meilisearch and then of the
+    // REST name filter (ADR-004), and the network dropped both. Nothing
+    // reached the bar while the device was offline.
+    expect(dropped).toContain('/search/indexes/cocktails/search')
+    expect(dropped).toContain('/bar/api/cocktails')
     expect(bar.requests.slice(asked)).toEqual([])
 
+    online = true
     await context.setOffline(false)
 
     await expect(sectionHeading(page, 'Matches · 1')).toBeVisible()

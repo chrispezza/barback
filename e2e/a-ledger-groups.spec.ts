@@ -206,10 +206,11 @@ test.describe('the shelf ledger after a check-off on Tonight', () => {
   })
 
   // ADR-007: the installed app opens with no connection to the API, in a store
-  // aisle. The lookup that would name the group the check-off opened cannot go
-  // out, so nothing names Liqueurs until the device reconnects. A bottle may
-  // wait outside the ledger for one round trip, not for as long as the device
-  // is offline: every bottle the count names is in the ledger.
+  // aisle. The lookup that would name the group the check-off opened goes out
+  // and is not answered (src/api/client.ts queryDefaults: never held while the
+  // device is offline), so nothing names Liqueurs until the device reconnects.
+  // A bottle may wait outside the ledger for one round trip, not for as long
+  // as the device is offline: every bottle the count names is in the ledger.
   test('shows every bottle the count names when it opens offline before the new group is named', async ({
     page,
     context,
@@ -227,6 +228,10 @@ test.describe('the shelf ledger after a check-off on Tonight', () => {
     await shelfReadBack
     expect(bar.model.shelf.has(I.campari)).toBe(true)
 
+    const namesLiqueurs = () => nameLookups(bar).filter((ids) => ids.split(',').includes(String(I.liqueurs)))
+    // No lookup has asked for Liqueurs while the bar could answer.
+    expect(namesLiqueurs()).toEqual([])
+
     await context.setOffline(true)
     // Route interception still answers while the context is offline, so the
     // fake drops the connection as the network would.
@@ -237,7 +242,9 @@ test.describe('the shelf ledger after a check-off on Tonight', () => {
     expect(shelvedBottles(bar)).toHaveLength(13)
     expect(shelvedBottles(bar)).toContain('Campari')
 
-    // Nothing will name Liqueurs while offline: its lookup never went out.
-    expect(nameLookups(bar).filter((ids) => ids.split(',').includes(String(I.liqueurs)))).toEqual([])
+    // Nothing names Liqueurs while offline: its lookup goes out now, not on
+    // reconnect, and the network drops it (every request since takeApiDown).
+    await expect.poll(() => namesLiqueurs().length).toBeGreaterThan(0)
+    await expect(page.getByRole('main').getByRole('heading', { level: 2, name: /^Liqueurs/ })).toHaveCount(0)
   })
 })

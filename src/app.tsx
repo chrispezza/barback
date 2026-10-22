@@ -4,6 +4,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { Button } from '@ds/core/Button';
 import { clearToken, isAuthenticated } from './auth';
+import { queryDefaults } from './api/client';
 import { useBarId, useCocktails, useShelf } from './api/queries';
 import { useActiveFamily } from './components/FamilyPicker';
 import { ToastHost } from './components/toasts';
@@ -14,9 +15,9 @@ import { Shelf } from './screens/Shelf';
 import { Drinks } from './screens/Drinks';
 import { DrinkDetail } from './screens/DrinkDetail';
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1 } },
-});
+// One retry for a read, and every call goes out however the device looks
+// (src/api/client.ts queryDefaults; ADR-007).
+const queryClient = new QueryClient({ defaultOptions: queryDefaults });
 
 const NAV = [
   { href: '/tonight', label: 'Tonight', hint: 'pour now' },
