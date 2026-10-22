@@ -191,6 +191,20 @@ describe('writeListSnapshot and readListSnapshot', () => {
     expect(readListSnapshot()).toBeNull()
   })
 
+  // V8's legacy date parser takes loose strings for dates: "Wednesday 7" reads
+  // as 1 July 2001, "1" as 1 January 2001 and "October 7" as 7 October 2001,
+  // each at local midnight; a bare day reads as UTC midnight, an hour no list
+  // was served at. Tonight would state any of them as when the list stood.
+  // writeListSnapshot stores toISOString's form, so a stamp it wrote reads
+  // back as that exact string.
+  it.each(['Wednesday 7', '1', 'October 7', '2026-10-07'])(
+    'reads null when the stored stamp is %j, not the instant the writer stores',
+    (at) => {
+      localStorage.setItem(LIST_SNAPSHOT_KEY, JSON.stringify({ at, names: ['Campari'] }))
+      expect(readListSnapshot()).toBeNull()
+    },
+  )
+
   it('reads null when the stored names are not a list of names', () => {
     localStorage.setItem(LIST_SNAPSHOT_KEY, JSON.stringify({ at: '2026-10-07T21:40:00.000Z', names: 'Campari' }))
     expect(readListSnapshot()).toBeNull()

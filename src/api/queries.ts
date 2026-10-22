@@ -171,7 +171,10 @@ export function writeListSnapshot(items: ShoppingListItem[], now: Date): void {
 /**
  * Last list the API served — the store-aisle fallback when it's unreachable.
  * A stored value that cannot say when it was served, or what it listed, is no
- * snapshot at all.
+ * snapshot at all. The stamp counts only in the form snapshotOf writes, an
+ * instant that toISOString gives back unchanged: Date.parse alone also takes
+ * loose strings ("Wednesday 7" reads as 1 July 2001), which Tonight would
+ * state as when the list stood.
  */
 export function readListSnapshot(): ListSnapshot | null {
   try {
@@ -180,7 +183,9 @@ export function readListSnapshot(): ListSnapshot | null {
     const stored: unknown = JSON.parse(raw);
     if (typeof stored !== 'object' || stored === null) return null;
     const { at, names } = stored as Partial<Record<keyof ListSnapshot, unknown>>;
-    if (typeof at !== 'string' || Number.isNaN(Date.parse(at))) return null;
+    if (typeof at !== 'string') return null;
+    const served = Date.parse(at);
+    if (Number.isNaN(served) || new Date(served).toISOString() !== at) return null;
     if (!Array.isArray(names) || !names.every((n) => typeof n === 'string')) return null;
     return { at, names };
   } catch {
