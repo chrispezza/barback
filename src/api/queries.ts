@@ -365,6 +365,32 @@ function knownNames(
   return known.size > 0 ? { data: [...known.values()] } : undefined;
 }
 
+/** The lookup's answer as the ledger reads it: each root's name, by id. */
+const namesById = (r: NameList) => new Map(r.data.map((i) => [i.id, i.name]));
+
+function nameLookupOptions(
+  queryClient: QueryClient,
+  barId: number | undefined,
+  sorted: number[],
+) {
+  const key = sorted.join(',');
+  return {
+    queryKey: ['ingredient-names', barId, key],
+    queryFn: () =>
+      api<NameList>(`/ingredients?filter[id]=${key}&per_page=${sorted.length}`, { barId }),
+    enabled: barId !== undefined && sorted.length > 0,
+    staleTime: BOOTSTRAP_STALE_MS,
+    placeholderData: () => knownNames(queryClient, barId, sorted),
+    select: namesById,
+  };
+}
+
+/** The options handed out so far, per client, by bar and set of roots. */
+const heldNameOptions = new WeakMap<
+  QueryClient,
+  Map<string, ReturnType<typeof nameLookupOptions>>
+>();
+
 /**
  * Batch name lookup (filter[id] is exact/comma) — the shelf ledger's group
  * headers (frontend-spec §9). The set of roots changes whenever a bottle opens
@@ -373,24 +399,29 @@ function knownNames(
  * screen or before it was last shown, while the lookup is out. A root none of
  * them names is missing from that map until the answer lands, and
  * isPlaceholderData says the map may be partial: the ledger holds that root's
- * bottles back rather than read flat (Shelf). The options are built here,
- * apart from the hook, so they can be driven without rendering (ADR-011).
+ * bottles back rather than read flat (Shelf).
+ *
+ * One set of roots gets one options object for the life of the client.
+ * useQuery asks for the options on every render, and TanStack keeps a stand-in
+ * from one render to the next only while placeholderData is the same function
+ * (QueryObserver.createResult). A new one each render would read the cache
+ * again, hand back a new map, notify, and render the Shelf again, for as long
+ * as the lookup is out. The store holds one entry per set of roots the session
+ * has seen, a handful. The options are built here, apart from the hook, so
+ * they can be driven without rendering (ADR-011).
  */
 export function ingredientNamesOptions(
   queryClient: QueryClient,
   barId: number | undefined,
   ids: number[],
 ) {
-  const key = [...ids].sort((a, b) => a - b).join(',');
-  return {
-    queryKey: ['ingredient-names', barId, key],
-    queryFn: () =>
-      api<NameList>(`/ingredients?filter[id]=${key}&per_page=${ids.length}`, { barId }),
-    enabled: barId !== undefined && ids.length > 0,
-    staleTime: BOOTSTRAP_STALE_MS,
-    placeholderData: () => knownNames(queryClient, barId, ids),
-    select: (r: NameList) => new Map(r.data.map((i) => [i.id, i.name])),
-  };
+  const sorted = [...ids].sort((a, b) => a - b);
+  const id = `${barId}|${sorted.join(',')}`;
+  let held = heldNameOptions.get(queryClient);
+  if (held === undefined) heldNameOptions.set(queryClient, (held = new Map()));
+  let options = held.get(id);
+  if (options === undefined) held.set(id, (options = nameLookupOptions(queryClient, barId, sorted)));
+  return options;
 }
 
 /** The ledger's root names (ingredientNamesOptions). */
