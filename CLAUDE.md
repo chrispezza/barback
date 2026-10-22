@@ -38,7 +38,7 @@ full. If this file and an ADR disagree, the ADR wins; say so in the PR.
 | [005](docs/adr/005-deployment-single-compose-single-origin.md) | One compose stack, one origin | `deploy/`, `src/api/client.ts`, `src/api/search.ts`, any URL in `src/` |
 | [006](docs/adr/006-design-system-consumed-as-vendored-delivery.md) | How the design system is consumed and how it may change | `The Back Bar Design System/`, any `@ds/` import, `src/index.css`, any new component in `src/` |
 | [007](docs/adr/007-installable-client-offline-posture.md) | What the service worker caches and what works offline | `public/sw.js`, `public/manifest.webmanifest`, the list snapshot in `src/api/queries.ts` |
-| [008](docs/adr/008-purchasing-intelligence-standing-orders.md) | When the app may write to the shopping list, and buy-next ranking | `src/data/staples.ts`, `src/data/first-pours.ts`, `src/screens/Tonight.tsx` |
+| [008](docs/adr/008-purchasing-intelligence-standing-orders.md) | When the app may write to the shopping list, and buy-next ranking | `src/data/staples.ts`, `src/data/first-pours.ts`, `src/data/buy-next.ts`, `src/screens/Tonight.tsx` |
 | [009](docs/adr/009-remote-access-cloudflare-tunnel-access.md) | Remote access, and when the public domain may go live | `cloudflared`, `BARBACK_ORIGIN`, anything about `barback.pezza.dev` |
 | [010](docs/adr/010-agent-governance-index-and-records.md) | How this file and the ADRs govern agents | this file, `docs/adr/`, `scripts/check.mjs` |
 | [011](docs/adr/011-test-gate-vitest-playwright.md) | What `pnpm build` and `pnpm verify` run, and where tests and fixtures live | `package.json` scripts and devDependencies, `vitest.config.ts`, `playwright.config.ts`, any `*.test.ts(x)`, `e2e/`, `test/` |
