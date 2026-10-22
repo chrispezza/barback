@@ -52,7 +52,10 @@ export function Drinks() {
   const [searchQuery, setSearchQuery] = useState('');
   const hasQuery = searchQuery.trim().length >= 1;
   const searchHits = useCocktailSearch(useDebounced(searchQuery, 200));
-  const hitIds = searchHits.data?.map((h) => h.id) ?? [];
+  // A failed search states nothing it once read (ADR-007): no count, and no
+  // card left over from an answer it no longer has.
+  const answer = searchHits.isError ? undefined : searchHits.data;
+  const hitIds = answer?.hits.map((h) => h.id) ?? [];
   const hitCocktails = useCocktails(
     barId,
     { id: hitIds.join(',') },
@@ -60,9 +63,18 @@ export function Drinks() {
     hasQuery && hitIds.length > 0,
   );
   const hitRank = new Map(hitIds.map((id, i) => [id, i]));
-  const hits = [...(hitCocktails.data?.data ?? [])].sort(
-    (a, b) => (hitRank.get(a.id) ?? 0) - (hitRank.get(b.id) ?? 0),
-  );
+  // The by-id read keeps its previous answer across a key change; only the
+  // cards this answer ranked are listed.
+  const hits = hitCocktails.isError
+    ? []
+    : (hitCocktails.data?.data ?? [])
+        .filter((c) => hitRank.has(c.id))
+        .sort((a, b) => (hitRank.get(a.id) ?? 0) - (hitRank.get(b.id) ?? 0));
+  // "Matches · 50" over twelve cards says why the rest are not listed.
+  const partial =
+    answer !== undefined && !hitCocktails.isPlaceholderData && hits.length > 0 && answer.total > hits.length
+      ? `The first ${hits.length} of ${answer.total} — type more of the name to narrow them.`
+      : null;
 
   const page = Math.max(1, Number(query['page']) || 1);
   const showFavorites = query['fav'] === '1';
@@ -153,19 +165,17 @@ export function Drinks() {
 
       {hasQuery ? (
         <section aria-live="polite">
-          <MatchHeader
-            label="Matches"
-            count={searchHits.data ? searchHits.data.length : undefined}
-          />
+          {/* Every match, not the page that came back (Content fundamentals:
+              numbers are stated flatly). */}
+          <MatchHeader label="Matches" count={answer?.total} />
           {/* Search answers from Meilisearch or, failing that, the REST name
               filter (ADR-004); the hits then come back as full cards. One line
               for whichever failed. */}
           {(searchHits.isError || hitCocktails.isError || barsFailed) && (
             <ErrorLine onRetry={() => retry(searchHits, hitCocktails)} />
           )}
-          {searchHits.data?.length === 0 && (
-            <p class="recipe-aside">Nothing by that name.</p>
-          )}
+          {answer?.total === 0 && <p class="recipe-aside">Nothing by that name.</p>}
+          {partial && <p>{partial}</p>}
           <ul class="card-list">{hits.map(card)}</ul>
         </section>
       ) : (
