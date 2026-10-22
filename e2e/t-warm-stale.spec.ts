@@ -313,6 +313,34 @@ test.describe('Tonight after the shelf read fails and the drinks still answer (c
   })
 })
 
+test.describe('Tonight’s empty state after the shelf read fails (chrispezza/barback#104)', () => {
+  // Espresso alone: the shelf is not bare, nothing pours, and nothing is one
+  // bottle away (the Espresso Martini still waits on vodka and coffee
+  // liqueur), so the pour section says "Nothing pours yet".
+  test.use({ world: { ...defaultWorld(), shelf: [I.espresso] } })
+
+  test('names no bottle to start with against a shelf it could not read', async ({ page }) => {
+    // The names are suggestions, decided against what is owned or listed, as
+    // Buy next and Restock next are: with neither the shelf nor its held
+    // brands known, a bottle the shelf holds or covers could be named.
+    const startWith = pour(page).getByText(/^Start with .+ — they open the most drinks\.$/)
+    await page.goto('/tonight')
+    await expect(startWith).toHaveText('Start with Gin, Sweet vermouth, White rum — they open the most drinks.')
+
+    await goTo(page, 'Shelf', 'Shelf')
+    await outage(page, isShelfRead)
+    await goTo(page, 'Tonight', 'Tonight')
+
+    await expectOneErrorLine(pour(page))
+    await expect(pour(page).getByRole('heading', { name: 'Nothing pours yet', exact: true })).toBeVisible()
+    // What the counts alone support, as before the suggestions can be decided.
+    await expect(pour(page)).toContainText(
+      'Nothing is one bottle away either — add to the shelf and the first drinks open up.',
+    )
+    await expect(startWith).toHaveCount(0)
+  })
+})
+
 test.describe('To buy after an unlock count’s read fails', () => {
   // As e2e/a-shelf-unlocks.spec.ts: Campari, listed, opens the Negroni only
   // while gin and sweet vermouth are on the shelf.
