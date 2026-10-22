@@ -11,10 +11,11 @@
 // same vein") is passed the shelf (ShelfIndex, from useShelf): those endpoints
 // carry no variant flags, so without it a line a held child brand covers reads
 // as missing (chrispezza/barback#20). Undefined while the shelf loads: the line
-// flags alone. Classics reads each drink by slug, whose flags are loaded.
+// flags alone. Classics reads each drink by slug, whose flags are loaded. On a
+// drink the server pours, no required line reads as missing (lineHeld).
 
 import type { DrinkCardProps } from '@ds/drinks/DrinkCard';
-import { isStocked, type Cocktail, type ShelfIndex } from '../api/types';
+import { isStocked, type Cocktail, type CocktailIngredientEntry, type ShelfIndex } from '../api/types';
 
 // Both types are read off the vendored DS contract (ADR-006,
 // DrinkCard.d.ts) rather than restated, so the component stays their one
@@ -26,18 +27,38 @@ export type CardIngredient = Required<DrinkCardProps['ingredients'][number]>;
 /** DrinkCard `match` values. */
 export type MatchState = NonNullable<DrinkCardProps['match']>;
 
-/** The ingredient run for a DrinkCard: recipe order, stock per isStocked. */
+/**
+ * Whether a recipe line is held, as the card paints it. On a drink the server
+ * pours, every required line is: `in_shelf` is the matcher
+ * (CocktailResource.php:133, CocktailService.php:255-311 at v5.15.3), which
+ * counts a required line held exactly, through a substitute or through a child
+ * brand, and pours the drink only once it has counted every one. The index
+ * shape carries no substitute flag, and the shelf cannot stand in for one (a
+ * substitute belongs to the line, not the bottle), so without this a Mojito
+ * topped with Tonic reads "One bottle away: Club soda" beside "Can pour". The
+ * matcher skips optional lines, so those keep their own stock. On a drink that
+ * does not pour, the line flags and the shelf decide alone (chrispezza/barback#20).
+ */
+export function lineHeld(
+  cocktail: Pick<Cocktail, 'in_shelf'>,
+  entry: CocktailIngredientEntry,
+  shelf?: ShelfIndex,
+): boolean {
+  return (cocktail.in_shelf && !entry.optional) || isStocked(entry, shelf);
+}
+
+/** The ingredient run for a DrinkCard: recipe order, stock per lineHeld. */
 export function cardIngredients(cocktail: Cocktail, shelf?: ShelfIndex): CardIngredient[] {
   return cocktail.ingredients.map((entry) => ({
     name: entry.ingredient.name,
-    have: isStocked(entry, shelf),
+    have: lineHeld(cocktail, entry, shelf),
     optional: entry.optional,
   }));
 }
 
 /** Required lines the shelf does not cover; optional lines never count. */
 function missingRequired(cocktail: Cocktail, shelf: ShelfIndex | undefined): number {
-  return cocktail.ingredients.filter((i) => !isStocked(i, shelf) && !i.optional).length;
+  return cocktail.ingredients.filter((i) => !lineHeld(cocktail, i, shelf) && !i.optional).length;
 }
 
 /**
