@@ -210,3 +210,58 @@ test.describe('To buy after a check-off', () => {
     ])
   })
 })
+
+test.describe('To buy while a check-off’s counts are read again', () => {
+  // Gin off the shelf: it opens the Gimlet and the Gin Tonic; Mint the Mojito;
+  // Campari and Dry vermouth nothing, since the Negroni and the Martini want
+  // gin. Once Gin is shelved, Campari, Dry vermouth and Mint open one drink
+  // each.
+  test.use({
+    world: tonightWorld((w) => {
+      w.shelf = w.shelf.filter((id) => id !== I.gin)
+      w.list = [I.campari, I.dryVermouth, I.gin, I.mint]
+    }),
+  })
+
+  test('holds the order, less the bottle checked off, until every count has answered, then settles once', async ({
+    page,
+    bar,
+  }) => {
+    await recordOrders(page)
+    await page.goto('/tonight')
+    await expect(rowNames(page)).toHaveText(['Gin', 'Mint', 'Campari', 'Dry vermouth'])
+    await expect(rowLine(page, 'Gin')).toHaveText('Unlocks 2')
+
+    // Dry vermouth's count, asked for again by the check-off, waits; its first
+    // read has answered, so only the refresh is held.
+    const dryVermouth = await holdUnlocks(page, I.dryVermouth)
+    const answered = (id: number) =>
+      page.waitForResponse((r) => new URL(r.url()).pathname === `/bar/api/ingredients/${id}/extra`)
+    const campariAgain = answered(I.campari)
+    const mintAgain = answered(I.mint)
+    await listItem(page, 'Gin').click()
+    await expect(page.getByText('Moved to the shelf.')).toBeVisible()
+    expect(bar.model.shelf.has(I.gin)).toBe(true)
+    await expect(heading(page, 'To buy · 3')).toBeVisible()
+    await expect.poll(() => dryVermouth.asked()).toBe(true)
+
+    // Every other count has answered again, and the rows state the new ones;
+    // the order is still the one the rows held, Gin gone.
+    await campariAgain
+    await mintAgain
+    await expect(rowLine(page, 'Campari')).toHaveText('Unlocks 1')
+    await expect(rowLine(page, 'Mint')).toHaveText('Unlocks 1')
+    await expect(rowNames(page)).toHaveText(['Mint', 'Campari', 'Dry vermouth'])
+
+    dryVermouth.release()
+    await expect(rowLine(page, 'Dry vermouth')).toHaveText('Unlocks 1')
+    await expect(rowNames(page)).toHaveText(['Campari', 'Dry vermouth', 'Mint'])
+    // From one tap, one change of order beyond the bottle leaving.
+    expect(await orders(page)).toEqual([
+      ['Campari', 'Dry vermouth', 'Gin', 'Mint'],
+      ['Gin', 'Mint', 'Campari', 'Dry vermouth'],
+      ['Mint', 'Campari', 'Dry vermouth'],
+      ['Campari', 'Dry vermouth', 'Mint'],
+    ])
+  })
+})
