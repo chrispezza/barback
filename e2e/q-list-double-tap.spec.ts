@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
+import { RECEIPT_MS } from '../src/components/toast-timing'
 import { C, I, defaultWorld, type WorldSeed } from '../test/fixtures/world'
 import type { FakeBar } from './support/fake-bar'
 import { expect, test } from './support/test'
@@ -21,8 +22,6 @@ import { expect, test } from './support/test'
 
 /** How long the fake holds every answer: the list read-back is out this long. */
 const LATENCY = 1500
-/** How long a receipt stays on screen (src/components/toasts.tsx, RECEIPT_MS). */
-const RECEIPT_MS = 4000
 
 /**
  * The default bar with the Whiskey Sour's optional egg white on the shelf, so

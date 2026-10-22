@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Toast } from '@ds/feedback/Toast';
+import { ACTION_MS, RECEIPT_MS } from './toast-timing';
 
 export interface ToastMessage {
   message: string;
@@ -16,10 +17,9 @@ export function showToast(t: ToastMessage): void {
 }
 
 // A toast that carries an action (Undo) is a decision, not a receipt — it gets
-// twice the time and pauses while pointed at or focused. Toasts queue rather
-// than replace, so an Undo is never wiped by the next message.
-const RECEIPT_MS = 4000;
-const ACTION_MS = 8000;
+// twice the time (toast-timing.ts) and pauses while pointed at or focused.
+// Toasts queue rather than replace, so an Undo is never wiped by the next
+// message.
 
 export function ToastHost() {
   const [queue, setQueue] = useState<ToastMessage[]>([]);
