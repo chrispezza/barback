@@ -284,11 +284,15 @@ export function Tonight() {
     listedIds,
     new Set([...queuedThisSession, ...sentThisMount.current]),
   );
+  // On every staples read, one that answers unchanged included. TanStack then
+  // keeps the same data, so keyed on the data alone this would not run, and a
+  // staple dropped on the shelf while that read was under way (dropFromList)
+  // would stay held: its next emptying would not be queued.
   useEffect(() => {
     if (staples.data === undefined) return;
     forgetRestocked(staples.data);
     for (const s of staples.data) if (s.in_shelf) sentThisMount.current.delete(s.id);
-  }, [staples.data]);
+  }, [staples.data, staples.dataUpdatedAt]);
   // Queue only against a list just read (ADR-008 with ADR-007). Not while the
   // list cannot be read: the rail shows the snapshot alone. Nor while a read
   // is under way: the rows in hand may be the stale ones a failing refetch
@@ -319,10 +323,11 @@ export function Tonight() {
   }, [staplesOut.map((s) => s.id).join(','), profile?.id, listRead]);
 
   // A bottle taken off the list by hand. A staple stays dropped, as above;
-  // dropped before the staples read lands, the list read after the drop no
-  // longer carries it, so it is held as the drop is sent (rememberDropped).
+  // dropped before the staples read lands, or while it is being read again and
+  // the staples in hand may be stale, the list read after the drop no longer
+  // carries it, so it is held as the drop is sent (rememberDropped).
   function dropFromList(id: number) {
-    rememberDropped(id, staples.data);
+    rememberDropped(id, staples.isFetching ? undefined : staples.data);
     shoppingMutation.mutate({ ingredientIds: [id], action: 'remove' });
   }
 
