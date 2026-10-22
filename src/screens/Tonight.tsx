@@ -96,7 +96,8 @@ function BuyNextCard({
  * - A refetch that failed leaves the query's last answer beside the error
  *   (TanStack Query keeps `data`), and that answer is stale. No stock answer
  *   is ever served stale: the section says so in the error voice instead
- *   (ADR-007 Consequences; chrispezza/barback#61).
+ *   (ADR-007 Consequences; chrispezza/barback#61). This is unlessFailed, the
+ *   rule every stock read follows.
  * - While a new family's read is under way, `data` is the previous family's
  *   answer (keepPreviousData, as a placeholder), offline the very read whose
  *   refetch failed. Under the new family's name it states something false
@@ -109,7 +110,7 @@ function answerOf<T>(read: {
   isError: boolean;
   isPlaceholderData: boolean;
 }): T | undefined {
-  return read.isError || read.isPlaceholderData ? undefined : read.data;
+  return read.isPlaceholderData ? undefined : unlessFailed(read);
 }
 
 /** The shelf read as the pour section's empty states use it: its total once read. */
@@ -286,11 +287,11 @@ export function Tonight() {
   // GET /cocktails carries no variant flags: the cards and the favourites gaps
   // read a held child brand off the shelf (chrispezza/barback#20). Only off a
   // shelf that answered: a refetch that failed leaves the last answer in hand
-  // (answerOf), and a brand taken off the shelf since would still be painted
+  // (unlessFailed), and a brand taken off the shelf since would still be painted
   // as held on fresh cards. Without it the cards read their own line flags,
   // which see no child brand, under the pour section's error line
   // (chrispezza/barback#104).
-  const shelfAnswer = answerOf(shelf);
+  const shelfAnswer = unlessFailed(shelf);
   const shelfIdx = shelfAnswer ? shelfIndex(shelfAnswer.data) : undefined;
   // Buy next and both groups are decided against what is owned or listed.
   // Before the shelf and the list have both been read, that set is empty and

@@ -9,7 +9,7 @@ import { SearchField } from '@ds/forms/SearchField';
 import { useBarId, useBars, useCocktails, useShelf } from '../api/queries';
 import { useCocktailSearch } from '../api/search';
 import { shelfIndex, type Cocktail, type ListResponse } from '../api/types';
-import { useFamilyDrinks, useIndexPage } from '../api/unlocks';
+import { unlessFailed, useFamilyDrinks, useIndexPage } from '../api/unlocks';
 import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { cardIngredients, familyHoldsNoDrinks, familyNextStep, matchState } from '../data/match';
@@ -23,11 +23,11 @@ import { useDebounced } from '../hooks';
  * Consequences; chrispezza/barback#105).
  */
 function countOf(read: {
-  data?: ListResponse<Cocktail>;
+  data: ListResponse<Cocktail> | undefined;
   isError: boolean;
   isPlaceholderData: boolean;
 }): number | undefined {
-  return read.isPlaceholderData || read.isError ? undefined : read.data?.meta?.total;
+  return read.isPlaceholderData ? undefined : unlessFailed(read)?.meta?.total;
 }
 
 /** "of 23 sours", "of 1 sour": families.ts names the plural, and one drink
@@ -107,7 +107,7 @@ export function Drinks() {
   // its cards' match marks are stock answers: the list shows the error line
   // alone, with no count, no card and no pager (ADR-007 Consequences, "No
   // stock answer is ever served stale"; chrispezza/barback#105).
-  const listed = cocktails.isError ? undefined : cocktails.data;
+  const listed = unlessFailed(cocktails);
 
   function buildUrl(next: number, fav: boolean) {
     const path = url.split('?')[0] ?? '/drinks';
@@ -168,7 +168,8 @@ export function Drinks() {
   // the shelf since would still read as held. Without it a card reads its own
   // line flags (chrispezza/barback#104).
   const shelf = useShelf(barId);
-  const shelfIdx = shelf.data && !shelf.isError ? shelfIndex(shelf.data.data) : undefined;
+  const shelfRead = unlessFailed(shelf);
+  const shelfIdx = shelfRead ? shelfIndex(shelfRead.data) : undefined;
   // The index draws on the list, the shelf its cards are read against, and the
   // family's three counts. One line for whatever failed, and Retry asks for
   // each of them again, or the list comes back alone: the cards against no

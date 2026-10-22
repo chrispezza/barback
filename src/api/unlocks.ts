@@ -149,10 +149,14 @@ export function unlockFamilies(
 /**
  * What a read answers, if anything: its data, or nothing once it has failed.
  * A refetch that fails leaves the query's last answer beside the error
- * (TanStack Query keeps `data`), and what a bottle unlocks is worked out
- * against the user's shelf as it stood then (IngredientController::extra).
- * No stock answer is ever served stale (ADR-007 Consequences): a count whose
- * read failed is not known, as before its first answer.
+ * (TanStack Query keeps `data`), and every stock answer in it was worked out
+ * against the user's shelf as it stood then: what a bottle unlocks
+ * (IngredientController::extra), a card's match, a count of what pours, the
+ * shelf itself. No stock answer is ever served stale (ADR-007 Consequences):
+ * a read that failed is not known, as before its first answer, and its screen
+ * says so in the error voice. The one rule for every reader of a stock read;
+ * where placeholder data must be dropped too (another family's answer held
+ * across a switch), Tonight's answerOf adds that.
  */
 export function unlessFailed<T>(read: { data: T | undefined; isError: boolean }): T | undefined {
   return read.isError ? undefined : read.data;

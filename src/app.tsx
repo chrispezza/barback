@@ -6,6 +6,7 @@ import { Button } from '@ds/core/Button';
 import { clearToken, isAuthenticated } from './auth';
 import { queryDefaults } from './api/client';
 import { useBarId, useCocktails, useShelf } from './api/queries';
+import { unlessFailed } from './api/unlocks';
 import { useActiveFamily } from './components/FamilyPicker';
 import { ToastHost } from './components/toasts';
 import { Login } from './screens/Login';
@@ -132,8 +133,9 @@ function RailNav() {
   // error line (ADR-007 Consequences, "No stock answer is ever served stale";
   // chrispezza/barback#103). The footer holds Log out alone then, as it does
   // before both reads first answer.
-  const bottles = shelf.isError ? undefined : (shelf.data?.meta?.total ?? shelf.data?.data.length);
-  const pourable = canMake.isError ? undefined : canMake.data?.meta?.total;
+  const shelfRead = unlessFailed(shelf);
+  const bottles = shelfRead?.meta?.total ?? shelfRead?.data.length;
+  const pourable = unlessFailed(canMake)?.meta?.total;
   return (
     <nav class="nav-rail" aria-label="Main">
       <a

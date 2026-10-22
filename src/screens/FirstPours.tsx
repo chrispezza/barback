@@ -14,6 +14,7 @@ import {
   useToggleFavorite,
 } from '../api/queries';
 import { isStocked, type Cocktail, type ListResponse, type ShoppingListItem } from '../api/types';
+import { unlessFailed } from '../api/unlocks';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
 import { FIRST_POUR_SLUGS } from '../data/first-pours';
@@ -72,7 +73,7 @@ export function FirstPours() {
   // and each card's match mark is a stock answer: the roster shows the error
   // line alone, with no count and no card (ADR-007 Consequences, "No stock
   // answer is ever served stale"; chrispezza/barback#105).
-  const roster = pours.isError ? undefined : pours.data;
+  const roster = unlessFailed(pours);
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const toggleFavorite = useToggleFavorite(barId);
