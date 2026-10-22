@@ -812,11 +812,14 @@ const checkOffKey = (barId: number | undefined) => ['check-off', barId];
  * mutation, so returning the wait is what holds it. It waits while any list
  * read is under way, so a read that cancels this one and starts its own (an
  * Undo's read-back, another bottle's check-off, or a list write's) holds it
- * too, until that one lands. It never rejects: a read that fails frees it and
- * is not reported as the check-off failing, and a read that pauses (a retry
- * while the tab is hidden) frees it. Only the list is waited on; the other
- * read-backs move counts, not the row. The shelf toggle reads back as before,
- * once its last toggle settles (shelfToggleOptions).
+ * too, until that one lands. A read whose retry waits holds it as well:
+ * queries run networkMode 'always' (queryDefaults), so a retry pauses only
+ * while the tab is hidden, and a hidden tab takes no taps. The retry resumes
+ * with the row still shown once the tab is seen, and the hold lasts until it
+ * lands, as useShoppingMutation's does. It never rejects: a read that fails
+ * frees it and is not reported as the check-off failing. Only the list is
+ * waited on; the other read-backs move counts, not the row. The shelf toggle
+ * reads back as before, once its last toggle settles (shelfToggleOptions).
  */
 export function checkOffOptions(
   queryClient: QueryClient,
@@ -851,8 +854,9 @@ export function checkOffOptions(
     onSettled: () => {
       readBackShelf(queryClient);
       const cache = queryClient.getQueryCache();
+      // 'fetching', or 'paused' while a retry waits for the tab: not 'idle'.
       const listReading = () =>
-        cache.findAll({ queryKey: ['shopping-list'], fetchStatus: 'fetching' }).length > 0;
+        cache.findAll({ queryKey: ['shopping-list'] }).some((q) => q.state.fetchStatus !== 'idle');
       return new Promise<void>((resolve) => {
         if (!listReading()) {
           resolve();
