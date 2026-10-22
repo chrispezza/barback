@@ -9,19 +9,25 @@ import { SearchField } from '@ds/forms/SearchField';
 import { useBarId, useBars, useCocktails, useShelf } from '../api/queries';
 import { useCocktailSearch } from '../api/search';
 import { shelfIndex, type Cocktail, type ListResponse } from '../api/types';
-import { useFamilyDrinks, useIndexPage } from '../api/unlocks';
+import { unlessFailed, useFamilyDrinks, useIndexPage } from '../api/unlocks';
 import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { cardIngredients, familyHoldsNoDrinks, familyNextStep, matchState } from '../data/match';
 import { useDebounced } from '../hooks';
 
 /**
- * The total of a count-only read, or undefined while it is unread or still
- * shows the previous family's answer (placeholderData across a family switch):
- * the header never states another family's counts under this one's name.
+ * The total of a count-only read, or undefined while it is unread, still
+ * shows the previous family's answer (placeholderData across a family switch),
+ * or has failed: the header never states another family's counts under this
+ * one's name, nor the counts a failed refetch left in hand (ADR-007
+ * Consequences; chrispezza/barback#105).
  */
-function countOf(read: { data?: ListResponse<Cocktail>; isPlaceholderData: boolean }): number | undefined {
-  return read.isPlaceholderData ? undefined : read.data?.meta?.total;
+function countOf(read: {
+  data: ListResponse<Cocktail> | undefined;
+  isError: boolean;
+  isPlaceholderData: boolean;
+}): number | undefined {
+  return read.isPlaceholderData ? undefined : unlessFailed(read)?.meta?.total;
 }
 
 /** "of 23 sours", "of 1 sour": families.ts names the plural, and one drink
@@ -97,6 +103,11 @@ export function Drinks() {
   // Across a page change the page in hand stays until the next lands; across
   // a family or favourites change, nothing does (indexPageOptions).
   const cocktails = useIndexPage(barId, filters, 50, page, !familyPending);
+  // A read whose refetch failed keeps its last answer beside the error, and
+  // its cards' match marks are stock answers: the list shows the error line
+  // alone, with no count, no card and no pager (ADR-007 Consequences, "No
+  // stock answer is ever served stale"; chrispezza/barback#105).
+  const listed = unlessFailed(cocktails);
 
   function buildUrl(next: number, fav: boolean) {
     const path = url.split('?')[0] ?? '/drinks';
@@ -149,12 +160,34 @@ export function Drinks() {
         }`
       : null;
 
-  const lastPage = cocktails.data?.meta?.last_page ?? 1;
+  const lastPage = listed?.meta?.last_page ?? 1;
 
   // GET /cocktails carries no variant flags: a card reads a held child brand
-  // off the shelf (chrispezza/barback#20).
+  // off the shelf (chrispezza/barback#20). Only off a shelf that answered: a
+  // refetch that failed leaves the last answer in hand, and a brand taken off
+  // the shelf since would still read as held. Without it a card reads its own
+  // line flags (chrispezza/barback#104).
   const shelf = useShelf(barId);
-  const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
+  const shelfRead = unlessFailed(shelf);
+  const shelfIdx = shelfRead ? shelfIndex(shelfRead.data) : undefined;
+  // The index draws on the list, the shelf its cards are read against, and,
+  // under a family, its three counts. One line for whatever failed, and Retry
+  // asks for each of them again, or the list comes back alone: the cards
+  // against no shelf, or no summary, with nothing to say why (ADR-007
+  // Consequences, "say so in the error voice"; chrispezza/barback#104 Option
+  // 1, the fallback cards only under an error line). Without a family the
+  // counts are not asked for, and their filters key other screens' reads
+  // (TanStack Query drops `tag_id: undefined` when it hashes the key: the
+  // rail's whole-bar can-pour read is { on_shelf: true }, per_page 1), whose
+  // state the disabled observers would report as the Index's.
+  const indexReads = [
+    cocktails,
+    shelf,
+    ...(hasFamilyTag ? [familyTotal, familyCanMake, familyNearMiss] : []),
+  ];
+  const indexFailed = barsFailed || indexReads.some((read) => read.isError);
+  // A search's hits are read against the same shelf.
+  const searchFailed = searchUnanswered || hitsUnanswered || barsFailed || shelf.isError;
 
   // Where nothing in the family pours, the header names what opens it, from
   // the gaps the family's cards name (frontend-spec §6 Journey 2,
@@ -162,24 +195,23 @@ export function Drinks() {
   // chrispezza/barback#74): the sentence Tonight's family empty state says.
   // Its drinks are every page of the family, the first the list's own read;
   // they are asked for only once the counts say nothing pours. Only against a
-  // shelf that answered: without it, a bottle a held child brand covers would
-  // be named (chrispezza/barback#20).
+  // shelf that answered (shelfIdx): without it, a bottle a held child brand
+  // covers would be named (chrispezza/barback#20).
   const nothingPours = summary !== null && canMake === 0;
   const familyDrinks = useFamilyDrinks(barId, family?.tagId, nothingPours);
-  const answeredShelf = shelfIdx !== undefined && !shelf.isError ? shelfIdx : undefined;
   let nextStep: string | undefined;
   if (family !== undefined && hasFamilyTag && total === 0) {
     nextStep = familyHoldsNoDrinks(family.def.plural);
   } else if (
     family !== undefined &&
     nothingPours &&
-    answeredShelf !== undefined &&
+    shelfIdx !== undefined &&
     typeof familyDrinks !== 'string' &&
     // The count says the family holds drinks: a read that lists none says
     // nothing beside it.
     familyDrinks.length > 0
   ) {
-    nextStep = familyNextStep(familyDrinks, answeredShelf, family.def.plural);
+    nextStep = familyNextStep(familyDrinks, shelfIdx, family.def.plural);
   }
 
   const card = (c: Cocktail) => (
@@ -213,11 +245,9 @@ export function Drinks() {
               numbers are stated flatly). */}
           <MatchHeader label="Matches" count={answer?.total} />
           {/* Search answers from Meilisearch or, failing that, the REST name
-              filter (ADR-004); the hits then come back as full cards. One line
-              for whichever failed. */}
-          {(searchUnanswered || hitsUnanswered || barsFailed) && (
-            <ErrorLine onRetry={() => retry(searchHits, hitCocktails)} />
-          )}
+              filter (ADR-004); the hits then come back as full cards, read
+              against the shelf. One line for whichever failed. */}
+          {searchFailed && <ErrorLine onRetry={() => retry(searchHits, hitCocktails, shelf)} />}
           {answer?.total === 0 && <p class="recipe-aside">Nothing by that name.</p>}
           {partial && <p>{partial}</p>}
           <ul class="card-list">{hits.map(card)}</ul>
@@ -252,11 +282,8 @@ export function Drinks() {
             </Button>
           </p>
 
-          <MatchHeader
-            label={showFavorites ? 'Favorites' : 'The index'}
-            count={cocktails.data?.meta?.total}
-          />
-          {showFavorites && cocktails.data?.meta?.total === 0 && (
+          <MatchHeader label={showFavorites ? 'Favorites' : 'The index'} count={listed?.meta?.total} />
+          {showFavorites && listed?.meta?.total === 0 && (
             <EmptyState
               body="Nothing favorited yet — Favorite on any recipe starts the collection."
               action={
@@ -266,8 +293,8 @@ export function Drinks() {
               }
             />
           )}
-          {(cocktails.isError || barsFailed) && <ErrorLine onRetry={() => retry(cocktails)} />}
-          <ul class="card-list">{cocktails.data?.data.map(card)}</ul>
+          {indexFailed && <ErrorLine onRetry={() => retry(...indexReads)} />}
+          <ul class="card-list">{listed?.data.map(card)}</ul>
 
           {lastPage > 1 && (
             <div class="pager">

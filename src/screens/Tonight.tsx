@@ -23,7 +23,7 @@ import {
 } from '../api/queries';
 import { shelfIndex, type RecommendedIngredient, type ShelfIndex } from '../api/types';
 import { useIngredientSearch } from '../api/search';
-import { useFamilyDrinks, useUnlockCounts, type FamilyDrinks } from '../api/unlocks';
+import { unlessFailed, useFamilyDrinks, useUnlockCounts, type FamilyDrinks } from '../api/unlocks';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
@@ -64,7 +64,10 @@ function BuyNextCard({
   onList: () => void;
 }) {
   const barId = useBarId();
-  const { data: unlocks } = useIngredientUnlocks(barId, id);
+  // A count whose read failed is not known, the last one in hand included
+  // (unlessFailed): the card gives the ranking as its reason, as before the
+  // count answers.
+  const unlocks = unlessFailed(useIngredientUnlocks(barId, id));
   const line =
     reason ??
     (unlocks !== undefined && unlocks > 0
@@ -93,7 +96,8 @@ function BuyNextCard({
  * - A refetch that failed leaves the query's last answer beside the error
  *   (TanStack Query keeps `data`), and that answer is stale. No stock answer
  *   is ever served stale: the section says so in the error voice instead
- *   (ADR-007 Consequences; chrispezza/barback#61).
+ *   (ADR-007 Consequences; chrispezza/barback#61). This is unlessFailed, the
+ *   rule every stock read follows.
  * - While a new family's read is under way, `data` is the previous family's
  *   answer (keepPreviousData, as a placeholder), offline the very read whose
  *   refetch failed. Under the new family's name it states something false
@@ -106,7 +110,7 @@ function answerOf<T>(read: {
   isError: boolean;
   isPlaceholderData: boolean;
 }): T | undefined {
-  return read.isError || read.isPlaceholderData ? undefined : read.data;
+  return read.isPlaceholderData ? undefined : unlessFailed(read);
 }
 
 /** The shelf read as the pour section's empty states use it: its total once read. */
@@ -163,7 +167,8 @@ function RestockRow({
   disabled: boolean;
 }) {
   const barId = useBarId();
-  const { data: unlocks } = useIngredientUnlocks(barId, suggestion.id);
+  // No count whose read failed (unlessFailed), as a To buy row states none.
+  const unlocks = unlessFailed(useIngredientUnlocks(barId, suggestion.id));
   return (
     <div class="restock-row">
       <span class="restock-name">{suggestion.name}</span>
@@ -266,6 +271,11 @@ export function Tonight() {
   // and not the counts a failed refetch left in hand (ADR-007;
   // chrispezza/barback#61). It speaks again once its reads answer.
   const statusFailed = listUnavailable || barCanMake.isError || barNearMiss.isError;
+  // The line has no error line of its own, nor has the rail's standing, which
+  // shares the whole-bar can-pour read (src/app.tsx, RailNav). The two
+  // sections' Retry ask for the line's reads again too, so both speak again
+  // once the bar answers, on this screen (chrispezza/barback#103).
+  const statusReads = [barCanMake, barNearMiss, shoppingList];
 
   // Restock (frontend-spec §2, §9; ADR-008): ranked by the server against the
   // user's shelf, the one Barback writes, so it already leaves out what that
@@ -275,15 +285,21 @@ export function Tonight() {
   const recommendations = useRecommendations(barId, profile?.id);
   const shelf = useShelf(barId);
   // GET /cocktails carries no variant flags: the cards and the favourites gaps
-  // read a held child brand off the shelf (chrispezza/barback#20).
-  const shelfIdx = shelf.data ? shelfIndex(shelf.data.data) : undefined;
+  // read a held child brand off the shelf (chrispezza/barback#20). Only off a
+  // shelf that answered: a refetch that failed leaves the last answer in hand
+  // (unlessFailed), and a brand taken off the shelf since would still be painted
+  // as held on fresh cards. Without it the cards read their own line flags,
+  // which see no child brand, under the pour section's error line
+  // (chrispezza/barback#104).
+  const shelfAnswer = unlessFailed(shelf);
+  const shelfIdx = shelfAnswer ? shelfIndex(shelfAnswer.data) : undefined;
   // Buy next and both groups are decided against what is owned or listed.
   // Before the shelf and the list have both been read, that set is empty and
   // no held child brand is known, so they would offer a bottle already on the
   // shelf or the list, with a live "List it" (chrispezza/barback#69). They
   // wait for both reads. A shelf read that failed, with an older answer in hand
   // or none, says so where they go instead (ADR-007 Consequences).
-  const suggestionsReady = listKnown && shelf.data !== undefined && !shelf.isError;
+  const suggestionsReady = listKnown && shelfAnswer !== undefined;
 
   // What the pour section says when nothing pours (frontend-spec §5 "Empty
   // states are directive", §6 family-aware empty states). A bare shelf is a
@@ -298,8 +314,8 @@ export function Tonight() {
   const pourEmpty = pourEmptyState(
     shelf.isError
       ? 'failed'
-      : shelf.data
-        ? (shelf.data.meta?.total ?? shelf.data.data.length)
+      : shelfAnswer
+        ? (shelfAnswer.meta?.total ?? shelfAnswer.data.length)
         : 'pending',
     canMakeTotal,
     nearMissTotal,
@@ -307,20 +323,21 @@ export function Tonight() {
   );
   // The family's own drinks are read only once its counts say nothing in it
   // pours or is one bottle away, and only against a shelf that answered.
-  const answeredShelf = shelfIdx !== undefined && !shelf.isError ? shelfIdx : undefined;
   const familyDrinks = useFamilyDrinks(
     barId,
     family?.tagId,
-    pourEmpty === 'family' && answeredShelf !== undefined,
+    pourEmpty === 'family' && shelfIdx !== undefined,
   );
   const familyBody =
     pourEmpty === 'family' && scope !== undefined
-      ? familyEmptyBody(answeredShelf ?? 'failed', familyDrinks, scope)
+      ? familyEmptyBody(shelfIdx ?? 'failed', familyDrinks, scope)
       : undefined;
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
+  // What is owned or listed, as far as the reads answer: a shelf read that
+  // failed adds nothing (chrispezza/barback#104).
   const ownedOrListed = new Set([
     ...listItems.map((item) => item.ingredient.id),
-    ...(shelf.data?.data.map((i) => i.id) ?? []),
+    ...(shelfAnswer?.data.map((i) => i.id) ?? []),
   ]);
   // Free-form add: same type-ahead the Shelf uses, writing to the list.
   const [listQuery, setListQuery] = useState('');
@@ -452,7 +469,7 @@ export function Tonight() {
           {/* The shelf is this section's too: it decides a bare shelf, and the
               cards read held child brands off it. One line for whatever failed. */}
           {(canMake.isError || shelf.isError || barsFailed) && (
-            <ErrorLine onRetry={() => retry(canMake, shelf)} />
+            <ErrorLine onRetry={() => retry(canMake, shelf, ...statusReads)} />
           )}
           {pourEmpty === 'near' && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
@@ -502,7 +519,11 @@ export function Tonight() {
             <EmptyState
               title={pourEmpty === 'bare' ? 'The shelf is bare' : 'Nothing pours yet'}
               body={
-                suggestions.length > 0
+                // The names are suggestions, decided against what is owned or
+                // listed: like Buy next and the groups, they wait for both
+                // reads (suggestionsReady), and a shelf that could not be read
+                // names none (chrispezza/barback#104). The counts still speak.
+                suggestionsReady && suggestions.length > 0
                   ? `Start with ${suggestions
                       .slice(0, 3)
                       .map((s) => s.name)
@@ -532,7 +553,9 @@ export function Tonight() {
             count={nearMissTotal}
             tone="gap"
           />
-          {(nearMiss.isError || barsFailed) && <ErrorLine onRetry={() => retry(nearMiss)} />}
+          {(nearMiss.isError || barsFailed) && (
+            <ErrorLine onRetry={() => retry(nearMiss, ...statusReads)} />
+          )}
           {/* A near miss converts directly to the list (frontend-spec §6
               Journey 1): beside each card, outside its link, as the classics
               compose a card and its action, a tap lists the one bottle the

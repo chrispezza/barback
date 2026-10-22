@@ -14,6 +14,7 @@ import {
   useToggleFavorite,
 } from '../api/queries';
 import { isStocked, type Cocktail, type ListResponse, type ShoppingListItem } from '../api/types';
+import { unlessFailed } from '../api/unlocks';
 import { ErrorLine } from '../components/ErrorLine';
 import { showToast } from '../components/toasts';
 import { FIRST_POUR_SLUGS } from '../data/first-pours';
@@ -68,6 +69,11 @@ export function FirstPours() {
   const profileQuery = useProfile();
   const profile = profileQuery.data;
   const pours = useFirstPours(barId, FIRST_POUR_SLUGS);
+  // A roster read whose refetch failed keeps its last answer beside the error,
+  // and each card's match mark is a stock answer: the roster shows the error
+  // line alone, with no count and no card (ADR-007 Consequences, "No stock
+  // answer is ever served stale"; chrispezza/barback#105).
+  const roster = unlessFailed(pours);
   const shoppingList = useShoppingList(barId, profile?.id);
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const toggleFavorite = useToggleFavorite(barId);
@@ -180,9 +186,9 @@ export function FirstPours() {
       </p>
 
       {(pours.isError || listFailed) && <ErrorLine onRetry={retry} />}
-      <MatchHeader label="The roster" count={pours.data?.length} />
+      <MatchHeader label="The roster" count={roster?.length} />
       <ul class="card-list">
-        {pours.data?.map((c) => (
+        {roster?.map((c) => (
           <li key={c.id} class="first-pour-item">
             <DrinkCard
               name={c.name}

@@ -14,6 +14,7 @@ import {
   unlockedDrinksOptions,
   unlocksByFamily,
   unlocksOptions,
+  unlessFailed,
   type ExtraCocktail,
   type FamilyPageRead,
   type TaggedDrink,
@@ -170,7 +171,10 @@ describe('the counts To buy is ordered on (answeredCounts)', () => {
     await vi.waitFor(() => expect(counts(ids, reads)).toEqual(new Map([[I.campari, 0], [I.mint, 1]])))
   })
 
-  it('leaves out a count that could not be read, and keeps one whose read again failed, as its row does', async () => {
+  // ADR-007 Consequences: "No stock answer is ever served stale." A count
+  // whose read again failed was worked out against the shelf as it stood
+  // then; the row states none (ShoppingRow), and the order holds none.
+  it('leaves out a count that could not be read, and one whose read again failed, as its row states none', async () => {
     let fail = false
     const fetch = vi.fn(async (url: string) => {
       if (fail) return new Response(JSON.stringify({ message: 'Server Error' }), { status: 500 })
@@ -192,7 +196,23 @@ describe('the counts To buy is ordered on (answeredCounts)', () => {
     await client.invalidateQueries({ queryKey: ['ingredient-extra', BAR_ID, I.campari] })
     await vi.waitFor(() => expect(campari.getCurrentResult().isError).toBe(true))
     expect(campari.getCurrentResult().fetchStatus).toBe('idle')
-    expect(counts([I.campari, I.scotch], [campari, scotch])).toEqual(new Map([[I.campari, 1]]))
+    // TanStack Query keeps the last answer beside the error; it is not a count.
+    expect(campari.getCurrentResult().data).toBe(1)
+    expect(counts([I.campari, I.scotch], [campari, scotch])).toEqual(new Map())
+  })
+})
+
+describe('what a read answers (unlessFailed)', () => {
+  it('is its data while it has not failed, a 0 included', () => {
+    expect(unlessFailed({ data: 3, isError: false })).toBe(3)
+    expect(unlessFailed({ data: 0, isError: false })).toBe(0)
+    expect(unlessFailed({ data: undefined, isError: false })).toBeUndefined()
+  })
+
+  it('is nothing once it has failed, the last answer in hand included', () => {
+    expect(unlessFailed({ data: 3, isError: true })).toBeUndefined()
+    expect(unlessFailed({ data: [C.negroni], isError: true })).toBeUndefined()
+    expect(unlessFailed({ data: undefined, isError: true })).toBeUndefined()
   })
 })
 

@@ -22,6 +22,11 @@ const state = vi.hoisted(() => ({
   reachAsked: [] as { id: number; enabled: boolean }[],
   /** Whether the tags of the drinks a bottle unlocks have been read. */
   tagsRead: true,
+  /**
+   * Whether the count's last read failed. TanStack Query keeps the answer
+   * before it beside the error, so the count is still in hand.
+   */
+  unlocksFailed: false,
 }))
 
 vi.mock('../api/queries', async () => {
@@ -33,10 +38,10 @@ vi.mock('../api/queries', async () => {
     // cocktails this one bottle would add to the user's can-make set.
     useIngredientUnlocks: (_barId: number | undefined, id: number) => {
       const m = state.m
-      if (!m) return { data: undefined }
+      if (!m) return { data: undefined, isError: false }
       const before = m.canMake()
       const after = m.canMakeWith(new Set([...m.shelf, id]))
-      return { data: [...after].filter((c) => !before.has(c)).length }
+      return { data: [...after].filter((c) => !before.has(c)).length, isError: state.unlocksFailed }
     },
     // As useIngredientReach fetches: the bottle's show resource, then — only
     // when reachFallbackParent names one — its direct parent's.
@@ -77,6 +82,7 @@ vi.mock('../api/unlocks', async (importOriginal) => {
 beforeEach(() => {
   state.reachAsked = []
   state.tagsRead = true
+  state.unlocksFailed = false
 })
 
 // No Vitest globals (ADR-011), so Testing Library cannot register its own cleanup.
@@ -161,6 +167,39 @@ describe('ShoppingRow detail line', () => {
     expect(state.reachAsked.some((r) => r.enabled)).toBe(true)
     expect(screen.getByText('Laphroaig 10')).toBeTruthy()
     expect(meta(container)).toBeNull()
+  })
+})
+
+// ADR-007 Consequences: "No stock answer is ever served stale." What a bottle
+// unlocks is worked out against the user's shelf (IngredientController::extra,
+// IngredientController.php 199-226 at v5.15.3), so a count whose read again
+// failed is not known: the row says what it says before its first answer.
+describe('ShoppingRow once its count could not be read again', () => {
+  it('states no count, names no family and asks for no reach, with the last count in hand', () => {
+    // Campari opened the Negroni when the count was last read.
+    barWithout(I.campari)
+    state.unlocksFailed = true
+    const { container } = renderRow({ ingredientId: I.campari, name: 'Campari' })
+    expect(screen.getByText('Campari')).toBeTruthy()
+    expect(screen.queryByText(/Unlocks/)).toBeNull()
+    expect(meta(container)).toBeNull()
+    expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
+  })
+
+  it('does not say what a bottle builds toward from a count of 0 it could not read again', () => {
+    barWithout(I.coffeeLiqueur)
+    state.unlocksFailed = true
+    const { container } = renderRow({ ingredientId: I.coffeeLiqueur, name: 'Coffee liqueur' })
+    expect(meta(container)).toBeNull()
+    expect(state.reachAsked.every((r) => !r.enabled)).toBe(true)
+  })
+
+  it('keeps a staple’s attribution alone', () => {
+    // Lime juice opened the Daiquiri and the Gimlet when the count was last read.
+    barWithout(I.limeJuice)
+    state.unlocksFailed = true
+    const { container } = renderRow({ ingredientId: I.limeJuice, name: 'Lime juice', isStaple: true })
+    expect(meta(container)).toBe('Staple')
   })
 })
 
