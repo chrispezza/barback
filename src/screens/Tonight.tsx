@@ -270,6 +270,11 @@ export function Tonight() {
   // and not the counts a failed refetch left in hand (ADR-007;
   // chrispezza/barback#61). It speaks again once its reads answer.
   const statusFailed = listUnavailable || barCanMake.isError || barNearMiss.isError;
+  // The line has no error line of its own, nor has the rail's standing, which
+  // shares the whole-bar can-pour read (src/app.tsx, RailNav). The two
+  // sections' Retry ask for the line's reads again too, so both speak again
+  // once the bar answers, on this screen (chrispezza/barback#103).
+  const statusReads = [barCanMake, barNearMiss, shoppingList];
 
   // Restock (frontend-spec §2, §9; ADR-008): ranked by the server against the
   // user's shelf, the one Barback writes, so it already leaves out what that
@@ -463,7 +468,7 @@ export function Tonight() {
           {/* The shelf is this section's too: it decides a bare shelf, and the
               cards read held child brands off it. One line for whatever failed. */}
           {(canMake.isError || shelf.isError || barsFailed) && (
-            <ErrorLine onRetry={() => retry(canMake, shelf)} />
+            <ErrorLine onRetry={() => retry(canMake, shelf, ...statusReads)} />
           )}
           {pourEmpty === 'near' && (
             <EmptyState body="Nothing pours yet — the bottles below are one purchase away." />
@@ -543,7 +548,9 @@ export function Tonight() {
             count={nearMissTotal}
             tone="gap"
           />
-          {(nearMiss.isError || barsFailed) && <ErrorLine onRetry={() => retry(nearMiss)} />}
+          {(nearMiss.isError || barsFailed) && (
+            <ErrorLine onRetry={() => retry(nearMiss, ...statusReads)} />
+          )}
           {/* A near miss converts directly to the list (frontend-spec §6
               Journey 1): beside each card, outside its link, as the classics
               compose a card and its action, a tap lists the one bottle the
