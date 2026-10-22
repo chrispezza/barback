@@ -113,6 +113,15 @@ function useNavHref(href: string): string {
   return `${href}?family=${encodeURIComponent(family.def.tag.replace('family:', ''))}`;
 }
 
+/**
+ * A main-nav link is a plain link, with no click handler of its own:
+ * LocationProvider routes every same-origin link click itself, pushing one
+ * history entry, and leaves a modified click (new tab, new window) to the
+ * browser. A handler here that also called route() pushed a second entry for
+ * the same tap, so Back, in the browser or the installed app, had to be
+ * pressed twice (ADR-003 Consequences, ADR-007), and it kept Ctrl/Cmd-click
+ * from opening a new tab. The rail's brand mark follows the same rule.
+ */
 function NavLink({
   href,
   label,
@@ -125,18 +134,10 @@ function NavLink({
   hint?: string;
   className: string;
 }) {
-  const { route, path } = useLocation();
+  const { path } = useLocation();
   const to = useNavHref(href);
   return (
-    <a
-      href={to}
-      class={className}
-      aria-current={path === href ? 'page' : undefined}
-      onClick={(e) => {
-        e.preventDefault();
-        route(to);
-      }}
-    >
+    <a href={to} class={className} aria-current={path === href ? 'page' : undefined}>
       {label}
       {hint && <span class="rail-hint">{hint}</span>}
     </a>
@@ -159,7 +160,6 @@ function RailNav() {
   const barId = useBarId();
   const shelf = useShelf(barId);
   const canMake = useCocktails(barId, { on_shelf: true }, 1);
-  const { route } = useLocation();
   const home = useNavHref('/tonight');
   const logout = useLogout();
   // Neither count from a read whose refetch failed: it keeps its last answer
@@ -172,14 +172,8 @@ function RailNav() {
   const pourable = unlessFailed(canMake)?.meta?.total;
   return (
     <nav class="nav-rail" aria-label="Main">
-      <a
-        href={home}
-        class="rail-brand"
-        onClick={(e) => {
-          e.preventDefault();
-          route(home);
-        }}
-      >
+      {/* A plain link, routed once by LocationProvider (see NavLink). */}
+      <a href={home} class="rail-brand">
         Barback
       </a>
       <div class="rail-fleuron" aria-hidden="true">
