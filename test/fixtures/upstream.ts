@@ -169,8 +169,10 @@ export class BarModel {
     return total - held
   }
 
-  /** Ingredient::userShelfVariants: descendants at any depth that are held. */
-  shelfVariants(id: number): number[] {
+  /** Ingredient::userShelfVariants (app/Models/Ingredient.php 409-415):
+   *  descendants at any depth on the USER shelf. Its bar-shelf twin,
+   *  barShelfVariants, is always empty here (see `in_bar_shelf`). */
+  userShelfVariants(id: number): number[] {
     return this.descendantIds(id).filter((d) => this.shelf.has(d))
   }
 
@@ -244,7 +246,7 @@ export function cocktailIngredientResource(
     in_bar_shelf: false,
   }
   if (endpoint === 'index') return base
-  const variants = m.shelfVariants(line.ingredientId)
+  const userVariants = m.userShelfVariants(line.ingredientId)
   return {
     ...base,
     substitutes: (line.substituteIds ?? []).map((id) => ({
@@ -255,8 +257,13 @@ export function cocktailIngredientResource(
       in_shelf: m.shelf.has(id),
       in_bar_shelf: false,
     })),
-    variants_in_shelf: variants.map((id) => m.basic(id)),
-    in_shelf_as_variant: !line.isSpecified && variants.length > 0,
+    // CocktailIngredientResource.php:58 builds this from
+    // Ingredient::barShelfVariants (app/Models/Ingredient.php 398-404):
+    // descendants on the BAR shelf, which is empty here, so upstream sends []
+    // even when the user shelf holds a variant. in_shelf_as_variant (66-69)
+    // is the one that reads the user shelf.
+    variants_in_shelf: [] as IngredientBasic[],
+    in_shelf_as_variant: !line.isSpecified && userVariants.length > 0,
     in_shelf_as_substitute: (line.substituteIds ?? []).some((id) => m.shelf.has(id)),
     in_shelf_as_complex_ingredient: false,
     in_bar_shelf_as_substitute: false,
@@ -370,13 +377,61 @@ function ingredientShow(m: BarModel, id: number) {
     },
     images: [],
     cocktails_as_substitute_count: 0,
-    in_shelf_as_variant: m.shelfVariants(id).length > 0,
+    in_shelf_as_variant: m.userShelfVariants(id).length > 0,
     in_bar_shelf_as_variant: false,
     used_as_substitute_for: [],
     can_be_substituted_with: [],
     ingredient_parts: [],
     prices: [],
   }
+}
+
+/** is_numeric_string (Zend/zend_operators.c), without hex: optional leading
+ *  and trailing whitespace, a sign, digits with an optional fraction and
+ *  exponent. */
+const PHP_NUMERIC = /^[ \t\n\r\v\f]*[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?[ \t\n\r\v\f]*$/
+
+const utf8 = new TextEncoder()
+
+/**
+ * PHP 8's comparison of two strings, the one asort applies with SORT_REGULAR
+ * (zend_compare → zendi_smart_strcmp): as numbers when both strings are
+ * numeric, otherwise byte by byte over the UTF-8 (zend_binary_strcmp: memcmp,
+ * then the shorter first). Not a collation: every capital sorts before every
+ * lowercase letter, and an accented letter after both.
+ *
+ * Two cases are out of scope because no ingredient name looks like either:
+ * - Numeric names that a double cannot tell apart, such as integers past 2^53
+ *   or two that overflow to the same infinity ('1e999', '2e999'). PHP
+ *   compares 64-bit integers exactly and compares two equal overflows as
+ *   bytes; this treats the pair as equal.
+ * - Sets that mix numeric and other names, where the comparison is not
+ *   transitive ('9' < '10' < '1a' < '9'). There asort's order depends on
+ *   zend_sort, and Array.prototype.sort can differ.
+ */
+export function phpCompare(a: string, b: string): number {
+  if (PHP_NUMERIC.test(a) && PHP_NUMERIC.test(b)) return Math.sign(Number(a) - Number(b))
+  const x = utf8.encode(a)
+  const y = utf8.encode(b)
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0)
+    if (d !== 0) return Math.sign(d)
+  }
+  return Math.sign(x.length - y.length)
+}
+
+/**
+ * ShoppingListController::index (app/Http/Controllers/ShoppingListController.php
+ * 37-39): the member's rows as UserShoppingListResource, sorted by
+ * Collection::sortBy('ingredient.name'), which is asort with SORT_REGULAR —
+ * phpCompare on the names, stable, so equal names keep row order. The
+ * collection is re-indexed on output (ConditionallyLoadsAttributes::
+ * removeMissingValues), so `data` is a JSON array; it is not paginated.
+ */
+export function shoppingListResource(m: BarModel) {
+  return [...m.list.entries()]
+    .map(([id, quantity]) => ({ ingredient: m.basic(id), quantity }))
+    .sort((a, b) => phpCompare(a.ingredient.name, b.ingredient.name))
 }
 
 /** Meilisearch documents (Cocktail::toSearchableArray, Ingredient::toSearchableArray). */
