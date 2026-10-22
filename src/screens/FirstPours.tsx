@@ -50,14 +50,26 @@ function favoritedAfter(answer: unknown, intended: boolean): boolean {
  * (ADR-008: every list entry must be able to say why it exists). So the list
  * write goes out only once toggle-favorite has answered that the drink now is
  * one, sequenced as check-off is (frontend-spec §5), and only for a tap that
- * meant to choose. Nothing is said before the server answers, and what is
- * said is what it answered. What to queue is decided against the list as
- * read, so Choose waits until the list has been read: a bottle already listed
- * is not sent again, since upstream batch-store resets a listed row's quantity
- * to 1 (ShoppingListController::batchStore, ShoppingListController.php 76-79).
- * A later read of the list (the tab coming back into view refetches it) holds
- * no button, since a disabled button drops the focus it holds; a Choose made
+ * meant to choose. No toast is shown before the server answers, and what a
+ * toast says is what it answered. The toggle itself shows the tap's intent at
+ * once, while the favourite is out, and the bar's answer once it is in
+ * (useToggleFavorite flips the roster at the tap: ADR-003 Validation, §5).
+ * What to queue is decided against the list as read, so Choose waits until
+ * the list has been read: a bottle already listed is not sent again, since
+ * upstream batch-store resets a listed row's quantity to 1
+ * (ShoppingListController::batchStore, ShoppingListController.php 76-79). A
+ * later read of the list (the tab coming back into view refetches it) holds
+ * no toggle: the rows of the read before it are in hand, and a Choose made
  * during that read waits for it before deciding.
+ *
+ * Each drink has one toggle (the WAI-ARIA toggle button pattern): named
+ * "Choose <drink>" in every state, with aria-pressed carrying the state. The
+ * pressed state is the filled variant with the check, never the check alone
+ * (DS readme, Iconography; "State is never colour alone"). A held toggle is
+ * aria-disabled, never disabled: Chromium blurs a focused button that gains
+ * the disabled attribute and the focus does not come back, so Enter on a
+ * Choose would leave a keyboard user on the page body (ADR-003 Consequences).
+ * A tap on a held toggle still reaches choose(), which turns it away.
  *
  * Un-choosing leaves the queued bottles alone, and says so when one of the
  * drink's missing bottles is on the list: a list entry is only ever removed by
@@ -78,8 +90,9 @@ export function FirstPours() {
   const shoppingMutation = useShoppingMutation(barId, profile?.id);
   const toggleFavorite = useToggleFavorite(barId);
   // One choice at a time, from the tap until its last write has answered and,
-  // after a list write, the list has been read back. The ref answers a second
-  // tap at once; the state holds the buttons.
+  // after a list write, the list has been read back (useShoppingMutation
+  // settles the write only once that read is over). The ref answers a second
+  // tap at once; the state holds the toggles.
   const choosing = useRef(false);
   const [isChoosing, setIsChoosing] = useState(false);
 
@@ -96,6 +109,7 @@ export function FirstPours() {
   // for a read under way while rows from one that succeeded are in hand:
   // choose() waits for that read instead.
   const listHeld = !shoppingList.isSuccess || listFailed;
+  const held = isChoosing || listHeld;
 
   /** Ask again for what failed: the roster, the list, or the bar and profile they wait on. */
   function retry() {
@@ -154,21 +168,17 @@ export function FirstPours() {
         showToast({ message: `${cocktail.name} — favorited.` });
         return;
       }
-      try {
-        await shoppingMutation.mutateAsync({ ingredientIds: unqueued, action: 'add' });
-        showToast({
-          message: `${cocktail.name} — favorited, ${unqueued.length} bottle${
-            unqueued.length === 1 ? '' : 's'
-          } queued.`,
-        });
-      } finally {
-        // Still held until the list is read back after this write, so the next
-        // Choose decides against rows that include it. The hook settles the
-        // write only once its read-back is over (useShoppingMutation), so
-        // mostly there is nothing left to wait for. A read still under way, one
-        // that took the read-back's place, is joined; none is started.
-        await listAsRead();
-      }
+      // Resolves only once the list has been read back after the write
+      // (useShoppingMutation), so the next Choose decides against rows that
+      // include it. A read that took the read-back's place
+      // (chrispezza/barback#142) may still be under way when the toggles are
+      // freed; the next Choose joins it before deciding (listAsRead).
+      await shoppingMutation.mutateAsync({ ingredientIds: unqueued, action: 'add' });
+      showToast({
+        message: `${cocktail.name} — favorited, ${unqueued.length} bottle${
+          unqueued.length === 1 ? '' : 's'
+        } queued.`,
+      });
     } catch {
       // A refused write is answered by its own hook: the rollback and the toast.
     } finally {
@@ -198,13 +208,14 @@ export function FirstPours() {
               match={matchState(c)}
             />
             <Button
-              variant={c.is_favorited ? 'ghost' : 'secondary'}
+              variant={c.is_favorited ? 'primary' : 'secondary'}
               size="sm"
+              aria-label={`Choose ${c.name}`}
               aria-pressed={c.is_favorited}
-              disabled={isChoosing || listHeld}
+              aria-disabled={held ? 'true' : undefined}
               onClick={() => void choose(c)}
             >
-              {c.is_favorited ? '✓ Chosen' : 'Choose'}
+              {c.is_favorited ? '✓ Choose' : 'Choose'}
             </Button>
           </li>
         ))}

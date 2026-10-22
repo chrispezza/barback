@@ -15,8 +15,8 @@ import { expect, test } from './support/test'
 //   list has been read: upstream batch-store resets a listed row's quantity to
 //   the one sent, or 1 (ShoppingListController::batchStore,
 //   ShoppingListController.php 76-79). A later read under way (the tab coming
-//   back into view) holds no button, since that would take a keyboard user's
-//   focus; a Choose made during it waits for it before deciding;
+//   back into view) holds no button: the rows of the read before it are in
+//   hand, and a Choose made during it waits for it before deciding;
 // - un-choosing speaks of bottles only when one of the drink's missing bottles
 //   is on the list.
 
@@ -109,9 +109,11 @@ async function recordToasts(page: Page): Promise<() => Promise<string[]>> {
 }
 
 /**
- * Record, by drink, every Choose that is disabled from now on. A disabled
- * button drops the focus it holds, and the focus does not come back when it is
- * enabled again, so a keyboard or screen-reader user loses their place.
+ * Record, by drink, every Choose that is held from now on: given the disabled
+ * attribute, or aria-disabled="true". A held toggle turns a tap away, and a
+ * read under way should hold none while the rows of the read before it are in
+ * hand. The screen holds with aria-disabled, which keeps the focus (a disabled
+ * button drops it: e2e/t5s-classics.spec.ts); either is counted here.
  */
 async function recordDisabled(page: Page): Promise<() => Promise<string[]>> {
   await page.evaluate(() => {
@@ -120,13 +122,26 @@ async function recordDisabled(page: Page): Promise<() => Promise<string[]>> {
     const roster = document.querySelector('.card-list')
     if (roster === null) throw new Error('the roster is not on the page')
     new MutationObserver((records) => {
-      for (const r of records) {
-        // No old value: the attribute was added, whatever came after it.
-        if (r.oldValue === null && r.target instanceof Element) {
-          seen.push(r.target.closest('.first-pour-item')?.querySelector('h3')?.textContent ?? '')
-        }
-      }
-    }).observe(roster, { subtree: true, attributes: true, attributeFilter: ['disabled'], attributeOldValue: true })
+      records.forEach((r, i) => {
+        const target = r.target
+        if (!(target instanceof Element)) return
+        // disabled: no old value, so the attribute was added, whatever came
+        // after it. aria-disabled: this change set it to "true" from anything
+        // else. What it set is the old value of the next change to it in the
+        // batch, or, for the last, its value now.
+        const next = records.slice(i + 1).find((n) => n.target === target && n.attributeName === r.attributeName)
+        const held =
+          r.attributeName === 'disabled'
+            ? r.oldValue === null
+            : r.oldValue !== 'true' && (next ? next.oldValue : target.getAttribute('aria-disabled')) === 'true'
+        if (held) seen.push(target.closest('.first-pour-item')?.querySelector('h3')?.textContent ?? '')
+      })
+    }).observe(roster, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['disabled', 'aria-disabled'],
+      attributeOldValue: true,
+    })
   })
   return () => page.evaluate(() => [...((window as unknown as { disabledSeen?: string[] }).disabledSeen ?? [])])
 }
@@ -562,7 +577,7 @@ test.describe('un-choosing (§1, ADR-008)', () => {
     await button.click()
     await expect(toast(page)).toHaveText('The favorite didn’t take.')
     await expect(button).toBeEnabled()
-    await expect(button).toHaveText('✓ Chosen')
+    await expect(button).toHaveText('✓ Choose')
     await expect(button).toHaveAttribute('aria-pressed', 'true')
     expect(bar.model.favorites.has(C.margarita)).toBe(true)
     expect([...bar.model.list.entries()]).toEqual([[I.tequila, 1]])

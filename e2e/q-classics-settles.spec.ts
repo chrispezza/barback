@@ -115,12 +115,12 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     await roster.arrived
     await expect(button).toBeEnabled()
     // Free, and the roster read is still out: the button says what the bar answered.
-    await expect(button).toHaveText('✓ Chosen', { timeout: 1000 })
+    await expect(button).toHaveText('✓ Choose', { timeout: 1000 })
     await expect(button).toHaveAttribute('aria-pressed', 'true')
     expect(bar.model.favorites.has(C.daiquiri)).toBe(true)
 
     roster.release()
-    await expect(button).toHaveText('✓ Chosen')
+    await expect(button).toHaveText('✓ Choose')
     await expect(button).toHaveAttribute('aria-pressed', 'true')
   })
 
@@ -135,7 +135,7 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     // Optimistic: the tap's own way first, while the bar holds the write. The
     // button stays held until the favourite answers.
     await expect(button).toHaveAttribute('aria-pressed', 'true', { timeout: 1000 })
-    await expect(button).toHaveText('✓ Chosen')
+    await expect(button).toHaveText('✓ Choose')
     await expect(button).toBeDisabled()
     // Nothing is claimed before the bar answers.
     await expect(toast(page)).toHaveCount(0)
@@ -175,14 +175,14 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     await negroni.click()
     await favourite.arrived
     await expect(negroni).toHaveAttribute('aria-pressed', 'true', { timeout: 1000 })
-    await expect(negroni).toHaveText('✓ Chosen')
+    await expect(negroni).toHaveText('✓ Choose')
 
     // Daiquiri's read-back lands while Negroni's favourite is still out.
     roster.release()
     await Promise.all(roster.held.map(async (req) => (await req.response())?.finished()))
     await settled(page)
     expect(bar.model.favorites.has(C.negroni)).toBe(false)
-    await expect(negroni).toHaveText('✓ Chosen', { timeout: 1000 })
+    await expect(negroni).toHaveText('✓ Choose', { timeout: 1000 })
     await expect(negroni).toHaveAttribute('aria-pressed', 'true')
     await expect(negroni).toBeDisabled()
 
@@ -190,7 +190,7 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     // Toasts queue: Negroni's receipt follows Daiquiri's.
     await expect(toast(page)).toHaveText('Negroni — favorited, 1 bottle queued.', { timeout: 10_000 })
     await expect(negroni).toBeEnabled()
-    await expect(negroni).toHaveText('✓ Chosen')
+    await expect(negroni).toHaveText('✓ Choose')
     await expect(negroni).toHaveAttribute('aria-pressed', 'true')
     await expect(daiquiri).toHaveAttribute('aria-pressed', 'true')
     expect(bar.model.favorites.has(C.negroni)).toBe(true)
@@ -282,7 +282,7 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     await expect(toast(page)).toHaveText('Margarita — favorited.')
     await roster.arrived
     await expect(button).toBeEnabled()
-    await expect(button).toHaveText('✓ Chosen', { timeout: 1000 })
+    await expect(button).toHaveText('✓ Choose', { timeout: 1000 })
     await expect(button).toHaveAttribute('aria-pressed', 'true')
     expect(bar.model.favorites.has(C.margarita)).toBe(true)
     expect(bar.calls('POST', /\/shopping-list\//)).toEqual([])
@@ -299,10 +299,10 @@ test.describe('a Choose says what the bar answered without waiting for the roste
     await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
     await roster.arrived
     await expect(button).toBeEnabled()
-    await expect(button).toHaveText('✓ Chosen', { timeout: 1000 })
+    await expect(button).toHaveText('✓ Choose', { timeout: 1000 })
     await expect(button).toHaveAttribute('aria-pressed', 'true')
 
-    // The button says Chosen, so a second tap means to take it off.
+    // The toggle is pressed, so a second tap means to take it off.
     await button.click()
     // Toasts queue: the un-choose follows the receipt.
     await expect(toast(page)).toHaveText('Margarita — removed from favorites. Its bottles stay on the list.', {

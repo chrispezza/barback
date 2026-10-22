@@ -132,7 +132,7 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
 
     await button.click()
     await expect(toast(page)).toHaveText('Margarita — favorited, 2 bottles queued.')
-    await expect(button).toHaveText('✓ Chosen')
+    await expect(button).toHaveText('✓ Choose')
     await expect(button).toHaveAttribute('aria-pressed', 'true')
     await expect(entry(page, 'Margarita').getByRole('img', { name: 'Favorited' })).toBeVisible()
 
@@ -210,7 +210,7 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     await openRoster(page)
     await listed
     const button = chooseButton(page, 'Margarita')
-    await expect(button).toHaveText('✓ Chosen')
+    await expect(button).toHaveText('✓ Choose')
     await expect(button).toHaveAttribute('aria-pressed', 'true')
 
     await button.click()
@@ -224,16 +224,14 @@ test.describe('Choose (§1, §2, ADR-008)', () => {
     expect([...bar.model.list.entries()]).toEqual([[I.tequila, 1]])
   })
 
-  // This case holds Choose while the favourite and list writes are pending,
-  // and asserts nothing after they settle. The PR that added this file
-  // (chrispezza/barback#31) found two divergences in that later window.
-  // Divergence 7: the roster's is_favorited stayed false until the
-  // first-pours refetch landed, so the button read "Choose" for a drink just
-  // favourited and a second tap undid the favourite. The code now writes the
-  // toggle answer into the roster cache (settleFavorite, chrispezza/barback#110),
-  // but no journey pins that yet: chrispezza/barback#137. Divergence 4: Choose
-  // was not held while the list was read, so it resent bottles already listed.
-  // e2e/d-classics-choose.spec.ts ("Choose waits for the list") pins that half.
+  // This case covers the hold while the favourite and list writes are
+  // pending, and only that. The window after they settle, before the roster
+  // read-back lands, is pinned in e2e/q-classics-settles.spec.ts: the toggle
+  // shows the bar's answer without waiting for that read (settleFavorite,
+  // chrispezza/barback#110, #137). The hold while the list is read is pinned
+  // in e2e/d-classics-choose.spec.ts ("Choose waits for the list"). A held
+  // toggle is aria-disabled, so it keeps a keyboard user's focus
+  // (e2e/t5s-classics.spec.ts).
   test('a second tap while the favourite and list writes are pending writes nothing more', async ({ page, bar }) => {
     await openRoster(page)
     bar.slowDown(600)
