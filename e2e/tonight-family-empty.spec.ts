@@ -22,9 +22,9 @@ const near = (page: Page) => page.locator('#near')
  *  drink cards do). */
 const emptyTitle = (page: Page) => pour(page).locator('.bb-empty').getByRole('heading', { level: 3 })
 
-for (const { suffix, plural } of [
-  { suffix: 'tiki', plural: 'tiki drinks' },
-  { suffix: 'dessert', plural: 'dessert drinks' },
+for (const { suffix, plural, segment, tagId } of [
+  { suffix: 'tiki', plural: 'tiki drinks', segment: 'TIKI', tagId: T.tiki },
+  { suffix: 'dessert', plural: 'dessert drinks', segment: 'DESSERT', tagId: T.dessert },
 ]) {
   test.describe(`a stocked shelf under ?family=${suffix}, with nothing in it within reach`, () => {
     test('names the family and points at it, never calling the shelf bare', async ({ page }) => {
@@ -45,11 +45,19 @@ for (const { suffix, plural } of [
       await expect(page.getByText('the bottles below are one purchase away')).toHaveCount(0)
     })
 
-    test('Browse leads to the Index under the same family', async ({ page }) => {
+    test('Browse leads to the Index under the same family', async ({ page, bar }) => {
       await page.goto(`/tonight?family=${suffix}`)
       await pour(page).getByRole('button', { name: `Browse ${plural}` }).click()
       await expect(page).toHaveURL(new RegExp(`/drinks\\?family=${suffix}$`))
       await expect(page.getByRole('heading', { level: 1, name: 'Drinks' })).toBeVisible()
+      // The Index applied the family, not just the URL (§6: the family persists
+      // across Tonight and Index; ADR-002: one tag-filtered read).
+      await expect(
+        page.getByRole('group', { name: 'Drink family' }).getByRole('button', { name: segment, exact: true }),
+      ).toHaveAttribute('aria-pressed', 'true')
+      await expect
+        .poll(() => bar.calls('GET', /^\/cocktails$/).filter((c) => c.query.get('filter[tag_id]') === String(tagId)).length)
+        .toBeGreaterThan(0)
     })
 
     test('Show all families clears the family and Tonight pours again', async ({ page }) => {
@@ -71,6 +79,26 @@ test.describe('switching family while the new counts are on their way', () => {
     await expect(emptyTitle(page)).toHaveText('No tiki drinks pour yet')
 
     bar.slowDown(1500)
+    // Watch the whole window, not one instant: from the click on SOUR until
+    // the sour count lands, record every empty state the pour section shows.
+    // Armed by the click itself (capture phase), so the tiki state that is
+    // rightly on screen before it is not recorded.
+    await page.evaluate(() => {
+      const w = window as unknown as { __pourEmpties: string[] }
+      w.__pourEmpties = []
+      const section = document.getElementById('pour')!
+      let armed = false
+      let done = false
+      const button = [...document.querySelectorAll<HTMLButtonElement>('.bb-fam__btn')].find(
+        (b) => b.textContent === 'SOUR',
+      )!
+      button.addEventListener('click', () => (armed = true), { capture: true, once: true })
+      new MutationObserver(() => {
+        if (!armed || done) return
+        for (const e of section.querySelectorAll<HTMLElement>('.bb-empty')) w.__pourEmpties.push(e.innerText)
+        if (/^sours you can pour · [1-9]/i.test(section.querySelector('h2')?.textContent ?? '')) done = true
+      }).observe(section, { childList: true, subtree: true, characterData: true })
+    })
     await page.getByRole('group', { name: 'Drink family' }).getByRole('button', { name: 'SOUR', exact: true }).click()
     await expect(page).toHaveURL(/\/tonight\?family=sour$/)
     // The sour reads have been asked for and not yet answered.
@@ -81,6 +109,7 @@ test.describe('switching family while the new counts are on their way', () => {
 
     await expect(pour(page).getByRole('heading', { level: 2 })).toHaveText(/^sours you can pour · [1-9]/)
     await expect(pour(page).locator('.bb-empty')).toHaveCount(0)
+    expect(await page.evaluate(() => (window as unknown as { __pourEmpties: string[] }).__pourEmpties)).toEqual([])
   })
 })
 
@@ -162,6 +191,24 @@ test.describe('the shelf cannot be read', () => {
     await expectShelfErrorLine(page)
     await expect(page.getByRole('heading', { name: 'The shelf is bare' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Stock the shelf' })).toHaveCount(0)
+  })
+})
+
+test.describe('a stocked shelf under a family from which nothing pours but one is one bottle away', () => {
+  // Gin alone, under ?family=highball: the Gin Tonic is one bottle away (the
+  // tonic); no highball pours.
+  test.use({ world: { ...defaultWorld(), shelf: [I.gin] } })
+
+  test('points at the near miss below, not at the family', async ({ page }) => {
+    await page.goto('/tonight?family=highball')
+    await expect(pour(page).getByRole('heading', { level: 2 })).toHaveText('highballs you can pour · 0')
+    await expect(near(page).getByRole('heading', { level: 2 })).toHaveText('highballs one bottle away · 1')
+    await expect(pour(page).locator('.bb-empty__body')).toHaveText(
+      'Nothing pours yet — the bottles below are one purchase away.',
+    )
+    await expect(emptyTitle(page)).toHaveCount(0)
+    await expect(page.getByText('No highballs pour yet')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'The shelf is bare' })).toHaveCount(0)
   })
 })
 
