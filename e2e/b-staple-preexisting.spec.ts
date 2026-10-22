@@ -15,6 +15,12 @@ import { expect, test } from './support/test'
 // next emptying is queued (chrispezza/barback#54), and a reload is a new
 // session.
 //
+// The same holds for a drop made while the staples are being read again, when
+// the staples in hand are stale: Tonic listed while still on the shelf and then
+// used up, or put back off the shelf by a check-off's Undo, is off the shelf
+// although they say otherwise. Such a drop stays dropped. One made while Tonic
+// really is on the shelf still lets its next emptying be queued.
+//
 // Staples queued during the session are pinned in e2e/standing-orders.spec.ts.
 
 /** Tonic off the shelf and on the list, as an earlier session's auto-queue leaves it. */
@@ -103,7 +109,56 @@ async function holdStapleReads(page: Page): Promise<() => void> {
   return release
 }
 
+/**
+ * Hold every list removal from now on (POST /users/{id}/shopping-list/batch-delete,
+ * the drop's write); the fake takes it once released, and records it only then.
+ */
+async function holdListDeletes(page: Page): Promise<() => void> {
+  let release = () => {}
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const listDelete = /^\/bar\/api\/users\/\d+\/shopping-list\/batch-delete$/
+  await page.route(
+    (url) => listDelete.test(url.pathname),
+    async (route) => {
+      if (route.request().method() === 'POST') await held
+      await route.fallback()
+    },
+  )
+  return release
+}
+
 const tonicReads = (bar: FakeBar) => bar.calls('GET', /^\/ingredients\/tonic-\d+$/).length
+
+/** Used up: Tonic removed on the Shelf, once the shelf has taken it. Needs page.clock.install(). */
+async function useUpOnShelf(page: Page, bar: FakeBar) {
+  await goTo(page, 'Shelf', 'Shelf')
+  await page.getByRole('button', { name: 'Remove Tonic from the shelf' }).click()
+  await expect(page.getByText('Bottle removed from the shelf.')).toBeVisible()
+  await expect.poll(() => bar.model.shelf.has(I.tonic)).toBe(false)
+  await clearToasts(page)
+}
+
+/**
+ * Drop Tonic from its row while the staples read is held, then let the read
+ * land. The staples in hand are the ones read before, so the row keeps its
+ * Staple note throughout.
+ */
+async function dropWhileStaplesRead(page: Page, bar: FakeBar, release: () => void) {
+  const readsBefore = tonicReads(bar)
+  await expect(listItem(page, 'Tonic')).toContainText('Staple')
+  const deletesBefore = listDeletes(bar).length
+  await rail(page).getByRole('button', { name: 'Remove Tonic from the list' }).click()
+  await expect(listItem(page, 'Tonic')).toHaveCount(0)
+  await expect.poll(() => listDeletes(bar).length).toBe(deletesBefore + 1)
+  expect(listDeletes(bar).at(-1)).toEqual({ ingredients: [{ id: I.tonic }] })
+  expect(tonicReads(bar)).toBe(readsBefore)
+
+  release()
+  await expect.poll(() => tonicReads(bar)).toBe(readsBefore + 1)
+  await settled(bar)
+}
 
 /** Tonight with the list and the staples read: the Staple note shows once both are in. */
 async function openTonight(page: Page, bar: FakeBar) {
@@ -247,6 +302,101 @@ test.describe('a staple off the shelf and already listed when the session starts
     await clearToasts(page)
 
     await goTo(page, 'Tonight', 'Tonight')
+    await expect(page.getByText('Staples out — queued: Tonic.')).toBeVisible()
+    await expect(listItem(page, 'Tonic')).toContainText('Staple')
+    await settled(bar)
+    expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+    expect([...bar.model.list.keys()]).toEqual([I.tonic])
+  })
+
+  test('checked off, put back with Undo and dropped while the staples read catches up, stays dropped', async ({ page, bar }) => {
+    await openTonight(page, bar)
+
+    // Checked off: the staples read after it has Tonic on the shelf.
+    await listItem(page, 'Tonic').click()
+    const toast = page.getByRole('status').filter({ hasText: 'Moved to the shelf.' })
+    const undo = toast.getByRole('button', { name: 'Undo' })
+    await expect(undo).toBeVisible()
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+    await expect.poll(() => tonicReads(bar)).toBe(2)
+    await settled(bar)
+
+    // Undo: Tonic off the shelf and back on the list, while the staples read
+    // that follows is held.
+    const release = await holdStapleReads(page)
+    await undo.click()
+    await expect(listItem(page, 'Tonic')).toBeVisible()
+    expect(bar.model.shelf.has(I.tonic)).toBe(false)
+    // The Undo's own write, and nothing else.
+    expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+
+    await dropWhileStaplesRead(page, bar, release)
+
+    expect(listStores(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+    expect([...bar.model.list.keys()]).toEqual([])
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+    await expect(queuedToast(page)).toHaveCount(0)
+  })
+})
+
+/** Tonic on the shelf and on the list: listed by hand while still in stock. */
+function tonicListedAndStocked(): WorldSeed {
+  const w = defaultWorld()
+  w.list = [I.tonic]
+  return w
+}
+
+test.describe('a staple listed while still on the shelf when the session starts', () => {
+  test.use({ world: tonicListedAndStocked() })
+
+  test('used up on the Shelf and dropped while the staples read catches up, stays dropped', async ({ page, bar }) => {
+    await page.clock.install()
+    await openTonight(page, bar)
+    await useUpOnShelf(page, bar)
+
+    // Back on Tonight the staples are read again. Until that read lands, the
+    // staples in hand still have Tonic on the shelf.
+    const release = await holdStapleReads(page)
+    await goTo(page, 'Tonight', 'Tonight')
+    await dropWhileStaplesRead(page, bar, release)
+
+    expect(listStores(bar)).toEqual([])
+    expect([...bar.model.list.keys()]).toEqual([])
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+    await expect(queuedToast(page)).toHaveCount(0)
+  })
+
+  test('dropped while on the shelf as the staples read catches up, is queued once it is used up', async ({ page, bar }) => {
+    await openTonight(page, bar)
+
+    // Left and opened again: the staples are read again, and the drop goes out
+    // while that read is under way. Asked first, the read is answered first:
+    // Tonic on the shelf and still listed, the same as the staples in hand.
+    await goTo(page, 'Shelf', 'Shelf')
+    const releaseReads = await holdStapleReads(page)
+    const releaseDrop = await holdListDeletes(page)
+    await goTo(page, 'Tonight', 'Tonight')
+    const readsBefore = tonicReads(bar)
+    await expect(listItem(page, 'Tonic')).toContainText('Staple')
+    await rail(page).getByRole('button', { name: 'Remove Tonic from the list' }).click()
+    releaseReads()
+    await expect.poll(() => tonicReads(bar)).toBe(readsBefore + 1)
+    await settled(bar)
+    expect(listDeletes(bar)).toEqual([])
+
+    releaseDrop()
+    await expect.poll(() => listDeletes(bar)).toEqual([{ ingredients: [{ id: I.tonic }] }])
+    await expect(listItem(page, 'Tonic')).toHaveCount(0)
+    await settled(bar)
+    expect(listStores(bar)).toEqual([])
+    expect(bar.model.shelf.has(I.tonic)).toBe(true)
+
+    // Used up after the drop, on another device, with Tonight still open: a
+    // new emptying. TanStack's focusManager reads the staples again on
+    // visibilitychange, and that read queues it.
+    bar.model.shelf.delete(I.tonic)
+    await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+    await expect.poll(() => tonicReads(bar)).toBe(readsBefore + 2)
     await expect(page.getByText('Staples out — queued: Tonic.')).toBeVisible()
     await expect(listItem(page, 'Tonic')).toContainText('Staple')
     await settled(bar)
