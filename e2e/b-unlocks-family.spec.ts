@@ -26,6 +26,15 @@ import { expect, test } from './support/test'
 // "Unlocks 2·\u200A1 spirit-forward drink", and the row is named
 // "Scotch whisky Unlocks 2 1 spirit-forward drink", never "Unlocks 21 …".
 //
+// A line too long for its row (the desktop rail's is 208px wide, the 390px
+// phone's 238px) wraps only after a separator, never inside a family's phrase:
+// the count is held to its family's name, and the name's words to each other,
+// by no-break spaces (U+00A0), and each "·" to the phrase before it, so no line
+// opens with one: "2\u00A0sours\u00A0· 2\u00A0tiki\u00A0drinks". The hair
+// space after the DS separator is a break after a separator too. The one break
+// left inside a phrase is the hyphen of "spirit-forward" (ShoppingRow.tsx says
+// why). toHaveText normalises both kinds of space to a space.
+//
 // Every line the row states is true when it is stated: the count alone until
 // the tags of the drinks it counts have been read, never a breakdown of some
 // other set of drinks beside it. The count stands when the tags cannot be read.
@@ -82,6 +91,38 @@ const listItem = (page: Page, name: string) =>
   rail(page).locator('.shopping-row-line').getByRole('button', { name: new RegExp(`^${name}`) })
 /** A To buy row's detail line: the count, then what it says of the drinks. */
 const rowLine = (page: Page, name: string) => listItem(page, name).locator('.bb-shop__meta')
+/** What the line says after the count, as its raw text: the spaces as they are. */
+const rowDetail = (page: Page, name: string) => rowLine(page, name).locator(':scope > span:last-child')
+
+/**
+ * The detail line of a To buy row as the browser has laid it out: its text, one
+ * string per rendered line, each read from where its characters sit, the fonts
+ * loaded first.
+ */
+async function renderedLines(page: Page, name: string): Promise<string[]> {
+  await page.evaluate(() => document.fonts.ready)
+  return rowLine(page, name).evaluate((meta) => {
+    const lines: { top: number; text: string }[] = []
+    const walker = document.createTreeWalker(meta, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent ?? ''
+      for (let i = 0; i < text.length; i += 1) {
+        const range = document.createRange()
+        range.setStart(node, i)
+        range.setEnd(node, i + 1)
+        const rect = range.getClientRects()[0]
+        if (!rect) continue
+        let line = lines.find((l) => Math.abs(l.top - rect.top) < rect.height / 2)
+        if (!line) {
+          line = { top: rect.top, text: '' }
+          lines.push(line)
+        }
+        line.text += text[i]
+      }
+    }
+    return lines.sort((a, b) => a.top - b.top).map((l) => l.text)
+  })
+}
 
 /** Every GET /cocktails the fake answered with tags included, as the filters it asked for. */
 const tagReads = (bar: FakeBar) =>
@@ -133,6 +174,24 @@ test.describe('To buy, annotated by family', () => {
     await settled(bar)
     const ids = [C.daiquiri, RUM_SOUR, SWIZZLE, PUNCH, RUM_TONIC, RUM_OLD_FASHIONED].join(',')
     expect(tagReads(bar)).toEqual([{ ids, perPage: '6' }])
+  })
+
+  test('holds each family whole, and wraps only after a separator', async ({ page }) => {
+    await page.goto('/tonight')
+    await expect(rowLine(page, 'White rum')).toHaveText('Unlocks 6·\u200A2 sours · 2 tiki drinks · 1 highball')
+    // The line is wider than the row on both projects, so it wraps, and every
+    // line but the last ends on a separator: no count cut from its family, no
+    // family cut in two, no line opening with "·".
+    const lines = await renderedLines(page, 'White rum')
+    expect(lines.length, `lines: ${JSON.stringify(lines)}`).toBeGreaterThan(1)
+    expect(lines.slice(0, -1).filter((line) => !line.trimEnd().endsWith('·'))).toEqual([])
+    expect(lines.filter((line) => line.trimStart().startsWith('·'))).toEqual([])
+    // As the row writes it: within a phrase every space is a no-break one; the
+    // only breakable space follows a "·", and the hair space follows the DS's own.
+    await expect(rowDetail(page, 'White rum')).toHaveJSProperty(
+      'textContent',
+      '\u200A2\u00A0sours\u00A0· 2\u00A0tiki\u00A0drinks\u00A0· 1\u00A0highball',
+    )
   })
 })
 
@@ -206,6 +265,8 @@ test.describe('To buy, a staple', () => {
   test('keeps its attribution after the breakdown', async ({ page }) => {
     await page.goto('/tonight')
     await expect(rowLine(page, 'Lime juice')).toHaveText('Unlocks 2·\u200A2 sours · Staple')
+    // The attribution's "·" is held to the families before it, as theirs are.
+    await expect(rowDetail(page, 'Lime juice')).toHaveJSProperty('textContent', '\u200A2\u00A0sours\u00A0· Staple')
   })
 })
 
@@ -248,8 +309,14 @@ test.describe('To buy, after a check-off', () => {
     // Before its drinks' tags are read, a count stands alone; it never stands
     // beside the breakdown of the drinks it counted before ("Unlocks 2", "1 sour").
     const lines = await page.evaluate(() => (window as unknown as { __lines: string[] }).__lines)
-    const allowed = ['Unlocks 1', 'Unlocks 1·\u200A1 sour', 'Unlocks 2', 'Unlocks 2·\u200A1 sour · 1 highball']
+    // The lines are raw text, the no-break spaces as the row writes them.
+    const allowed = [
+      'Unlocks 1',
+      'Unlocks 1·\u200A1\u00A0sour',
+      'Unlocks 2',
+      'Unlocks 2·\u200A1\u00A0sour\u00A0· 1\u00A0highball',
+    ]
     expect(lines.filter((l) => !allowed.includes(l))).toEqual([])
-    expect(lines[lines.length - 1]).toBe('Unlocks 2·\u200A1 sour · 1 highball')
+    expect(lines[lines.length - 1]).toBe('Unlocks 2·\u200A1\u00A0sour\u00A0· 1\u00A0highball')
   })
 })
