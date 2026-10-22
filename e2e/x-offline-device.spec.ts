@@ -198,13 +198,17 @@ test.describe('Tonight with the device offline', () => {
     page,
     context,
     bar,
+    baseURL,
   }) => {
     // The installed app opens anywhere (ADR-007): public/sw.js serves the
     // shell from its cache. Workers are blocked in these journeys
     // (playwright.config.ts), so the shell is served here instead, fetched by
-    // Playwright rather than the offline page.
+    // Playwright rather than the offline page. Only the preview server's own
+    // files: a request for any other origin still reaches the fake, which
+    // records it as escaped and fails the journey (ADR-011, hermetic).
+    const preview = new URL(baseURL ?? '').origin
     await page.route(
-      (url) => !url.pathname.startsWith('/bar/') && !url.pathname.startsWith('/search/'),
+      (url) => url.origin === preview && !url.pathname.startsWith('/bar/') && !url.pathname.startsWith('/search/'),
       async (route) => route.fulfill({ response: await route.fetch() }),
     )
     await seedSnapshot(page, ['Campari', 'Cointreau'])
