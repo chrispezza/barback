@@ -9,6 +9,7 @@ import { SearchField } from '@ds/forms/SearchField';
 import { useBarId, useBars, useCocktails, useShelf } from '../api/queries';
 import { useCocktailSearch } from '../api/search';
 import { shelfIndex, type Cocktail, type ListResponse } from '../api/types';
+import { useIndexPage } from '../api/unlocks';
 import { ErrorLine } from '../components/ErrorLine';
 import { FamilyPicker, useActiveFamily } from '../components/FamilyPicker';
 import { cardIngredients, matchState } from '../data/match';
@@ -84,11 +85,18 @@ export function Drinks() {
 
   const page = Math.max(1, Number(query['page']) || 1);
   const showFavorites = query['fav'] === '1';
+  // The family's tag id is known once GET /tags answers. Until then its reads
+  // wait: asked for without the tag they would be the whole index, listed
+  // under this family's header (ADR-002 Validation: one tag-filtered query;
+  // chrispezza/barback#73). The list shows its heading with no count meanwhile.
+  const familyPending = family?.pending === true;
   const filters = {
     ...(family?.tagId !== undefined ? { tag_id: family.tagId } : {}),
     ...(showFavorites ? { favorites: true } : {}),
   };
-  const cocktails = useCocktails(barId, filters, 50, true, page);
+  // Across a page change the page in hand stays until the next lands; across
+  // a family or favourites change, nothing does (indexPageOptions).
+  const cocktails = useIndexPage(barId, filters, 50, page, !familyPending);
 
   function buildUrl(next: number, fav: boolean) {
     const path = url.split('?')[0] ?? '/drinks';
@@ -195,6 +203,7 @@ export function Drinks() {
                 {family.def.blurb}
                 {import.meta.env.DEV &&
                   family.tagId === undefined &&
+                  !family.pending &&
                   ' — dev: family not yet tagged upstream; showing all drinks.'}
               </p>
               {summary && <p>{summary}</p>}

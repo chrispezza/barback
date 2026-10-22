@@ -159,12 +159,19 @@ function RestockRow({
 export function Tonight() {
   const barId = useBarId();
   const family = useActiveFamily();
+  // The family's tag id is known once GET /tags answers. Until then the two
+  // sections' reads wait: asked for without the tag they would be the whole
+  // bar's, shown while the URL and the family bar name the family (ADR-002
+  // Validation: one tag-filtered query; chrispezza/barback#73). The sections
+  // name the family meanwhile, with no count and no cards, as across a switch.
+  const familyPending = family?.pending === true;
   const familyFilter = family?.tagId !== undefined ? { tag_id: family.tagId } : {};
   // Scoped copy: "sours you can pour" — the whole-bar line above stays whole-bar.
-  const scope = family?.tagId !== undefined ? family.def.plural : undefined;
+  const scope =
+    family !== undefined && (family.tagId !== undefined || familyPending) ? family.def.plural : undefined;
 
-  const canMake = useCocktails(barId, { on_shelf: true, ...familyFilter });
-  const nearMiss = useCocktails(barId, { missing_ingredients: 1, ...familyFilter });
+  const canMake = useCocktails(barId, { on_shelf: true, ...familyFilter }, 24, !familyPending);
+  const nearMiss = useCocktails(barId, { missing_ingredients: 1, ...familyFilter }, 24, !familyPending);
   const profileQuery = useProfile();
   const profile = profileQuery.data;
   const shoppingList = useShoppingList(barId, profile?.id);

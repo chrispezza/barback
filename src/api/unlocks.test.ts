@@ -6,6 +6,7 @@ import { familyByTag } from '../data/families'
 import {
   answeredCounts,
   drinkTagsOptions,
+  indexPageOptions,
   unlockFamilies,
   unlockedDrinksOptions,
   unlocksByFamily,
@@ -13,6 +14,7 @@ import {
   type ExtraCocktail,
   type TaggedDrink,
 } from './unlocks'
+import type { CocktailFilters } from './queries'
 import type { ListResponse } from './types'
 
 // The read To buy is ranked on (frontend-spec §6 Journey 3; §2 Tonight,
@@ -385,5 +387,145 @@ describe('the drinks a bottle unlocks (unlockedDrinksOptions)', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(count.getCurrentResult().data).toBe(2)
     expect(drinks.getCurrentResult().data).toEqual([C.robRoy, C.bobbyBurns])
+  })
+})
+
+describe('the Index list page (indexPageOptions)', () => {
+  /**
+   * GET /cocktails as the index answers it (CocktailController::index, a
+   * LengthAwarePaginator): filter[tag_id] and filter[favorites], by name,
+   * one page of per_page; never the network (ADR-011). Each answer waits on
+   * `gate` (open by default).
+   */
+  let gate: Promise<void> = Promise.resolve()
+  function serveIndex() {
+    const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
+      const u = new URL(url)
+      if (u.pathname !== '/api/cocktails') throw new Error(`unexpected ${u.pathname}`)
+      await gate
+      const tagId = u.searchParams.get('filter[tag_id]')
+      const perPage = Number(u.searchParams.get('per_page') ?? 25)
+      const page = Number(u.searchParams.get('page') ?? 1)
+      const items = m.world.cocktails
+        .filter((c) => tagId === null || (c.tagIds ?? []).includes(Number(tagId)))
+        .filter((c) => u.searchParams.get('filter[favorites]') !== 'true' || m.favorites.has(c.id))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      const body = {
+        data: items.slice((page - 1) * perPage, page * perPage).map((c) => cocktailResource(m, c, 'index')),
+        meta: { total: items.length, current_page: page, last_page: Math.max(1, Math.ceil(items.length / perPage)) },
+      }
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    vi.stubGlobal('fetch', fetch)
+    return fetch
+  }
+
+  /** Hold every answer from now until the returned function is called. */
+  function hold(): () => void {
+    let open = () => {}
+    gate = new Promise<void>((resolve) => (open = resolve))
+    return open
+  }
+
+  beforeEach(() => {
+    gate = Promise.resolve()
+  })
+
+  /** Observe the list as Drinks does, two drinks to a page, and move it as the URL moves. */
+  function observeIndex(filters: CocktailFilters, page: number, enabled = true) {
+    const observer = new QueryObserver(client, indexPageOptions(BAR_ID, filters, 2, page, enabled))
+    unsubscribes.push(observer.subscribe(() => {}))
+    return {
+      observer,
+      moveTo: (next: CocktailFilters, nextPage: number) =>
+        observer.setOptions(indexPageOptions(BAR_ID, next, 2, nextPage, true)),
+      names: () => observer.getCurrentResult().data?.data.map((c) => c.name),
+    }
+  }
+
+  const SOUR = { tag_id: T.sour }
+
+  it('is read under the key useCocktails reads a page by, sent with its filters and page as useCocktails sends them', async () => {
+    const fetch = serveIndex()
+    // useCocktails (queries.ts) keys a page ['cocktails', barId, filters, perPage, page];
+    // a shelf toggle, a check-off or a favourite invalidates ['cocktails'].
+    expect(indexPageOptions(BAR_ID, SOUR, 50, 2, true).queryKey).toEqual(['cocktails', BAR_ID, SOUR, 50, 2])
+    const { observer } = observeIndex({ ...SOUR, favorites: true }, 2)
+    await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true))
+    const url = new URL(String(fetch.mock.calls[0]?.[0]))
+    expect(url.pathname).toBe('/api/cocktails')
+    expect([...url.searchParams]).toEqual([
+      ['per_page', '2'],
+      ['filter[tag_id]', String(T.sour)],
+      ['filter[favorites]', 'true'],
+      ['page', '2'],
+    ])
+    expect(fetch.mock.calls[0]?.[1]?.headers).toMatchObject({ 'Bar-Assistant-Bar-Id': String(BAR_ID) })
+  })
+
+  it('keeps the page in hand, with its total, while the next page of the same list is read', async () => {
+    serveIndex()
+    const sours = observeIndex(SOUR, 1)
+    await vi.waitFor(() => expect(sours.names()).toEqual(['Daiquiri', 'Gimlet']))
+
+    const open = hold()
+    sours.moveTo(SOUR, 2)
+    await vi.waitFor(() => expect(sours.observer.getCurrentResult().fetchStatus).toBe('fetching'))
+    expect(sours.observer.getCurrentResult().isPlaceholderData).toBe(true)
+    expect(sours.names()).toEqual(['Daiquiri', 'Gimlet'])
+    expect(sours.observer.getCurrentResult().data?.meta?.total).toBe(5)
+
+    open()
+    await vi.waitFor(() => expect(sours.names()).toEqual(['Margarita', 'Penicillin']))
+    expect(sours.observer.getCurrentResult().isPlaceholderData).toBe(false)
+  })
+
+  it('holds nothing across a change of family until the new family’s list lands', async () => {
+    serveIndex()
+    const index = observeIndex(SOUR, 2)
+    await vi.waitFor(() => expect(index.names()).toEqual(['Margarita', 'Penicillin']))
+
+    const open = hold()
+    index.moveTo({ tag_id: T.highball }, 1)
+    await vi.waitFor(() => expect(index.observer.getCurrentResult().fetchStatus).toBe('fetching'))
+    expect(index.observer.getCurrentResult().isPending).toBe(true)
+    expect(index.observer.getCurrentResult().isPlaceholderData).toBe(false)
+    expect(index.observer.getCurrentResult().data).toBeUndefined()
+
+    open()
+    await vi.waitFor(() => expect(index.names()).toEqual(["Dark 'n' Stormy", 'Gin Tonic']))
+    expect(index.observer.getCurrentResult().data?.meta?.total).toBe(3)
+  })
+
+  it('holds nothing when the favourites filter turns on, or off, until that list lands', async () => {
+    serveIndex()
+    m.favorites.add(C.daiquiri)
+    const index = observeIndex(SOUR, 1)
+    await vi.waitFor(() => expect(index.names()).toEqual(['Daiquiri', 'Gimlet']))
+
+    let open = hold()
+    index.moveTo({ ...SOUR, favorites: true }, 1)
+    await vi.waitFor(() => expect(index.observer.getCurrentResult().fetchStatus).toBe('fetching'))
+    expect(index.observer.getCurrentResult().data).toBeUndefined()
+    open()
+    await vi.waitFor(() => expect(index.observer.getCurrentResult().data?.meta?.total).toBe(1))
+
+    // Off again, to a family list no longer in the cache.
+    client.removeQueries({ queryKey: ['cocktails', BAR_ID, SOUR, 2, 1], exact: true })
+    open = hold()
+    index.moveTo(SOUR, 1)
+    await vi.waitFor(() => expect(index.observer.getCurrentResult().fetchStatus).toBe('fetching'))
+    expect(index.observer.getCurrentResult().data).toBeUndefined()
+    open()
+    await vi.waitFor(() => expect(index.observer.getCurrentResult().data?.meta?.total).toBe(5))
+  })
+
+  it('is not asked for while not enabled, as while the family’s tag is not yet known', async () => {
+    const fetch = serveIndex()
+    const { observer } = observeIndex(SOUR, 1, false)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(observer.getCurrentResult().fetchStatus).toBe('idle')
+    expect(observer.getCurrentResult().data).toBeUndefined()
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

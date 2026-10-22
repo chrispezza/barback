@@ -55,7 +55,11 @@ const failed = (data?: Tag[]): TagsQuery => ({ status: 'error', data, isError: t
 
 function ActiveFamilyProbe() {
   const family = useActiveFamily()
-  return <output>{family ? `${family.def.tag} ${family.tagId ?? 'untagged'}` : 'no family'}</output>
+  return (
+    <output data-pending={family ? String(family.pending) : undefined}>
+      {family ? `${family.def.tag} ${family.tagId ?? 'untagged'}` : 'no family'}
+    </output>
+  )
 }
 
 function mount(url: string, tags: TagsQuery) {
@@ -89,6 +93,11 @@ function pressed(): string | undefined {
 
 function activeFamily(): string {
   return screen.getByRole('status').textContent ?? ''
+}
+
+/** Whether the active family waits on GET /tags: "true", "false", or null with no family. */
+function pending(): string | null {
+  return screen.getByRole('status').getAttribute('data-pending')
 }
 
 // No Vitest globals (ADR-011), so Testing Library cannot register its own cleanup.
@@ -146,6 +155,45 @@ describe('the family bar in a production build', () => {
     mount('/tonight?family=sour', failed(tagsWithout('family:tiki')))
     expect(segments()).toEqual(WITHOUT_TIKI)
     expect(activeFamily()).toBe(`family:sour ${T.sour}`)
+  })
+})
+
+// chrispezza/barback#73: a read scoped to the family waits while its tag is
+// not yet known, rather than go out unscoped (ADR-002 Validation). Pending
+// says that, apart from a family known to have no tag.
+describe('whether the family named in the URL waits on GET /tags', () => {
+  beforeEach(() => {
+    vi.stubEnv('DEV', false)
+  })
+
+  it('waits while GET /tags is in flight, with no tag id yet', () => {
+    mount('/tonight?family=sour', loading())
+    expect(activeFamily()).toBe('family:sour untagged')
+    expect(pending()).toBe('true')
+  })
+
+  it('waits no longer once the tags answer', () => {
+    mount('/tonight?family=sour', loaded(tagsWithout('family:tiki')))
+    expect(activeFamily()).toBe(`family:sour ${T.sour}`)
+    expect(pending()).toBe('false')
+  })
+
+  it('waits no longer when a later refetch fails, keeping the tags it had', () => {
+    mount('/tonight?family=sour', failed(tagsWithout('family:tiki')))
+    expect(pending()).toBe('false')
+  })
+
+  it('is no family to wait for once GET /tags fails before it ever answered', () => {
+    mount('/tonight?family=sour', failed())
+    expect(activeFamily()).toBe('no family')
+    expect(pending()).toBeNull()
+  })
+
+  it('in a dev build, does not wait for a family the answered tags leave out: it is known untagged', () => {
+    vi.stubEnv('DEV', true)
+    mount('/drinks?family=tiki', loaded(tagsWithout('family:tiki')))
+    expect(activeFamily()).toBe('family:tiki untagged')
+    expect(pending()).toBe('false')
   })
 })
 
