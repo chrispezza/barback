@@ -151,7 +151,7 @@ function RailNav() {
       <div class="rail-foot">
         {bottles !== undefined && pourable !== undefined && (
           <p class="rail-standing">
-            {bottles} bottles · {pourable} pourable
+            {bottles} bottle{bottles === 1 ? '' : 's'} · {pourable} pourable
           </p>
         )}
         <Button variant="ghost" size="sm" onClick={logout}>
