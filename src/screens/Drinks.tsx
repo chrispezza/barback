@@ -170,13 +170,21 @@ export function Drinks() {
   const shelf = useShelf(barId);
   const shelfRead = unlessFailed(shelf);
   const shelfIdx = shelfRead ? shelfIndex(shelfRead.data) : undefined;
-  // The index draws on the list, the shelf its cards are read against, and the
-  // family's three counts. One line for whatever failed, and Retry asks for
-  // each of them again, or the list comes back alone: the cards against no
-  // shelf, or no summary, with nothing to say why (ADR-007 Consequences, "say
-  // so in the error voice"; chrispezza/barback#104 Option 1, the fallback
-  // cards only under an error line).
-  const indexReads = [cocktails, shelf, familyTotal, familyCanMake, familyNearMiss];
+  // The index draws on the list, the shelf its cards are read against, and,
+  // under a family, its three counts. One line for whatever failed, and Retry
+  // asks for each of them again, or the list comes back alone: the cards
+  // against no shelf, or no summary, with nothing to say why (ADR-007
+  // Consequences, "say so in the error voice"; chrispezza/barback#104 Option
+  // 1, the fallback cards only under an error line). Without a family the
+  // counts are not asked for, and their filters key other screens' reads
+  // (TanStack Query drops `tag_id: undefined` when it hashes the key: the
+  // rail's whole-bar can-pour read is { on_shelf: true }, per_page 1), whose
+  // state the disabled observers would report as the Index's.
+  const indexReads = [
+    cocktails,
+    shelf,
+    ...(hasFamilyTag ? [familyTotal, familyCanMake, familyNearMiss] : []),
+  ];
   const indexFailed = barsFailed || indexReads.some((read) => read.isError);
   // A search's hits are read against the same shelf.
   const searchFailed = searchUnanswered || hitsUnanswered || barsFailed || shelf.isError;
