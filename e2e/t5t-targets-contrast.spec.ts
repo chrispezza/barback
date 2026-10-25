@@ -226,22 +226,44 @@ test.describe('Tonight’s status line', () => {
   })
 })
 
+/** The WCAG 1.4.10 reflow width, the narrowest the app is laid out for. */
+const REFLOW = 320
+
+/**
+ * Where the last count sits against the first: how far its centre is across
+ * from the first's, and how far its top is under the first's.
+ */
+async function lastAgainstFirst(first: Locator, last: Locator) {
+  const a = await first.boundingBox()
+  const b = await last.boundingBox()
+  if (a === null || b === null) throw new Error('a count has no box')
+  return { across: Math.abs(b.x + b.width / 2 - (a.x + a.width / 2)), down: b.y - a.y }
+}
+
+/** The last count on the line under the first's, closer than 44px centre to centre both ways. */
+const stacks = ({ across, down }: { across: number; down: number }) =>
+  down > 0 && down < TAP_MIN && across < TAP_MIN
+
 // Count sets that wrap the line with the last count under the first: two
-// digits each at 320px, the reflow width, and a three-digit near count at
-// 334px, the widest width at which those counts still stack.
+// digits each at 320px, the reflow width, and a three-digit near count at the
+// widest width at which those counts still stack. Where the line wraps is the
+// display face's metrics, which are not the same on every platform (334px on
+// the Mac the suite was written on, 332px on tower-01's Linux Chromium), so
+// that width is found, not written down: from the reflow width up, a pixel at
+// a time, until the line no longer wraps.
 for (const { pour, near, buy, width } of [
-  { pour: 24, near: 38, buy: 3, width: 320 },
-  { pour: 48, near: 104, buy: 7, width: 334 },
-]) {
-  test.describe(`Tonight’s status line, "${pour} · ${near} · ${buy}" at ${width}px`, () => {
+  { pour: 24, near: 38, buy: 3, width: REFLOW },
+  { pour: 48, near: 104, buy: 7, width: 'widest' },
+] as const) {
+  const at = width === 'widest' ? 'the widest width they stack' : `${width}px`
+  test.describe(`Tonight’s status line, "${pour} · ${near} · ${buy}" at ${at}`, () => {
     test.use({ world: barCounting(pour, near, buy) })
 
     test('keeps each count’s digits its own where one count sits under another', async ({ page }, testInfo) => {
       const touch = testInfo.project.use.hasTouch === true
-      await page.setViewportSize({ width, height: 844 })
+      await page.setViewportSize({ width: REFLOW, height: 844 })
       await page.goto('/tonight')
       await expect(status(page)).toHaveText(`You can pour ${pour} · ${near} one bottle away · ${buy} to buy`)
-      await page.evaluate(() => window.scrollTo(0, 0))
 
       const counts = [
         ['#pour', String(pour)],
@@ -249,18 +271,40 @@ for (const { pour, near, buy, width } of [
         ['#buy', String(buy)],
       ] as const
       const linkTo = (count: string) => status(page).getByRole('link', { name: count, exact: true })
+      const first = linkTo(String(pour))
+      const last = linkTo(String(buy))
+
+      // The line wraps where its own face puts it, not a fallback's: the
+      // display face is loaded and sets the counts.
+      await page.evaluate(() => document.fonts.ready)
+      await expect(status(page)).toHaveCSS('font-family', /^"Libre Caslon Display",/)
+      expect(
+        await status(page).evaluate((el) => document.fonts.check(`24px "Libre Caslon Display"`, el.textContent ?? '')),
+      ).toBe(true)
+
+      let w: number = REFLOW
+      if (width === 'widest') {
+        let widest: number | undefined
+        for (let v = REFLOW; v <= 480; v += 1) {
+          await page.setViewportSize({ width: v, height: 844 })
+          const place = await lastAgainstFirst(first, last)
+          if (place.down <= 0) break
+          if (stacks(place)) widest = v
+        }
+        if (widest === undefined) throw new Error(`the ${buy} never sits under the ${pour} from ${REFLOW}px up`)
+        w = widest
+        await page.setViewportSize({ width: w, height: 844 })
+      }
+      testInfo.annotations.push({ type: 'width', description: `${w}px` })
+      await page.evaluate(() => window.scrollTo(0, 0))
 
       // The case this covers: the line has wrapped, and the last count's
       // 44px area would meet the first's, centre to centre closer than 44px
       // both ways.
-      const first = await linkTo(String(pour)).boundingBox()
-      const last = await linkTo(String(buy)).boundingBox()
-      if (first === null || last === null) throw new Error('a count has no box')
-      const across = Math.abs(last.x + last.width / 2 - (first.x + first.width / 2))
-      const down = last.y - first.y
-      expect(down, `the ${buy} is on the line under the ${pour}`).toBeGreaterThan(0)
-      expect(down, `the ${buy} is on the line under the ${pour}`).toBeLessThan(TAP_MIN)
-      expect(across, `the ${buy} sits under the ${pour}`).toBeLessThan(TAP_MIN)
+      const { across, down } = await lastAgainstFirst(first, last)
+      expect(down, `the ${buy} is on the line under the ${pour} at ${w}px`).toBeGreaterThan(0)
+      expect(down, `the ${buy} is on the line under the ${pour} at ${w}px`).toBeLessThan(TAP_MIN)
+      expect(across, `the ${buy} sits under the ${pour} at ${w}px`).toBeLessThan(TAP_MIN)
 
       for (const [hash, count] of counts) {
         await expect(linkTo(count)).toHaveAttribute('href', hash)
