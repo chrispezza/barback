@@ -33,7 +33,8 @@ services:
       SESSION_DRIVER: redis
       # Off by default: create your user on first boot (see README), then it
       # stays closed. Anyone on the network can otherwise mint an account.
-      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-"false"}
+      # Keep the default unquoted: quotes reach Laravel and read as open.
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
     ports:
       # Loopback only — the LAN sees nothing but the :8080 front door.
       # Dev (pnpm dev) talks to localhost:8000 from this machine, unaffected.
